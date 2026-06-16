@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -142,7 +142,9 @@ function StepShell({
 export default function TasteSetup({ onComplete }: Props) {
   const [step, setStep] = useState(0);
   const [genres, setGenres] = useState<string[]>([]);
-  const [artistInput, setArtistInput] = useState("");
+  const [artistQuery, setArtistQuery] = useState("");
+  const [artistSuggestions, setArtistSuggestions] = useState<string[]>([]);
+  const [selectedArtists, setSelectedArtists] = useState<string[]>([]);
   const [mood, setMood] = useState("");
   const [discoveryStyle, setDiscoveryStyle] =
     useState<UserTaste["discoveryStyle"]>("balanced");
@@ -157,6 +159,33 @@ export default function TasteSetup({ onComplete }: Props) {
         ? prev.filter((item) => item !== value)
         : [...prev, value]
     );
+  };
+
+  useEffect(() => {
+    const query = artistQuery.trim();
+    const timeout = setTimeout(() => {
+      if (query.length < 2) {
+        setArtistSuggestions([]);
+        return;
+      }
+      fetch(`/api/artist-search?q=${encodeURIComponent(query)}`)
+        .then((res) => (res.ok ? res.json() : { artists: [] }))
+        .then((data) => setArtistSuggestions(data.artists ?? []))
+        .catch(() => setArtistSuggestions([]));
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [artistQuery]);
+
+  const addArtist = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || selectedArtists.includes(trimmed)) return;
+    setSelectedArtists((prev) => [...prev, trimmed]);
+    setArtistQuery("");
+    setArtistSuggestions([]);
+  };
+
+  const removeArtist = (name: string) => {
+    setSelectedArtists((prev) => prev.filter((a) => a !== name));
   };
 
   const toggleDislike = (value: string) => {
@@ -175,14 +204,9 @@ export default function TasteSetup({ onComplete }: Props) {
   const handleSkip = () => save(DEFAULT_TASTE);
 
   const handleFinish = () => {
-    const artists = artistInput
-      .split(",")
-      .map((artist) => artist.trim())
-      .filter(Boolean);
-
     save({
       genres,
-      favoriteArtists: artists,
+      favoriteArtists: selectedArtists,
       defaultMood: mood,
       discoveryStyle,
       dislikes,
@@ -227,16 +251,54 @@ export default function TasteSetup({ onComplete }: Props) {
       key="artists"
       number="02"
       title="Name artists you love"
-      subtitle="Comma-separate up to 3 names"
+      subtitle="Search and pick a few"
     >
-      <input
-        type="text"
-        value={artistInput}
-        onChange={(event) => setArtistInput(event.target.value)}
-        placeholder="e.g. Frank Ocean, SZA, The Weeknd"
-        className="w-full bg-white border border-black/10 rounded-xl px-4 py-4 text-ink placeholder:text-black/40 focus:outline-none focus:border-hot-pink transition-colors text-base"
-        autoFocus
-      />
+      {selectedArtists.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedArtists.map((artist) => (
+            <button
+              key={artist}
+              onClick={() => removeArtist(artist)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold bg-hot-pink text-white active:scale-95 transition-transform"
+            >
+              {artist}
+              <span className="text-white/70">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        <input
+          type="text"
+          value={artistQuery}
+          onChange={(event) => setArtistQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addArtist(artistQuery);
+            }
+          }}
+          placeholder="e.g. Frank Ocean"
+          className="w-full bg-white border border-black/10 rounded-xl px-4 py-4 text-ink placeholder:text-black/40 focus:outline-none focus:border-hot-pink transition-colors text-base"
+          autoFocus
+        />
+        {artistSuggestions.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-black/10 rounded-xl overflow-hidden shadow-lg z-10">
+            {artistSuggestions.map((artist) => (
+              <button
+                key={artist}
+                onClick={() => addArtist(artist)}
+                className="w-full text-left px-4 py-3 text-sm text-ink hover:bg-hot-pink/10 transition-colors"
+              >
+                {artist}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="text-black/40 text-xs">
+        Can&apos;t find them? Type the name and press Enter.
+      </p>
       <div className="flex gap-3">
         <button
           onClick={() => setStep(0)}
@@ -245,7 +307,7 @@ export default function TasteSetup({ onComplete }: Props) {
           Back
         </button>
         <button
-          disabled={artistInput.trim().length === 0}
+          disabled={selectedArtists.length === 0}
           onClick={() => setStep(2)}
           className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white disabled:opacity-30 disabled:cursor-not-allowed transition-opacity active:scale-95"
         >

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import openai from "../../../lib/openai";
 import {
   applyAvoidPenalties,
+  applyLanguagePenalty,
   getDiscoveryInstructions,
   normalizeCandidateScores,
   normalizeTaste,
@@ -78,6 +79,7 @@ Return ONLY valid JSON, no markdown:
         "title": "string",
         "artist": "string",
         "genres": ["string", "string"],
+        "language": "string -- the language the vocals are actually sung in (e.g. English, Korean, Spanish, Russian, Uzbek), or Instrumental if there are no vocals",
         "reason": "string -- 1 sentence: exactly why THIS song's texture/mood fits THIS specific photo and user taste",
         "matchScore": 94,
         "photoFitScore": 92,
@@ -213,11 +215,12 @@ function normalizeScores(
   aggregate: AggregateTasteProfile
 ) {
   if (!result?.musicDNA?.tracks) return;
-  const penalized = applyAvoidPenalties(result.musicDNA.tracks, {
+  const avoided = applyAvoidPenalties(result.musicDNA.tracks, {
     avoidArtists: aggregate.avoidArtists,
     avoidGenres: aggregate.avoidGenres,
     dislikes: taste.dislikes,
   });
+  const penalized = applyLanguagePenalty(avoided, taste.languagePreference);
   result.musicDNA.tracks = normalizeCandidateScores(
     penalized,
     taste.discoveryStyle

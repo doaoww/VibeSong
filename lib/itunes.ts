@@ -59,6 +59,40 @@ export function selectBestItunesResult(
   return best?.score ? best.result : null;
 }
 
+interface ItunesArtistResult {
+  artistName?: string;
+  artistType?: string;
+}
+
+export async function searchArtists(query: string): Promise<string[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const params = new URLSearchParams({
+    term: trimmed,
+    media: "music",
+    entity: "musicArtist",
+    limit: "8",
+    country: "US",
+  });
+
+  try {
+    const res = await fetch(`${ITUNES_SEARCH}?${params.toString()}`, {
+      next: { revalidate: 60 * 60 * 24 },
+    });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as { results?: ItunesArtistResult[] };
+    const names = (data.results ?? [])
+      .map((r) => r.artistName)
+      .filter((name): name is string => Boolean(name));
+
+    return Array.from(new Set(names));
+  } catch {
+    return [];
+  }
+}
+
 export async function resolveItunesPreview(track: CandidateTrack): Promise<ItunesPreview | null> {
   const params = new URLSearchParams({
     term: `${track.artist} ${track.title}`,

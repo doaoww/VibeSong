@@ -144,6 +144,46 @@ test("applyAvoidPenalties leaves unrelated tracks untouched", () => {
   assert.equal(track.obviousnessPenalty, 3);
 });
 
+test("applyLanguagePenalty is a no-op for 'No preference' and 'Global mix'", () => {
+  const tracks = [{ title: "Song", artist: "Artist", reason: "fits", language: "Korean" }];
+
+  assert.deepEqual(
+    matching.applyLanguagePenalty(tracks, "No preference"),
+    tracks
+  );
+  assert.deepEqual(
+    matching.applyLanguagePenalty(tracks, "Global mix"),
+    tracks
+  );
+});
+
+test("applyLanguagePenalty penalizes a track whose language doesn't match the preference", () => {
+  const [track] = matching.applyLanguagePenalty(
+    [{ title: "Song", artist: "Artist", reason: "fits", language: "English" }],
+    "Korean / K-Pop"
+  );
+
+  assert.equal(track.obviousnessPenalty, 22);
+});
+
+test("applyLanguagePenalty leaves a matching language untouched", () => {
+  const [track] = matching.applyLanguagePenalty(
+    [{ title: "Song", artist: "Artist", reason: "fits", language: "Korean", obviousnessPenalty: 3 }],
+    "Korean / K-Pop"
+  );
+
+  assert.equal(track.obviousnessPenalty, 3);
+});
+
+test("applyLanguagePenalty never penalizes instrumental tracks", () => {
+  const [track] = matching.applyLanguagePenalty(
+    [{ title: "Song", artist: "Artist", reason: "fits", language: "Instrumental", obviousnessPenalty: 1 }],
+    "Russian"
+  );
+
+  assert.equal(track.obviousnessPenalty, 1);
+});
+
 test("scoreResolvedTrack rewards iTunes preview quality without changing identity", () => {
   const scored = matching.scoreResolvedTrack(
     {

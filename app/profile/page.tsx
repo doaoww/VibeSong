@@ -7,15 +7,31 @@ import { useAppStore } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import PricingModal from "../../components/PricingModal";
 
+interface LearnedTaste {
+  learnedGenres: string[];
+  avoidGenres: string[];
+  learnedArtists: string[];
+  avoidArtists: string[];
+}
+
 export default function ProfilePage() {
   const { data: session } = useSession();
   const { savedSongs, loadFeedback } = useAppStore();
   const { credits, add } = useCredits();
   const [showPricing, setShowPricing] = useState(false);
+  const [learnedTaste, setLearnedTaste] = useState<LearnedTaste | null>(null);
 
   useEffect(() => {
     loadFeedback();
   }, [loadFeedback]);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/taste/learned")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setLearnedTaste(data))
+      .catch(() => {});
+  }, [session]);
 
   return (
     <AppShell
@@ -115,51 +131,57 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            {savedSongs.length > 0 && (
-              <section className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h2 className="font-display font-bold text-white text-lg">
-                    My Matches
-                  </h2>
-                  <a
-                    href="/library"
-                    className="text-hot-pink text-xs font-semibold hover:underline"
-                  >
-                    View All
-                  </a>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 gap-2 md:gap-3">
-                  {savedSongs.slice(0, 8).map((song, i) => (
-                    <div
-                      key={i}
-                      className="relative aspect-square rounded-lg overflow-hidden bg-surface-container border border-outline-variant/20 hover:border-hot-pink/30 transition-colors"
+            <div className="space-y-6">
+              {learnedTaste && (
+                <TasteSection learnedTaste={learnedTaste} />
+              )}
+
+              {savedSongs.length > 0 && (
+                <section className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h2 className="font-display font-bold text-white text-lg">
+                      My Matches
+                    </h2>
+                    <a
+                      href="/library"
+                      className="text-hot-pink text-xs font-semibold hover:underline"
                     >
-                      {song.sourceImage ? (
-                        <img
-                          src={song.sourceImage}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : song.artwork || song.thumbnail ? (
-                        <img
-                          src={song.artwork || song.thumbnail}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : null}
-                      <div className="absolute inset-0 bg-black/30 flex items-end justify-end p-1.5">
-                        <span
-                          className="material-symbols-outlined text-white text-sm"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          music_note
-                        </span>
+                      View All
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 gap-2 md:gap-3">
+                    {savedSongs.slice(0, 8).map((song, i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-square rounded-lg overflow-hidden bg-surface-container border border-outline-variant/20 hover:border-hot-pink/30 transition-colors"
+                      >
+                        {song.sourceImage ? (
+                          <img
+                            src={song.sourceImage}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : song.artwork || song.thumbnail ? (
+                          <img
+                            src={song.artwork || song.thumbnail}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : null}
+                        <div className="absolute inset-0 bg-black/30 flex items-end justify-end p-1.5">
+                          <span
+                            className="material-symbols-outlined text-white text-sm"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            music_note
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -192,5 +214,74 @@ function StatsCard({
         ))}
       </div>
     </div>
+  );
+}
+
+function ChipRow({
+  label,
+  items,
+  tone,
+}: {
+  label: string;
+  items: string[];
+  tone: "save" | "avoid";
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-wide">
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((item) => (
+          <span
+            key={item}
+            className={`px-3 py-1 rounded-full text-xs font-semibold ${
+              tone === "save"
+                ? "bg-hot-pink/15 text-hot-pink"
+                : "bg-surface-container-highest text-on-surface-variant"
+            }`}
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TasteSection({
+  learnedTaste,
+}: {
+  learnedTaste: {
+    learnedGenres: string[];
+    avoidGenres: string[];
+    learnedArtists: string[];
+    avoidArtists: string[];
+  };
+}) {
+  const hasSignal =
+    learnedTaste.learnedGenres.length > 0 ||
+    learnedTaste.avoidGenres.length > 0 ||
+    learnedTaste.learnedArtists.length > 0 ||
+    learnedTaste.avoidArtists.length > 0;
+
+  if (!hasSignal) return null;
+
+  return (
+    <section className="space-y-4 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
+      <div>
+        <h2 className="font-display font-bold text-white text-lg">
+          Your Taste
+        </h2>
+        <p className="text-on-surface-variant text-xs mt-0.5">
+          Learned from what you save and skip
+        </p>
+      </div>
+      <ChipRow label="Genres you save" items={learnedTaste.learnedGenres} tone="save" />
+      <ChipRow label="Artists you save" items={learnedTaste.learnedArtists} tone="save" />
+      <ChipRow label="Genres we're avoiding" items={learnedTaste.avoidGenres} tone="avoid" />
+      <ChipRow label="Artists we're avoiding" items={learnedTaste.avoidArtists} tone="avoid" />
+    </section>
   );
 }

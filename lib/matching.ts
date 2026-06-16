@@ -17,6 +17,7 @@ export interface CandidateTrack {
   artist: string;
   reason: string;
   genres?: string[];
+  language?: string;
   matchScore?: number;
   viralMomentSeconds?: number;
   photoFitScore?: number;
@@ -174,6 +175,50 @@ export function applyAvoidPenalties(
 
     const bumpedPenalty = Math.max(track.obviousnessPenalty ?? 0, artistHit ? 35 : 28);
     return { ...track, obviousnessPenalty: bumpedPenalty };
+  });
+}
+
+// The quiz's language options are casual scene/region labels, not strict
+// language codes -- map each to the words GPT is likely to report in a
+// track's "language" field.
+const LANGUAGE_PREFERENCE_ALIASES: Record<string, string[]> = {
+  english: ["english"],
+  "korean / k-pop": ["korean"],
+  latin: ["spanish", "portuguese", "latin"],
+  russian: ["russian"],
+  uzbek: ["uzbek"],
+};
+
+const NO_LANGUAGE_PREFERENCE = new Set(["no preference", "global mix"]);
+
+/**
+ * Server-side guard so a stated language/region preference is actually
+ * enforced, instead of being a line of prompt text GPT may or may not
+ * follow. No-ops for "No preference" / "Global mix".
+ */
+export function applyLanguagePenalty(
+  candidates: CandidateTrack[],
+  languagePreference: string
+): CandidateTrack[] {
+  const normalizedPreference = normalizeForMatch(languagePreference);
+  if (NO_LANGUAGE_PREFERENCE.has(normalizedPreference)) return candidates;
+
+  const accepted = LANGUAGE_PREFERENCE_ALIASES[normalizedPreference];
+  if (!accepted) return candidates;
+
+  return candidates.map((track) => {
+    if (!track.language) return track;
+    const trackLanguage = normalizeForMatch(track.language);
+    if (trackLanguage === "instrumental") return track;
+    const matches = accepted.some(
+      (word) => trackLanguage.includes(word) || word.includes(trackLanguage)
+    );
+    if (matches) return track;
+
+    return {
+      ...track,
+      obviousnessPenalty: Math.max(track.obviousnessPenalty ?? 0, 22),
+    };
   });
 }
 
