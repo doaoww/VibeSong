@@ -37,8 +37,12 @@ export default function AppUploadPage() {
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
-  const [credits, setCredits] = useState(3);
-  const [showTasteSetup, setShowTasteSetup] = useState(false);
+  const [credits, setCredits] = useState(() =>
+    typeof window !== "undefined" ? getCredits() : 3
+  );
+  const [showTasteSetup, setShowTasteSetup] = useState(() =>
+    typeof window !== "undefined" ? !localStorage.getItem("userTaste") : false
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<{
     base64: string;
@@ -52,16 +56,14 @@ export default function AppUploadPage() {
     setTracks,
     setIsAnalyzing,
     savedSongs,
+    skippedSongs,
     loadSavedSongs,
     vibeProfile,
     uploadedImageUrl,
   } = useAppStore();
 
   useEffect(() => {
-    setCredits(getCredits());
     loadSavedSongs();
-    const stored = localStorage.getItem("userTaste");
-    if (!stored) setShowTasteSetup(true);
   }, [loadSavedSongs]);
 
   useEffect(() => {
@@ -88,7 +90,15 @@ export default function AppUploadPage() {
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mimeType, userTaste }),
+          body: JSON.stringify({
+            image: base64,
+            mimeType,
+            userTaste,
+            feedback: {
+              savedSongs: savedSongs.slice(-12),
+              skippedSongs: skippedSongs.slice(-12),
+            },
+          }),
         });
         if (!analyzeRes.ok) {
           const errBody = await analyzeRes.json().catch(() => ({}));
@@ -123,7 +133,10 @@ export default function AppUploadPage() {
         const searchRes = await fetch("/api/search-tracks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tracks }),
+          body: JSON.stringify({
+            tracks,
+            discoveryStyle: userTaste?.discoveryStyle ?? "balanced",
+          }),
         });
         const ytData = await searchRes.json();
         const ytTracks = Array.isArray(ytData) ? ytData : ytData.found || [];
@@ -139,7 +152,16 @@ export default function AppUploadPage() {
         setErrorMsg(msg);
       }
     },
-    [session, setUploadedImage, setVibeProfile, setTracks, setIsAnalyzing, router]
+    [
+      session,
+      savedSongs,
+      skippedSongs,
+      setUploadedImage,
+      setVibeProfile,
+      setTracks,
+      setIsAnalyzing,
+      router,
+    ]
   );
 
   const handleImageReady = useCallback(

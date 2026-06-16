@@ -1,11 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveItunesPreview } from "../../../lib/itunes";
+import { scoreResolvedTrack, type DiscoveryStyle, type ResolvedTrack } from "../../../lib/matching";
 import { searchYouTubeTrack, GPTTrack } from "../../../lib/youtube";
 
 export const runtime = "nodejs";
 
+async function resolvePlayableTrack(
+  track: GPTTrack,
+  discoveryStyle: DiscoveryStyle
+): Promise<ResolvedTrack | null> {
+  const baseScore = track.matchScore ?? Math.round(track.finalScore ?? 75);
+  const finalScore = track.finalScore ?? baseScore;
+
+  const itunes = await resolveItunesPreview(track);
+  if (itunes?.previewUrl) {
+    return scoreResolvedTrack(
+      {
+        ...track,
+        matchScore: baseScore,
+        finalScore,
+        previewUrl: itunes.previewUrl,
+        previewProvider: "itunes",
+        artwork: itunes.artwork,
+        appleMusicUrl: itunes.appleMusicUrl,
+        thumbnail: itunes.artwork,
+        viralMomentSeconds: track.viralMomentSeconds ?? 0,
+      },
+      discoveryStyle
+    );
+  }
+
+  const youtube = await searchYouTubeTrack(track);
+  if (!youtube) return null;
+
+  return scoreResolvedTrack(
+    {
+      ...youtube,
+      finalScore: youtube.finalScore ?? finalScore,
+      previewProvider: "youtube",
+    },
+    discoveryStyle
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { tracks } = await req.json();
+    const { tracks, discoveryStyle = "balanced" } = await req.json();
     if (!Array.isArray(tracks)) {
       return NextResponse.json(
         { error: "tracks array required" },
@@ -14,13 +54,15 @@ export async function POST(req: NextRequest) {
     }
 
     const results = await Promise.allSettled(
-      tracks.map((t: GPTTrack) => searchYouTubeTrack(t))
+      tracks.map((t: GPTTrack) =>
+        resolvePlayableTrack(t, discoveryStyle as DiscoveryStyle)
+      )
     );
 
     const found = results
       .map((r) => (r.status === "fulfilled" ? r.value : null))
       .filter((t): t is NonNullable<typeof t> => t !== null)
-      .sort((a, b) => b.matchScore - a.matchScore)
+      .sort((a, b) => (b.finalScore ?? b.matchScore) - (a.finalScore ?? a.matchScore))
       .slice(0, 8);
 
     if (found.length < 5) {

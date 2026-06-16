@@ -6,6 +6,11 @@ export interface GPTTrack {
   reason: string;
   matchScore: number;
   viralMomentSeconds?: number;
+  photoFitScore?: number;
+  tasteFitScore?: number;
+  discoveryFitScore?: number;
+  obviousnessPenalty?: number;
+  finalScore?: number;
 }
 
 export interface VibeProfile {
@@ -25,6 +30,18 @@ export interface VibeProfile {
     mood: string;
     tracks: GPTTrack[];
   };
+  people?: {
+    count: number;
+    visibleEmotions: string[];
+    socialVibe: string;
+    activity: string;
+  };
+  vibeMetrics?: {
+    intimacy: number;
+    confidence: number;
+    nostalgia: number;
+    movement: number;
+  };
   vibeCaption: string;
   vibeTags: string[];
 }
@@ -34,11 +51,21 @@ export interface Track {
   artist: string;
   reason: string;
   matchScore: number;
-  youtubeId: string;
+  finalScore?: number;
+  photoFitScore?: number;
+  tasteFitScore?: number;
+  discoveryFitScore?: number;
+  obviousnessPenalty?: number;
+  youtubeId?: string;
   thumbnail: string;
-  youtubeUrl: string;
+  youtubeUrl?: string;
+  previewUrl?: string;
+  previewProvider?: "itunes" | "youtube";
+  artwork?: string;
+  appleMusicUrl?: string;
   viralMomentSeconds?: number;
   savedAt?: number;
+  skippedAt?: number;
   sourceImage?: string;
 }
 
@@ -48,6 +75,7 @@ interface AppState {
   vibeProfile: VibeProfile | null;
   tracks: Track[];
   savedSongs: Track[];
+  skippedSongs: Track[];
   credits: number;
   isAnalyzing: boolean;
   currentCardIndex: number;
@@ -56,6 +84,7 @@ interface AppState {
   setVibeProfile: (profile: VibeProfile) => void;
   setTracks: (tracks: Track[]) => void;
   saveTrack: (track: Track) => void;
+  skipTrack: (track: Track) => void;
   setCredits: (credits: number) => void;
   setIsAnalyzing: (v: boolean) => void;
   nextCard: () => void;
@@ -69,6 +98,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   vibeProfile: null,
   tracks: [],
   savedSongs: [],
+  skippedSongs: [],
   credits: 3,
   isAnalyzing: false,
   currentCardIndex: 0,
@@ -93,6 +123,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ savedSongs: updated });
   },
 
+  skipTrack: (track) => {
+    const withMeta: Track = {
+      ...track,
+      skippedAt: Date.now(),
+      sourceImage: get().uploadedImageUrl || undefined,
+    };
+    const updated = [...get().skippedSongs, withMeta].slice(-50);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("vibesong_skipped", JSON.stringify(updated));
+    }
+    set({ skippedSongs: updated });
+  },
+
   setCredits: (credits) => set({ credits }),
 
   setIsAnalyzing: (v) => set({ isAnalyzing: v }),
@@ -114,6 +157,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (stored) {
       try {
         set({ savedSongs: JSON.parse(stored) });
+      } catch {
+        // ignore malformed data
+      }
+    }
+    const skipped = localStorage.getItem("vibesong_skipped");
+    if (skipped) {
+      try {
+        set({ skippedSongs: JSON.parse(skipped) });
       } catch {
         // ignore malformed data
       }

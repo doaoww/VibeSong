@@ -10,11 +10,12 @@ import PricingModal from "../../components/PricingModal";
 export default function ProfilePage() {
   const { data: session } = useSession();
   const { savedSongs, loadSavedSongs } = useAppStore();
-  const [credits, setCredits] = useState(3);
+  const [credits, setCredits] = useState(() =>
+    typeof window !== "undefined" ? getCredits() : 3
+  );
   const [showPricing, setShowPricing] = useState(false);
 
   useEffect(() => {
-    setCredits(getCredits());
     loadSavedSongs();
   }, [loadSavedSongs]);
 
@@ -151,9 +152,9 @@ export default function ProfilePage() {
                           alt=""
                           className="w-full h-full object-cover"
                         />
-                      ) : song.thumbnail ? (
+                      ) : song.artwork || song.thumbnail ? (
                         <img
-                          src={song.thumbnail}
+                          src={song.artwork || song.thumbnail}
                           alt=""
                           className="w-full h-full object-cover"
                         />

@@ -1,33 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import openai from "../../../lib/openai";
+import {
+  getDiscoveryInstructions,
+  normalizeCandidateScores,
+  normalizeTaste,
+  type CandidateTrack,
+  type UserTaste,
+} from "../../../lib/matching";
 
 export const runtime = "nodejs";
 
-interface UserTaste {
-  genres: string[];
-  favoriteArtists: string[];
-  defaultMood: string;
-  setupComplete: boolean;
+interface UserFeedback {
+  savedSongs?: Array<{ title: string; artist: string; reason?: string }>;
+  skippedSongs?: Array<{ title: string; artist: string; reason?: string }>;
 }
 
-const BASE_SYSTEM_PROMPT = `You are a music curator with deep knowledge of every genre, subculture, and scene — not a mainstream playlist algorithm. Your job is to find songs that genuinely fit the MOOD and ENERGY of this photo, with real emotional and aesthetic precision.
+const BASE_SYSTEM_PROMPT = `You are a music curator with deep knowledge of every genre, subculture, and scene -- not a mainstream playlist algorithm. Your job is to find songs that genuinely fit BOTH the photo and the listener's taste.
+
+PHOTO ANALYSIS RULES:
+- Look closely for people, their visible emotions, posture, facial expression, relationship/social vibe, activity, setting, time of day, weather, fashion, camera feel, lighting, colors, and aesthetic.
+- Convert the image into music supervision language: energy, valence, intimacy, confidence, nostalgia, movement, texture, and scene.
+- If people are present, the emotional/social reading matters as much as the background.
+- If no people are present, infer mood from scene, color, light, composition, and object context.
 
 SONG SELECTION RULES:
 - Songs must be REAL tracks that exist on YouTube/Spotify (verifiable artist + title)
-- Prefer 2018–2025 but allow timeless tracks if they perfectly match the vibe
-- DO NOT default to chart-topping mainstream hits — anyone can do that
+- Prefer 2018-2026 but allow timeless tracks if they perfectly match the vibe
+- DO NOT default to chart-topping mainstream hits -- anyone can do that
 - DO pick cult favorites, critically acclaimed albums, scene anthems, deep cuts, and genre-defining tracks that most people haven't heard but fans would immediately recognize
 - Avoid: Levitating, Blinding Lights, Watermelon Sugar, Shape of You, or any song that has been in every ad/reel for 3 years
 - Each recommendation must feel like a friend with great taste specifically chose it for THIS photo
 - viralMomentSeconds = the timestamp (seconds) of the most emotionally resonant moment of the track
+- Famous artists are allowed. Lazy obvious songs are not. A deep cut from a known artist can be excellent.
 
-MATCH SCORE RULES — calculate matchScore per track:
-- Start at 60 base score
-- +0–20 if song energy/tempo matches photo energy precisely
-- +0–10 if the artist's emotional register matches the photo mood
-- +0–10 if the genre fits the exact visual aesthetic
-- Every track MUST have a DIFFERENT score, ordered highest to lowest
-- Realistic spread: 94, 89, 85, 81, 77, 73, 69, 65
+SCORING RULES:
+- photoFitScore: 0-100, how well the song matches the exact image.
+- tasteFitScore: 0-100, how likely this user is to personally like it.
+- discoveryFitScore: 0-100, how well it matches the user's desired discovery style.
+- obviousnessPenalty: 0-40, how lazy/overused/obvious the song choice is.
+- finalScore: 61-97, balanced total after scores and penalty.
+- Every finalScore should be realistic, not all 90+.
 
 Return ONLY valid JSON, no markdown:
 {
@@ -35,7 +47,15 @@ Return ONLY valid JSON, no markdown:
     "setting": "string",
     "timeOfDay": "morning|afternoon|evening|night|unknown",
     "season": "spring|summer|autumn|winter|unknown",
-    "weather": "string"
+    "weather": "string",
+    "activity": "string",
+    "cameraMood": "string"
+  },
+  "people": {
+    "count": 0,
+    "visibleEmotions": ["string"],
+    "socialVibe": "string",
+    "activity": "string"
   },
   "emotion": {
     "primary": "string",
@@ -57,21 +77,33 @@ Return ONLY valid JSON, no markdown:
       {
         "title": "string",
         "artist": "string",
-        "reason": "string — 1 sentence: exactly why THIS song's texture/mood fits THIS specific photo",
+        "reason": "string -- 1 sentence: exactly why THIS song's texture/mood fits THIS specific photo and user taste",
         "matchScore": 94,
+        "photoFitScore": 92,
+        "tasteFitScore": 88,
+        "discoveryFitScore": 85,
+        "obviousnessPenalty": 4,
+        "finalScore": 89,
         "viralMomentSeconds": 62
       }
     ]
+  },
+  "vibeMetrics": {
+    "intimacy": 0.0,
+    "confidence": 0.0,
+    "nostalgia": 0.0,
+    "movement": 0.0
   },
   "vibeCaption": "string",
   "vibeTags": ["string", "string", "string"]
 }
 NUMBER RULES:
-- matchScore: INTEGER 61–97. Every track different. Ordered high→low. Example: 94, 89, 85, 81, 77, 73, 69, 65. NEVER decimal, NEVER repeated.
+- matchScore/finalScore/photoFitScore/tasteFitScore/discoveryFitScore: INTEGER 0-100. NEVER decimal.
+- obviousnessPenalty: INTEGER 0-40. Use it for overused songs, meme songs, lazy chart defaults, or tracks that are too obvious for the photo.
 - viralMomentSeconds: INTEGER seconds (e.g. 62, 45, 30).
 - energy, valence, brightness, intensity: floats 0.0–1.0.
 
-Generate exactly 8 tracks. vibeTags: exactly 3. Genres: specific (e.g. "lo-fi soul" not "R&B"). NO overplayed hits.`;
+Generate exactly 24 candidate tracks. Use a mix of familiar hidden gems, taste-adjacent tracks, niche discoveries, and photo-perfect wildcards. vibeTags: exactly 3. Genres: specific (e.g. "lo-fi soul" not "R&B"). NO lazy overplayed hits.`;
 
 function buildTasteBlock(taste: UserTaste): string {
   const similar: Record<string, string[]> = {
@@ -102,23 +134,55 @@ USER TASTE PROFILE (this is the most important personalization signal):
 - Favorite artists: ${taste.favoriteArtists.join(", ") || "not specified"}
 - Artists to explore as well: ${artistLines.map(l => l.trim()).join(" | ") || "none"}
 - Their mood preference: ${taste.defaultMood || "not specified"}
+- Discovery style: ${taste.discoveryStyle}
+- Discovery instructions: ${getDiscoveryInstructions(taste.discoveryStyle)}
+- Avoid these when possible: ${taste.dislikes.join(", ") || "not specified"}
+- Language/region preference: ${taste.languagePreference}
+- Energy preference: ${taste.energyPreference}
 
-TASTE OVERRIDE RULES — these override the generic photo-matching approach:
-1. MINIMUM 5 of the 8 tracks must be from the user's genres or sonically adjacent to their favorite artists
-2. AT LEAST 2 tracks must be by their exact favorite artists or a direct sonic twin (listed above)
-3. Go DEEP into their genres — find album cuts, B-sides, cult classics, critical darlings from that scene
-4. If they like Frank Ocean → recommend his deep cuts + Daniel Caesar, Steve Lacy, Syd, Cautious Clay
-5. If they like The Weeknd → go dark: Partynextdoor, Sonder, 6LACK, dvsn, NAV deep cuts
-6. BANNED unless the user listed them: generic pop hits, overplayed radio songs, anything everyone knows
-7. Still make sure nothing CLASHES with the photo vibe — a chill evening photo should not get aggressive trap
-8. The goal: recommendations that make the user say "how did it know I'd like this?" not "everyone knows this song"`;
+TASTE OVERRIDE RULES:
+1. At least half of candidates must fit the user's genres, favorite artists, or adjacent scenes.
+2. At least 4 candidates should be by exact favorite artists or close sonic twins if that does not clash with the photo.
+3. Go deep into their genres: album cuts, B-sides, cult classics, critical darlings, and scene favorites.
+4. If dislikes conflict with a candidate, increase obviousnessPenalty or remove it.
+5. Still make sure nothing clashes with the photo. A chill evening photo should not get aggressive trap unless user taste and visual energy strongly support it.
+6. The goal: recommendations that make the user say "how did it know I'd like this?"`;
 }
 
-function buildPrompt(taste: UserTaste | null): string {
-  if (!taste || !taste.setupComplete || (taste.genres.length === 0 && taste.favoriteArtists.length === 0)) {
-    return BASE_SYSTEM_PROMPT;
-  }
-  return BASE_SYSTEM_PROMPT + buildTasteBlock(taste);
+function buildFeedbackBlock(feedback: UserFeedback | null): string {
+  if (!feedback) return "";
+  const saved = (feedback.savedSongs ?? [])
+    .slice(-10)
+    .map((t) => `${t.title} by ${t.artist}`)
+    .join(", ");
+  const skipped = (feedback.skippedSongs ?? [])
+    .slice(-10)
+    .map((t) => `${t.title} by ${t.artist}`)
+    .join(", ");
+
+  if (!saved && !skipped) return "";
+
+  return `
+
+APP FEEDBACK SIGNALS:
+- Recently saved: ${saved || "none"}
+- Recently skipped: ${skipped || "none"}
+
+Use saved songs as positive taste clues. Use skipped songs as weak negative clues, especially if the same artist/style repeats.`;
+}
+
+function buildPrompt(taste: UserTaste, feedback: UserFeedback | null): string {
+  const hasTaste =
+    taste.setupComplete &&
+    (taste.genres.length > 0 ||
+      taste.favoriteArtists.length > 0 ||
+      taste.defaultMood ||
+      taste.discoveryStyle !== "balanced" ||
+      taste.dislikes.length > 0 ||
+      taste.languagePreference !== "No preference" ||
+      taste.energyPreference !== "depends");
+
+  return BASE_SYSTEM_PROMPT + (hasTaste ? buildTasteBlock(taste) : "") + buildFeedbackBlock(feedback);
 }
 
 const REFUSAL_PATTERNS = [
@@ -159,28 +223,24 @@ function parseGPTJson(raw: string) {
 }
 
 function normalizeScores(result: {
-  musicDNA?: { tracks?: Array<{ matchScore: number; [key: string]: unknown }> };
-}) {
+  musicDNA?: { tracks?: CandidateTrack[] };
+}, taste: UserTaste) {
   if (!result?.musicDNA?.tracks) return;
-  result.musicDNA.tracks = result.musicDNA.tracks.map((t) => ({
-    ...t,
-    matchScore:
-      typeof t.matchScore === "number" && t.matchScore < 1
-        ? Math.round(t.matchScore * 100)
-        : Math.round(t.matchScore),
-  }));
+  result.musicDNA.tracks = normalizeCandidateScores(
+    result.musicDNA.tracks,
+    taste.discoveryStyle
+  ).slice(0, 12);
   console.log(
     "[analyze] matchScores:",
     result.musicDNA.tracks.map(
-      (t: { [key: string]: unknown; matchScore: number }) =>
-        `${String(t.title)}: ${t.matchScore}`
+      (t) => `${String(t.title)}: ${t.matchScore}`
     )
   );
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { image, mimeType, userTaste } = await req.json();
+    const { image, mimeType, userTaste, feedback } = await req.json();
     if (!image || !mimeType) {
       return NextResponse.json(
         { error: "image and mimeType required" },
@@ -188,7 +248,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt = buildPrompt(userTaste ?? null);
+    const taste = normalizeTaste(userTaste ?? null);
+    const prompt = buildPrompt(taste, feedback ?? null);
 
     const callOptions = (temperature?: number) => ({
       model: "gpt-4o" as const,
@@ -205,7 +266,7 @@ export async function POST(req: NextRequest) {
           ],
         },
       ],
-      max_tokens: 2500,
+      max_tokens: 5000,
     });
 
     // Attempt 1 — default temperature
@@ -270,7 +331,7 @@ export async function POST(req: NextRequest) {
       result = parseGPTJson(fixRaw);
     }
 
-    normalizeScores(result);
+    normalizeScores(result, taste);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

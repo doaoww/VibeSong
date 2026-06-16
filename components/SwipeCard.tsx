@@ -52,6 +52,7 @@ export default function SwipeCard({
   const cardOpacity = useTransform(x, [-250, -100, 0, 100, 250], [0, 1, 1, 1, 0]);
   const skipOpacity = useTransform(x, [-100, -20], [1, 0]);
   const saveOpacity = useTransform(x, [20, 100], [0, 1]);
+  const coverImage = track.artwork || track.thumbnail;
 
   useEffect(() => {
     if (!isTop) return;
@@ -70,7 +71,8 @@ export default function SwipeCard({
     const swipe =
       Math.abs(info.offset.x) > 100 || Math.abs(info.velocity.x) > 500;
     if (swipe) {
-      info.offset.x > 0 ? onSave() : onSkip();
+      if (info.offset.x > 0) onSave();
+      else onSkip();
     }
   };
 
@@ -113,9 +115,9 @@ export default function SwipeCard({
               className="w-full h-full object-contain"
               draggable={false}
             />
-          ) : track.thumbnail ? (
+          ) : coverImage ? (
             <img
-              src={track.thumbnail}
+              src={coverImage}
               alt=""
               className="w-full h-full object-contain opacity-60"
               draggable={false}
@@ -141,9 +143,9 @@ export default function SwipeCard({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2.5">
-            {track.thumbnail ? (
+            {coverImage ? (
               <img
-                src={track.thumbnail}
+                src={coverImage}
                 alt={track.title}
                 className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-white/10"
               />
@@ -168,6 +170,8 @@ export default function SwipeCard({
               youtubeId={track.youtubeId}
               title={track.title}
               startSeconds={track.viralMomentSeconds ?? 0}
+              previewUrl={track.previewUrl}
+              previewProvider={track.previewProvider}
               visible={isTop}
               compact
             />
@@ -179,9 +183,9 @@ export default function SwipeCard({
       <div className="hidden lg:flex relative w-full h-full rounded-xl border border-outline-variant/25 bg-surface-container flex-col items-center p-5 overflow-hidden">
         <div className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto">
           <div className="w-full max-w-[220px] aspect-square rounded-xl overflow-hidden shadow-[0_20px_60px_-20px_rgba(255,45,122,0.35)] border border-white/10 flex-shrink-0">
-            {track.thumbnail ? (
+            {coverImage ? (
               <img
-                src={track.thumbnail}
+                src={coverImage}
                 alt={track.title}
                 className="w-full h-full object-cover"
               />
@@ -219,6 +223,8 @@ export default function SwipeCard({
               youtubeId={track.youtubeId}
               title={track.title}
               startSeconds={track.viralMomentSeconds ?? 0}
+              previewUrl={track.previewUrl}
+              previewProvider={track.previewProvider}
               visible={isTop}
             />
           </div>

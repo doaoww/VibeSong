@@ -81,8 +81,8 @@ export default function LibraryPage() {
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {displayed.map((song, i) => (
               <motion.a
-                key={`${song.youtubeId}-${i}`}
-                href={song.youtubeUrl}
+                key={`${song.previewUrl || song.youtubeId || song.title}-${i}`}
+                href={song.appleMusicUrl || song.youtubeUrl || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 initial={{ opacity: 0, y: 10 }}
@@ -90,9 +90,9 @@ export default function LibraryPage() {
                 transition={{ delay: i * 0.03 }}
                 className="flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant/20 hover:border-hot-pink/40 transition-all"
               >
-                {song.thumbnail ? (
+                {song.artwork || song.thumbnail ? (
                   <img
-                    src={song.thumbnail}
+                    src={song.artwork || song.thumbnail}
                     alt={song.title}
                     className="w-12 h-12 md:w-14 md:h-14 rounded-lg object-cover flex-shrink-0"
                   />

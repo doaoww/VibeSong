@@ -120,6 +120,7 @@ export default function ResultsPage() {
     vibeProfile,
     uploadedImageUrl,
     saveTrack,
+    skipTrack,
     nextCard,
   } = useAppStore();
 
@@ -149,7 +150,8 @@ export default function ResultsPage() {
     if (getTopIndex(newGone) === -1) setDone(true);
   };
 
-  const handleSkip = (idx: number) => {
+  const handleSkip = (idx: number, track: Track) => {
+    skipTrack(track);
     const newGone = new Set(gone).add(idx);
     setGone(newGone);
     nextCard();
@@ -248,12 +250,12 @@ export default function ResultsPage() {
                 const stackIndex = idx - (topIdx === -1 ? 0 : topIdx);
                 return (
                   <SwipeCard
-                    key={`${track.youtubeId}-${idx}`}
+                    key={`${track.previewUrl || track.youtubeId || track.title}-${idx}`}
                     track={track}
                     isTop={isTop}
                     stackIndex={Math.max(0, stackIndex)}
                     onSave={() => handleSave(idx, track)}
-                    onSkip={() => handleSkip(idx)}
+                    onSkip={() => handleSkip(idx, track)}
                     vibeImageUrl={uploadedImageUrl ?? undefined}
                     vibeCaption={vibeProfile?.vibeCaption}
                     vibeTags={vibeProfile?.vibeTags}
@@ -265,7 +267,7 @@ export default function ResultsPage() {
 
           <MatchControls
             topIdx={topIdx}
-            onSkip={() => topIdx >= 0 && handleSkip(topIdx)}
+            onSkip={() => topIdx >= 0 && handleSkip(topIdx, displayTracks[topIdx])}
             onSave={() => topIdx >= 0 && handleSave(topIdx, displayTracks[topIdx])}
           />
 
