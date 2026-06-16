@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
@@ -19,7 +18,6 @@ function filterSongs(songs: Track[], filter: Filter): Track[] {
 }
 
 export default function LibraryPage() {
-  const { data: session } = useSession();
   const { savedSongs, loadFeedback } = useAppStore();
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
 
@@ -125,28 +123,6 @@ export default function LibraryPage() {
         )}
       </div>
 
-      {savedSongs.length > 0 && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 lg:static lg:mt-8 lg:px-0">
-          <button
-            disabled={!session?.user?.spotifyConnected}
-            className={`w-full lg:max-w-md py-4 rounded-full font-display font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-              session?.user?.spotifyConnected
-                ? "bg-spotify-green text-black hover:opacity-90 active:scale-95"
-                : "bg-spotify-green/30 text-spotify-green/60 cursor-not-allowed"
-            }`}
-          >
-            <span
-              className="material-symbols-outlined text-[18px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              music_note
-            </span>
-            {session?.user?.spotifyConnected
-              ? "Export playlist to Spotify"
-              : "Connect Spotify to export"}
-          </button>
-        </div>
-      )}
     </AppShell>
   );
 }

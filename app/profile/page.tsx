@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import { useAppStore } from "../../store/useAppStore";
@@ -90,25 +90,6 @@ export default function ProfilePage() {
                   {session.user?.name?.replace(/\s+/g, "").toLowerCase() ||
                     "user"}
                 </p>
-                {session.user?.spotifyConnected ? (
-                  <div className="flex items-center justify-center lg:justify-start gap-1 text-lime text-xs font-semibold mt-1">
-                    <span className="w-2 h-2 rounded-full bg-lime" />
-                    Connected to Spotify
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => signIn("spotify")}
-                    className="flex items-center justify-center lg:justify-start gap-1 text-spotify-green text-xs font-semibold mt-1 hover:underline"
-                  >
-                    <span
-                      className="material-symbols-outlined text-[14px]"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      music_note
-                    </span>
-                    Connect Spotify
-                  </button>
-                )}
               </div>
 
               <StatsCard

@@ -2,7 +2,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { signIn } from "next-auth/react";
 import DropZone from "../../components/DropZone";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
@@ -301,26 +300,6 @@ export default function AppUploadPage() {
               Drop any photo. Our AI reads the vibe and finds songs that just
               fit.
             </motion.p>
-
-            {!session?.user?.spotifyConnected ? (
-              <button
-                onClick={() => signIn("spotify")}
-                className="w-full lg:w-auto flex items-center justify-center gap-2 border border-spotify-green/40 text-spotify-green py-3 px-6 rounded-full text-sm font-semibold hover:bg-spotify-green/10 transition-all"
-              >
-                <span
-                  className="material-symbols-outlined text-[18px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  music_note
-                </span>
-                Enhance with your Spotify taste
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 text-xs text-lime font-semibold">
-                <span className="w-2 h-2 rounded-full bg-lime inline-block" />
-                Spotify connected — matches tuned to your taste
-              </div>
-            )}
 
             <section className="space-y-3 hidden lg:block">
               <h2 className="font-display font-bold text-base text-white">
