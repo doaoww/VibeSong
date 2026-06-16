@@ -20,12 +20,12 @@ function filterSongs(songs: Track[], filter: Filter): Track[] {
 
 export default function LibraryPage() {
   const { data: session } = useSession();
-  const { savedSongs, loadSavedSongs } = useAppStore();
+  const { savedSongs, loadFeedback } = useAppStore();
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
 
   useEffect(() => {
-    loadSavedSongs();
-  }, [loadSavedSongs]);
+    loadFeedback();
+  }, [loadFeedback]);
 
   const displayed = filterSongs(savedSongs, activeFilter);
 

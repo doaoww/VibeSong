@@ -89,7 +89,7 @@ interface AppState {
   setIsAnalyzing: (v: boolean) => void;
   nextCard: () => void;
   resetSession: () => void;
-  loadSavedSongs: () => void;
+  loadFeedback: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -116,11 +116,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       savedAt: Date.now(),
       sourceImage: get().uploadedImageUrl || undefined,
     };
-    const updated = [...get().savedSongs, withMeta];
-    if (typeof window !== "undefined") {
-      localStorage.setItem("vibesong_library", JSON.stringify(updated));
-    }
-    set({ savedSongs: updated });
+    set((s) => ({ savedSongs: [...s.savedSongs, withMeta] }));
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "saved",
+        track: {
+          title: track.title,
+          artist: track.artist,
+          reason: track.reason,
+          matchScore: track.matchScore,
+          artwork: track.artwork,
+          thumbnail: track.thumbnail,
+          appleMusicUrl: track.appleMusicUrl,
+          youtubeUrl: track.youtubeUrl,
+          youtubeId: track.youtubeId,
+          previewUrl: track.previewUrl,
+          previewProvider: track.previewProvider,
+        },
+        genres: get().vibeProfile?.musicDNA.genres ?? [],
+        sourceImage: get().uploadedImageUrl || undefined,
+      }),
+    }).catch(() => {});
   },
 
   skipTrack: (track) => {
@@ -129,11 +147,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       skippedAt: Date.now(),
       sourceImage: get().uploadedImageUrl || undefined,
     };
-    const updated = [...get().skippedSongs, withMeta].slice(-50);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("vibesong_skipped", JSON.stringify(updated));
-    }
-    set({ skippedSongs: updated });
+    set((s) => ({ skippedSongs: [...s.skippedSongs, withMeta].slice(-50) }));
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "skipped",
+        track: {
+          title: track.title,
+          artist: track.artist,
+          reason: track.reason,
+          matchScore: track.matchScore,
+          artwork: track.artwork,
+          thumbnail: track.thumbnail,
+          appleMusicUrl: track.appleMusicUrl,
+          youtubeUrl: track.youtubeUrl,
+          youtubeId: track.youtubeId,
+          previewUrl: track.previewUrl,
+          previewProvider: track.previewProvider,
+        },
+        genres: get().vibeProfile?.musicDNA.genres ?? [],
+        sourceImage: get().uploadedImageUrl || undefined,
+      }),
+    }).catch(() => {});
   },
 
   setCredits: (credits) => set({ credits }),
@@ -151,23 +187,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentCardIndex: 0,
     }),
 
-  loadSavedSongs: () => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("vibesong_library");
-    if (stored) {
-      try {
-        set({ savedSongs: JSON.parse(stored) });
-      } catch {
-        // ignore malformed data
-      }
-    }
-    const skipped = localStorage.getItem("vibesong_skipped");
-    if (skipped) {
-      try {
-        set({ skippedSongs: JSON.parse(skipped) });
-      } catch {
-        // ignore malformed data
-      }
+  loadFeedback: async () => {
+    try {
+      const res = await fetch("/api/feedback");
+      if (!res.ok) return;
+      const data = await res.json();
+      set({ savedSongs: data.saved ?? [], skippedSongs: data.skipped ?? [] });
+    } catch {
+      // keep whatever is already in memory on network failure
     }
   },
 }));

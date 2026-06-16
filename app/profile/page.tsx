@@ -9,15 +9,15 @@ import PricingModal from "../../components/PricingModal";
 
 export default function ProfilePage() {
   const { data: session } = useSession();
-  const { savedSongs, loadSavedSongs } = useAppStore();
+  const { savedSongs, loadFeedback } = useAppStore();
   const [credits, setCredits] = useState(() =>
     typeof window !== "undefined" ? getCredits() : 3
   );
   const [showPricing, setShowPricing] = useState(false);
 
   useEffect(() => {
-    loadSavedSongs();
-  }, [loadSavedSongs]);
+    loadFeedback();
+  }, [loadFeedback]);
 
   return (
     <AppShell
