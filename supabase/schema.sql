@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS next_auth.users
     email text,
     "emailVerified" timestamp with time zone,
     image text,
+    -- Added for the email+password Credentials provider. Not part of the
+    -- official Auth.js Supabase adapter schema; null for OAuth-only users.
+    password_hash text,
     CONSTRAINT users_pkey PRIMARY KEY (id),
     CONSTRAINT email_unique UNIQUE (email)
 );
