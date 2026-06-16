@@ -7,13 +7,12 @@ import {
   type CandidateTrack,
   type UserTaste,
 } from "../../../lib/matching";
+import { auth } from "../../../auth";
+import { getUserTaste } from "../../../lib/db/userTaste";
+import { getFeedback } from "../../../lib/db/trackFeedback";
+import { buildAggregateTasteProfile, type AggregateTasteProfile } from "../../../lib/tasteProfile";
 
 export const runtime = "nodejs";
-
-interface UserFeedback {
-  savedSongs?: Array<{ title: string; artist: string; reason?: string }>;
-  skippedSongs?: Array<{ title: string; artist: string; reason?: string }>;
-}
 
 const BASE_SYSTEM_PROMPT = `You are a music curator with deep knowledge of every genre, subculture, and scene -- not a mainstream playlist algorithm. Your job is to find songs that genuinely fit BOTH the photo and the listener's taste.
 
@@ -149,29 +148,26 @@ TASTE OVERRIDE RULES:
 6. The goal: recommendations that make the user say "how did it know I'd like this?"`;
 }
 
-function buildFeedbackBlock(feedback: UserFeedback | null): string {
-  if (!feedback) return "";
-  const saved = (feedback.savedSongs ?? [])
-    .slice(-10)
-    .map((t) => `${t.title} by ${t.artist}`)
-    .join(", ");
-  const skipped = (feedback.skippedSongs ?? [])
-    .slice(-10)
-    .map((t) => `${t.title} by ${t.artist}`)
-    .join(", ");
-
-  if (!saved && !skipped) return "";
+function buildAggregateTasteBlock(profile: AggregateTasteProfile): string {
+  const hasSignal =
+    profile.learnedGenres.length > 0 ||
+    profile.avoidGenres.length > 0 ||
+    profile.learnedArtists.length > 0 ||
+    profile.avoidArtists.length > 0;
+  if (!hasSignal) return "";
 
   return `
 
-APP FEEDBACK SIGNALS:
-- Recently saved: ${saved || "none"}
-- Recently skipped: ${skipped || "none"}
+LEARNED TASTE SIGNALS (from this user's save/skip history across all past matches):
+- Genres they keep saving: ${profile.learnedGenres.join(", ") || "none yet"}
+- Genres they keep skipping, avoid these: ${profile.avoidGenres.join(", ") || "none"}
+- Artists they keep saving: ${profile.learnedArtists.join(", ") || "none yet"}
+- Artists they keep skipping, avoid these: ${profile.avoidArtists.join(", ") || "none"}
 
-Use saved songs as positive taste clues. Use skipped songs as weak negative clues, especially if the same artist/style repeats.`;
+Treat this as a strong signal, refined over many past matches -- stronger than a single quiz answer.`;
 }
 
-function buildPrompt(taste: UserTaste, feedback: UserFeedback | null): string {
+function buildPrompt(taste: UserTaste, aggregate: AggregateTasteProfile): string {
   const hasTaste =
     taste.setupComplete &&
     (taste.genres.length > 0 ||
@@ -182,7 +178,11 @@ function buildPrompt(taste: UserTaste, feedback: UserFeedback | null): string {
       taste.languagePreference !== "No preference" ||
       taste.energyPreference !== "depends");
 
-  return BASE_SYSTEM_PROMPT + (hasTaste ? buildTasteBlock(taste) : "") + buildFeedbackBlock(feedback);
+  return (
+    BASE_SYSTEM_PROMPT +
+    (hasTaste ? buildTasteBlock(taste) : "") +
+    buildAggregateTasteBlock(aggregate)
+  );
 }
 
 const REFUSAL_PATTERNS = [
@@ -239,8 +239,13 @@ function normalizeScores(result: {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  }
+
   try {
-    const { image, mimeType, userTaste, feedback } = await req.json();
+    const { image, mimeType } = await req.json();
     if (!image || !mimeType) {
       return NextResponse.json(
         { error: "image and mimeType required" },
@@ -248,8 +253,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const taste = normalizeTaste(userTaste ?? null);
-    const prompt = buildPrompt(taste, feedback ?? null);
+    const storedTaste = await getUserTaste(session.user.id);
+    const taste = normalizeTaste(storedTaste ?? null);
+
+    const [savedFeedback, skippedFeedback] = await Promise.all([
+      getFeedback(session.user.id, "saved", 300),
+      getFeedback(session.user.id, "skipped", 300),
+    ]);
+    const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
+
+    const prompt = buildPrompt(taste, aggregate);
 
     const callOptions = (temperature?: number) => ({
       model: "gpt-4o" as const,
