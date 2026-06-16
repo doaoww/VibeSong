@@ -88,9 +88,15 @@ create table public.track_feedback (
   title text not null,
   artist text not null,
   reason text,
+  match_score int,
   genres text[] not null default '{}',
   artwork text,
   thumbnail text,
+  apple_music_url text,
+  youtube_url text,
+  youtube_id text,
+  preview_url text,
+  preview_provider text check (preview_provider is null or preview_provider in ('itunes', 'youtube')),
   source_image text,
   created_at timestamptz not null default now()
 );
