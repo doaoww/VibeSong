@@ -4,15 +4,13 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import { useAppStore } from "../../store/useAppStore";
-import { getCredits } from "../../lib/credits";
+import { useCredits } from "../../lib/useCredits";
 import PricingModal from "../../components/PricingModal";
 
 export default function ProfilePage() {
   const { data: session } = useSession();
   const { savedSongs, loadFeedback } = useAppStore();
-  const [credits, setCredits] = useState(() =>
-    typeof window !== "undefined" ? getCredits() : 3
-  );
+  const { credits, add } = useCredits();
   const [showPricing, setShowPricing] = useState(false);
 
   useEffect(() => {
@@ -53,21 +51,15 @@ export default function ProfilePage() {
                 Your Profile
               </h1>
               <p className="text-on-surface-variant text-sm mt-2 max-w-sm mx-auto">
-                Connect Spotify to personalize your matches
+                Sign in to see your matches and credits
               </p>
             </div>
-            <button
-              onClick={() => signIn("spotify")}
-              className="flex items-center gap-2 bg-spotify-green text-black font-display font-bold py-4 px-8 rounded-full hover:opacity-90 active:scale-95 transition-all"
+            <a
+              href="/app"
+              className="flex items-center gap-2 bg-hot-pink text-white font-display font-bold py-4 px-8 rounded-full hover:opacity-90 active:scale-95 transition-all glow-pink"
             >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                music_note
-              </span>
-              Connect Spotify
-            </button>
+              Sign in
+            </a>
             <StatsCard
               stats={[
                 { label: "Matches", value: savedSongs.length },
@@ -98,10 +90,25 @@ export default function ProfilePage() {
                   {session.user?.name?.replace(/\s+/g, "").toLowerCase() ||
                     "user"}
                 </p>
-                <div className="flex items-center justify-center lg:justify-start gap-1 text-lime text-xs font-semibold mt-1">
-                  <span className="w-2 h-2 rounded-full bg-lime" />
-                  Connected to Spotify
-                </div>
+                {session.user?.spotifyConnected ? (
+                  <div className="flex items-center justify-center lg:justify-start gap-1 text-lime text-xs font-semibold mt-1">
+                    <span className="w-2 h-2 rounded-full bg-lime" />
+                    Connected to Spotify
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => signIn("spotify")}
+                    className="flex items-center justify-center lg:justify-start gap-1 text-spotify-green text-xs font-semibold mt-1 hover:underline"
+                  >
+                    <span
+                      className="material-symbols-outlined text-[14px]"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      music_note
+                    </span>
+                    Connect Spotify
+                  </button>
+                )}
               </div>
 
               <StatsCard
@@ -180,7 +187,7 @@ export default function ProfilePage() {
         isOpen={showPricing}
         onClose={() => setShowPricing(false)}
         currentCredits={credits}
-        onCreditsAdded={(newTotal) => setCredits(newTotal)}
+        onAddCredits={add}
       />
     </AppShell>
   );

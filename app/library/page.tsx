@@ -128,9 +128,9 @@ export default function LibraryPage() {
       {savedSongs.length > 0 && (
         <div className="fixed bottom-20 left-4 right-4 z-40 lg:static lg:mt-8 lg:px-0">
           <button
-            disabled={!session}
+            disabled={!session?.user?.spotifyConnected}
             className={`w-full lg:max-w-md py-4 rounded-full font-display font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-              session
+              session?.user?.spotifyConnected
                 ? "bg-spotify-green text-black hover:opacity-90 active:scale-95"
                 : "bg-spotify-green/30 text-spotify-green/60 cursor-not-allowed"
             }`}
@@ -141,7 +141,7 @@ export default function LibraryPage() {
             >
               music_note
             </span>
-            {session
+            {session?.user?.spotifyConnected
               ? "Export playlist to Spotify"
               : "Connect Spotify to export"}
           </button>
