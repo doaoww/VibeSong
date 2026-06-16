@@ -1,13 +1,12 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { addCredits } from "../lib/credits";
 
 interface PricingModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentCredits: number;
-  onCreditsAdded: (newTotal: number) => void;
+  onAddCredits: (amount: number) => Promise<void>;
 }
 
 const PACKAGES = [
@@ -47,14 +46,13 @@ export default function PricingModal({
   isOpen,
   onClose,
   currentCredits,
-  onCreditsAdded,
+  onAddCredits,
 }: PricingModalProps) {
   const [selected, setSelected] = useState("popular");
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const pkg = PACKAGES.find((p) => p.id === selected)!;
-    addCredits(pkg.credits);
-    onCreditsAdded(currentCredits + pkg.credits);
+    await onAddCredits(pkg.credits);
     onClose();
   };
 

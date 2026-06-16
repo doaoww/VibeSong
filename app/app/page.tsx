@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSession, signIn } from "next-auth/react";
+import { signIn } from "next-auth/react";
 import DropZone from "../../components/DropZone";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
@@ -10,8 +10,10 @@ import VibeTags from "../../components/VibeTags";
 import PricingModal from "../../components/PricingModal";
 import TasteSetup, { UserTaste } from "../../components/TasteSetup";
 import Star from "../../components/Star";
+import AuthGate from "../../components/AuthGate";
 import { useAppStore } from "../../store/useAppStore";
-import { getCredits, deductCredit } from "../../lib/credits";
+import { useCredits } from "../../lib/useCredits";
+import { useAccountSync } from "../../lib/useAccountSync";
 
 type HomeState = "idle" | "uploading" | "analyzing";
 
@@ -33,13 +35,11 @@ const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
 
 export default function AppUploadPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { session, status, tasteComplete } = useAccountSync();
+  const { credits, deduct, add } = useCredits();
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
-  const [credits, setCredits] = useState(() =>
-    typeof window !== "undefined" ? getCredits() : 3
-  );
   const [showTasteSetup, setShowTasteSetup] = useState(() =>
     typeof window !== "undefined" ? !localStorage.getItem("userTaste") : false
   );
@@ -56,15 +56,12 @@ export default function AppUploadPage() {
     setTracks,
     setIsAnalyzing,
     savedSongs,
-    skippedSongs,
-    loadSavedSongs,
     vibeProfile,
     uploadedImageUrl,
   } = useAppStore();
 
-  useEffect(() => {
-    loadSavedSongs();
-  }, [loadSavedSongs]);
+  const effectiveShowTasteSetup =
+    tasteComplete === null ? showTasteSetup : !tasteComplete;
 
   useEffect(() => {
     if (pageState !== "analyzing") return;
@@ -82,23 +79,10 @@ export default function AppUploadPage() {
       setUploadedImage(base64, objectUrl);
 
       try {
-        const storedTaste = localStorage.getItem("userTaste");
-        const userTaste: UserTaste | null = storedTaste
-          ? JSON.parse(storedTaste)
-          : null;
-
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            image: base64,
-            mimeType,
-            userTaste,
-            feedback: {
-              savedSongs: savedSongs.slice(-12),
-              skippedSongs: skippedSongs.slice(-12),
-            },
-          }),
+          body: JSON.stringify({ image: base64, mimeType }),
         });
         if (!analyzeRes.ok) {
           const errBody = await analyzeRes.json().catch(() => ({}));
@@ -111,15 +95,12 @@ export default function AppUploadPage() {
 
         let tracks = vibeData.musicDNA?.tracks || [];
 
-        if (session?.accessToken) {
+        if (session?.user?.spotifyConnected) {
           try {
             const enhanceRes = await fetch("/api/enhance", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                vibeProfile: vibeData,
-                accessToken: session.accessToken,
-              }),
+              body: JSON.stringify({ vibeProfile: vibeData }),
             });
             if (enhanceRes.ok) {
               const enhanced = await enhanceRes.json();
@@ -130,13 +111,15 @@ export default function AppUploadPage() {
           }
         }
 
+        const storedTasteRaw = localStorage.getItem("userTaste");
+        const discoveryStyle: UserTaste["discoveryStyle"] = storedTasteRaw
+          ? JSON.parse(storedTasteRaw)?.discoveryStyle ?? "balanced"
+          : "balanced";
+
         const searchRes = await fetch("/api/search-tracks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tracks,
-            discoveryStyle: userTaste?.discoveryStyle ?? "balanced",
-          }),
+          body: JSON.stringify({ tracks, discoveryStyle }),
         });
         const ytData = await searchRes.json();
         const ytTracks = Array.isArray(ytData) ? ytData : ytData.found || [];
@@ -154,8 +137,6 @@ export default function AppUploadPage() {
     },
     [
       session,
-      savedSongs,
-      skippedSongs,
       setUploadedImage,
       setVibeProfile,
       setTracks,
@@ -165,36 +146,40 @@ export default function AppUploadPage() {
   );
 
   const handleImageReady = useCallback(
-    (base64: string, mimeType: string, objectUrl: string) => {
-      const currentCredits = getCredits();
-      if (currentCredits <= 0) {
+    async (base64: string, mimeType: string, objectUrl: string) => {
+      if (credits <= 0) {
         setPendingImage({ base64, mimeType, objectUrl });
         setShowPricing(true);
         return;
       }
-      deductCredit();
-      setCredits(getCredits());
+      const ok = await deduct();
+      if (!ok) {
+        setPendingImage({ base64, mimeType, objectUrl });
+        setShowPricing(true);
+        return;
+      }
       setPageState("uploading");
       setTimeout(() => runAnalysis(base64, mimeType, objectUrl), 300);
     },
-    [runAnalysis]
+    [credits, deduct, runAnalysis]
   );
 
-  const handleCreditsAdded = (newTotal: number) => {
-    setCredits(newTotal);
+  const handleCreditsAdded = async (amount: number) => {
+    await add(amount);
     if (pendingImage) {
-      deductCredit();
-      setCredits(getCredits());
-      setPageState("uploading");
-      setTimeout(
-        () =>
-          runAnalysis(
-            pendingImage.base64,
-            pendingImage.mimeType,
-            pendingImage.objectUrl
-          ),
-        300
-      );
+      const ok = await deduct();
+      if (ok) {
+        setPageState("uploading");
+        setTimeout(
+          () =>
+            runAnalysis(
+              pendingImage.base64,
+              pendingImage.mimeType,
+              pendingImage.objectUrl
+            ),
+          300
+        );
+      }
       setPendingImage(null);
     }
   };
@@ -266,6 +251,12 @@ export default function AppUploadPage() {
         </div>
       </div>
     );
+  }
+
+  const needsAuthGate = !effectiveShowTasteSetup && status === "unauthenticated";
+
+  if (needsAuthGate) {
+    return <AuthGate />;
   }
 
   return (
@@ -477,9 +468,9 @@ export default function AppUploadPage() {
         isOpen={showPricing}
         onClose={() => setShowPricing(false)}
         currentCredits={credits}
-        onCreditsAdded={handleCreditsAdded}
+        onAddCredits={handleCreditsAdded}
       />
-      {showTasteSetup && (
+      {effectiveShowTasteSetup && (
         <TasteSetup onComplete={() => setShowTasteSetup(false)} />
       )}
     </AppShell>
