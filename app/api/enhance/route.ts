@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import openai from "../../../lib/openai";
 import { getSpotifyTopData } from "../../../lib/spotify";
+import { auth, getSpotifyAccessToken } from "../../../auth";
 
 export const runtime = "nodejs";
 
@@ -10,13 +11,17 @@ function parseGPTJson(raw: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { vibeProfile, accessToken } = await req.json();
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: "accessToken required" },
-        { status: 400 }
-      );
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Sign in required" }, { status: 401 });
     }
+
+    const accessToken = await getSpotifyAccessToken(session.user.id);
+    if (!accessToken) {
+      return NextResponse.json({ error: "Spotify not connected" }, { status: 400 });
+    }
+
+    const { vibeProfile } = await req.json();
 
     const { topArtists, topTracks } = await getSpotifyTopData(accessToken);
 
