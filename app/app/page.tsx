@@ -1,0 +1,465 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { useSession, signIn } from "next-auth/react";
+import DropZone from "../../components/DropZone";
+import AppShell from "../../components/AppShell";
+import AppHeader from "../../components/AppHeader";
+import VibeTags from "../../components/VibeTags";
+import PricingModal from "../../components/PricingModal";
+import TasteSetup, { UserTaste } from "../../components/TasteSetup";
+import Star from "../../components/Star";
+import { useAppStore } from "../../store/useAppStore";
+import { getCredits, deductCredit } from "../../lib/credits";
+
+type HomeState = "idle" | "uploading" | "analyzing";
+
+const ANALYZING_TEXTS = [
+  "Reading the vibe...",
+  "Analyzing mood & energy...",
+  "Searching millions of tracks...",
+  "Curating your soundtrack...",
+];
+
+const QUICK_PROMPTS = [
+  "Sunset Drive",
+  "Cyberpunk Night",
+  "Rainy Window",
+  "Gym Energy",
+];
+
+const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
+
+export default function AppUploadPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
+  const [pageState, setPageState] = useState<HomeState>("idle");
+  const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
+  const [showPricing, setShowPricing] = useState(false);
+  const [credits, setCredits] = useState(3);
+  const [showTasteSetup, setShowTasteSetup] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<{
+    base64: string;
+    mimeType: string;
+    objectUrl: string;
+  } | null>(null);
+
+  const {
+    setUploadedImage,
+    setVibeProfile,
+    setTracks,
+    setIsAnalyzing,
+    savedSongs,
+    loadSavedSongs,
+    vibeProfile,
+    uploadedImageUrl,
+  } = useAppStore();
+
+  useEffect(() => {
+    setCredits(getCredits());
+    loadSavedSongs();
+    const stored = localStorage.getItem("userTaste");
+    if (!stored) setShowTasteSetup(true);
+  }, [loadSavedSongs]);
+
+  useEffect(() => {
+    if (pageState !== "analyzing") return;
+    const interval = setInterval(() => {
+      setAnalyzeTextIdx((i) => (i + 1) % ANALYZING_TEXTS.length);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [pageState]);
+
+  const runAnalysis = useCallback(
+    async (base64: string, mimeType: string, objectUrl: string) => {
+      setPageState("analyzing");
+      setErrorMsg(null);
+      setIsAnalyzing(true);
+      setUploadedImage(base64, objectUrl);
+
+      try {
+        const storedTaste = localStorage.getItem("userTaste");
+        const userTaste: UserTaste | null = storedTaste
+          ? JSON.parse(storedTaste)
+          : null;
+
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: base64, mimeType, userTaste }),
+        });
+        if (!analyzeRes.ok) {
+          const errBody = await analyzeRes.json().catch(() => ({}));
+          throw new Error(
+            errBody.detail || errBody.error || `API ${analyzeRes.status}`
+          );
+        }
+        const vibeData = await analyzeRes.json();
+        setVibeProfile(vibeData);
+
+        let tracks = vibeData.musicDNA?.tracks || [];
+
+        if (session?.accessToken) {
+          try {
+            const enhanceRes = await fetch("/api/enhance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                vibeProfile: vibeData,
+                accessToken: session.accessToken,
+              }),
+            });
+            if (enhanceRes.ok) {
+              const enhanced = await enhanceRes.json();
+              if (enhanced.tracks?.length) tracks = enhanced.tracks;
+            }
+          } catch {
+            // Spotify enhancement is optional
+          }
+        }
+
+        const searchRes = await fetch("/api/search-tracks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tracks }),
+        });
+        const ytData = await searchRes.json();
+        const ytTracks = Array.isArray(ytData) ? ytData : ytData.found || [];
+        setTracks(ytTracks);
+
+        setIsAnalyzing(false);
+        router.push("/results");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("Analysis failed:", msg);
+        setIsAnalyzing(false);
+        setPageState("idle");
+        setErrorMsg(msg);
+      }
+    },
+    [session, setUploadedImage, setVibeProfile, setTracks, setIsAnalyzing, router]
+  );
+
+  const handleImageReady = useCallback(
+    (base64: string, mimeType: string, objectUrl: string) => {
+      const currentCredits = getCredits();
+      if (currentCredits <= 0) {
+        setPendingImage({ base64, mimeType, objectUrl });
+        setShowPricing(true);
+        return;
+      }
+      deductCredit();
+      setCredits(getCredits());
+      setPageState("uploading");
+      setTimeout(() => runAnalysis(base64, mimeType, objectUrl), 300);
+    },
+    [runAnalysis]
+  );
+
+  const handleCreditsAdded = (newTotal: number) => {
+    setCredits(newTotal);
+    if (pendingImage) {
+      deductCredit();
+      setCredits(getCredits());
+      setPageState("uploading");
+      setTimeout(
+        () =>
+          runAnalysis(
+            pendingImage.base64,
+            pendingImage.mimeType,
+            pendingImage.objectUrl
+          ),
+        300
+      );
+      setPendingImage(null);
+    }
+  };
+
+  if (pageState === "analyzing") {
+    return (
+      <div className="fixed inset-0 bg-background flex flex-col overflow-hidden z-50">
+        <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
+          {uploadedImageUrl && (
+            <div className="relative h-1/2 lg:h-[55%] flex-shrink-0">
+              <img
+                src={uploadedImageUrl}
+                alt="Your upload"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+              <div className="absolute top-4 right-4">
+                <div className="bg-hot-pink text-white rounded-full px-3 py-1 text-xs font-semibold flex items-center gap-1 font-display glow-pink">
+                  <span>✦</span>
+                  <span>{credits}</span>
+                </div>
+              </div>
+              <motion.div
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="absolute inset-0 border-4 border-hot-pink pointer-events-none"
+              />
+            </div>
+          )}
+
+          <div className="flex-1 flex flex-col items-center justify-start pt-6 px-6 space-y-5">
+            {vibeProfile?.vibeTags && (
+              <VibeTags tags={vibeProfile.vibeTags} animate />
+            )}
+
+            <div className="flex items-end gap-1 h-10">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <motion.div
+                  key={i}
+                  animate={{ height: ["20%", "100%", "40%", "80%", "20%"] }}
+                  transition={{
+                    duration: 1.2,
+                    repeat: Infinity,
+                    delay: i * 0.06,
+                  }}
+                  className="w-1.5 bg-hot-pink rounded-full"
+                  style={{ minHeight: 4 }}
+                />
+              ))}
+            </div>
+
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={analyzeTextIdx}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="text-white font-display font-bold text-xl md:text-2xl text-center"
+              >
+                {ANALYZING_TEXTS[analyzeTextIdx]}
+              </motion.p>
+            </AnimatePresence>
+
+            <p className="text-on-surface-variant text-sm">
+              This takes about 5 seconds
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AppShell
+      decor
+      header={
+        <AppHeader
+          credits={credits}
+          onCreditsClick={() => setShowPricing(true)}
+        />
+      }
+    >
+      <div className="space-y-8 lg:space-y-10">
+        {/* Desktop: two-column layout */}
+        <div className="lg:grid lg:grid-cols-2 lg:gap-10 lg:items-start">
+          <section className="space-y-5">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="inline-flex items-center gap-2 rounded-full bg-hot-pink px-3 py-1 text-[11px] font-semibold text-white font-display"
+            >
+              ✦ AI Music Matching
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="font-display text-3xl md:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight text-white"
+            >
+              Your photo.
+              <br />
+              <span className="text-hot-pink">Your soundtrack.</span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.15 }}
+              className="text-on-surface-variant text-sm md:text-base leading-relaxed max-w-md"
+            >
+              Drop any photo. Our AI reads the vibe and finds songs that just
+              fit.
+            </motion.p>
+
+            {!session ? (
+              <button
+                onClick={() => signIn("spotify")}
+                className="w-full lg:w-auto flex items-center justify-center gap-2 border border-spotify-green/40 text-spotify-green py-3 px-6 rounded-full text-sm font-semibold hover:bg-spotify-green/10 transition-all"
+              >
+                <span
+                  className="material-symbols-outlined text-[18px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  music_note
+                </span>
+                Enhance with your Spotify taste
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-lime font-semibold">
+                <span className="w-2 h-2 rounded-full bg-lime inline-block" />
+                Spotify connected — matches tuned to your taste
+              </div>
+            )}
+
+            <section className="space-y-3 hidden lg:block">
+              <h2 className="font-display font-bold text-base text-white">
+                Quick Prompts
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {QUICK_PROMPTS.map((prompt, i) => (
+                  <button
+                    key={prompt}
+                    onClick={() =>
+                      router.push(
+                        `/results?prompt=${encodeURIComponent(prompt)}`
+                      )
+                    }
+                    className={`px-4 py-2 rounded-full text-xs font-semibold font-display transition-all hover:scale-105 active:scale-95 ${
+                      i === 0
+                        ? "text-white bg-hot-pink glow-pink"
+                        : "bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-white/30"
+                    }`}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </section>
+
+          <section className="space-y-4 mt-6 lg:mt-0">
+            {errorMsg && (
+              <div className="bg-error/10 border border-error/30 rounded-xl px-4 py-3 text-error text-sm flex items-start gap-2">
+                <span className="material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5">
+                  error
+                </span>
+                <div>
+                  <p className="font-semibold">Analysis failed</p>
+                  <p className="opacity-80 text-xs mt-0.5">{errorMsg}</p>
+                </div>
+                <button
+                  onClick={() => setErrorMsg(null)}
+                  className="ml-auto text-error/60 hover:text-error"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    close
+                  </span>
+                </button>
+              </div>
+            )}
+
+            <DropZone onImageReady={handleImageReady} />
+
+            <p className="text-center text-xs text-on-surface-variant">
+              <span className="text-hot-pink">✦</span> {credits} free matches ·
+              Any photo works
+            </p>
+          </section>
+        </div>
+
+        {savedSongs.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h2 className="font-display font-bold text-base md:text-lg text-white">
+                Recent Vibes
+              </h2>
+              <a
+                href="/library"
+                className="text-hot-pink text-xs font-semibold hover:underline"
+              >
+                See all
+              </a>
+            </div>
+            <div className="flex overflow-x-auto gap-3 scroll-hide pb-1 lg:grid lg:grid-cols-4 xl:grid-cols-6 lg:overflow-visible">
+              {savedSongs.slice(0, 6).map((song, i) => (
+                <div
+                  key={i}
+                  className="relative flex-shrink-0 w-36 lg:w-auto h-44 rounded-xl overflow-hidden border border-outline-variant/20 hover:border-hot-pink/50 transition-all cursor-pointer"
+                >
+                  {song.sourceImage ? (
+                    <img
+                      src={song.sourceImage}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-surface-container-highest" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <p className="text-white font-bold text-xs truncate">
+                      {song.title}
+                    </p>
+                    <p className="text-on-surface-variant text-[10px] truncate">
+                      {song.artist}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="space-y-3 lg:hidden">
+          <h2 className="font-display font-bold text-base text-white">
+            Quick Prompts
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_PROMPTS.map((prompt, i) => (
+              <button
+                key={prompt}
+                onClick={() =>
+                  router.push(`/results?prompt=${encodeURIComponent(prompt)}`)
+                }
+                className={`px-4 py-2 rounded-full text-xs font-semibold font-display transition-all hover:scale-105 active:scale-95 ${
+                  i === 0
+                    ? "text-white bg-hot-pink glow-pink"
+                    : "bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-white/30"
+                }`}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <div className="relative overflow-hidden border-y border-outline-variant/20 py-4 -mx-4 md:-mx-6 lg:mx-0 lg:rounded-xl lg:border lg:border-outline-variant/20">
+          <div className="marquee-track flex whitespace-nowrap font-display text-2xl md:text-3xl font-extrabold uppercase tracking-tight">
+            {Array.from({ length: 2 }).map((_, dup) => (
+              <div key={dup} className="flex shrink-0 items-center gap-6 px-3">
+                {MARQUEE_WORDS.map((w, i) => (
+                  <span key={`${dup}-${i}`} className="flex items-center gap-6">
+                    <span
+                      className={i % 2 === 0 ? "text-white" : "text-hot-pink"}
+                    >
+                      {w}
+                    </span>
+                    <Star className="h-4 w-4 shrink-0" />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <PricingModal
+        isOpen={showPricing}
+        onClose={() => setShowPricing(false)}
+        currentCredits={credits}
+        onCreditsAdded={handleCreditsAdded}
+      />
+      {showTasteSetup && (
+        <TasteSetup onComplete={() => setShowTasteSetup(false)} />
+      )}
+    </AppShell>
+  );
+}

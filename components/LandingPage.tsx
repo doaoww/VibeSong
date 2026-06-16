@@ -1,0 +1,572 @@
+"use client";
+
+import Link from "next/link";
+import { motion, useInView, useMotionValue, useTransform, animate } from "framer-motion";
+import { useEffect, useRef } from "react";
+import Star from "./Star";
+
+function PinkButton({
+  children,
+  className = "",
+  href,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  href?: string;
+  onClick?: () => void;
+}) {
+  const cls = `inline-flex items-center justify-center gap-2 rounded-full bg-hot-pink px-7 py-3.5 font-display font-semibold text-white glow-pink hover:bg-[#ff4488] transition-colors ${className}`;
+
+  if (href) {
+    return (
+      <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="inline-block">
+        <Link href={href} className={cls}>
+          {children}
+        </Link>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.button
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      onClick={onClick}
+      className={cls}
+    >
+      {children}
+    </motion.button>
+  );
+}
+
+function OutlineButton({
+  children,
+  className = "",
+  href,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  href?: string;
+}) {
+  const cls = `inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-transparent px-7 py-3.5 font-display font-semibold text-white transition-colors hover:border-white/70 ${className}`;
+  return (
+    <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="inline-block">
+      <a href={href ?? "#how"} className={cls}>
+        {children}
+      </a>
+    </motion.div>
+  );
+}
+
+function CountUp({
+  to,
+  suffix = "",
+  prefix = "",
+  className = "",
+}: {
+  to: number;
+  suffix?: string;
+  prefix?: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const mv = useMotionValue(0);
+  const rounded = useTransform(
+    mv,
+    (v) => `${prefix}${Math.round(v).toLocaleString()}${suffix}`
+  );
+
+  useEffect(() => {
+    if (inView) {
+      const controls = animate(mv, to, { duration: 1.8, ease: "easeOut" });
+      return controls.stop;
+    }
+  }, [inView, to, mv]);
+
+  return (
+    <motion.span ref={ref} className={className}>
+      {rounded}
+    </motion.span>
+  );
+}
+
+function LandingNav() {
+  return (
+    <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
+        <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold text-white">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-hot-pink">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+          </span>
+          VibeSong<span className="text-hot-pink">AI</span>
+        </Link>
+        <div className="hidden items-center gap-6 lg:gap-8 text-sm text-white/70 md:flex">
+          <a href="#how" className="hover:text-white transition-colors">
+            How it Works
+          </a>
+          <span className="h-1 w-1 rounded-full bg-white/30" />
+          <a href="#features" className="hover:text-white transition-colors">
+            Features
+          </a>
+          <span className="h-1 w-1 rounded-full bg-white/30" />
+          <a href="#pricing" className="hover:text-white transition-colors">
+            Pricing
+          </a>
+        </div>
+        <PinkButton href="/app" className="!px-5 !py-2.5 text-sm">
+          Try Free →
+        </PinkButton>
+      </div>
+    </nav>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 md:pt-44 md:pb-32">
+      <Star className="float-slow absolute left-[8%] top-32 h-8 w-8 md:h-10 md:w-10 opacity-90 hidden sm:block" />
+      <div
+        className="float-slow absolute right-[12%] top-28 h-6 w-6 md:h-8 md:w-8 rounded-full bg-lime hidden sm:block"
+        style={{ animationDelay: "1.5s" }}
+      />
+      <Star
+        className="float-slow absolute right-[6%] bottom-40 h-5 w-5 md:h-6 md:w-6 hidden sm:block"
+        color="var(--color-lime)"
+      />
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 md:mb-7 inline-flex items-center gap-2 rounded-full bg-hot-pink px-4 py-1.5 text-xs font-semibold text-white font-display"
+        >
+          ✦ AI Music Matching
+        </motion.div>
+
+        <h1 className="font-display text-[13vw] sm:text-7xl md:text-[88px] lg:text-[96px] font-extrabold leading-[0.95] tracking-tight text-white">
+          <span className="block">Your photo.</span>
+          <span className="block text-hot-pink">Your soundtrack.</span>
+        </h1>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mt-6 md:mt-7 max-w-lg text-base md:text-lg leading-relaxed text-white/60"
+        >
+          Drop any photo. Our AI reads the vibe, the color, the mood, the energy,
+          and finds songs that just fit.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-8 md:mt-9 flex flex-wrap items-center gap-3 md:gap-4"
+        >
+          <PinkButton href="/app" className="!px-8 !py-4 text-base">
+            Upload a Photo →
+          </PinkButton>
+          <OutlineButton href="#how" className="!px-8 !py-4 text-base">
+            See How It Works
+          </OutlineButton>
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="mt-5 md:mt-6 text-sm text-white/40"
+        >
+          <span className="text-hot-pink">✦</span> 3 free matches · No signup
+          needed · Any photo works
+        </motion.p>
+      </div>
+
+      <div className="relative mt-14 md:mt-20 overflow-hidden border-y border-white/10 py-5 md:py-6">
+        <div className="marquee-track flex whitespace-nowrap font-display text-3xl sm:text-4xl md:text-6xl font-extrabold uppercase tracking-tight">
+          {Array.from({ length: 2 }).map((_, dup) => (
+            <div key={dup} className="flex shrink-0 items-center gap-6 md:gap-8 px-4">
+              {["MOOD", "ENERGY", "VIBE", "AESTHETIC", "SOUNDTRACK", "FEELING", "COLOR", "MOMENT"].map(
+                (w, i) => (
+                  <span key={`${dup}-${i}`} className="flex items-center gap-6 md:gap-8">
+                    <span className={i % 2 === 0 ? "text-white" : "text-hot-pink"}>
+                      {w}
+                    </span>
+                    <Star className="h-5 w-5 md:h-6 md:w-6 shrink-0" />
+                  </span>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function QuizPreview() {
+  const cards = [
+    { n: "01", title: "Your genres", chips: ["Indie", "Hip-Hop", "R&B", "Pop", "Lo-fi"] },
+    { n: "02", title: "Your artists", chips: ["Frank Ocean", "SZA", "+ add"] },
+    { n: "03", title: "Your mood", chips: ["Chill", "Hype", "Sad", "Romantic"] },
+  ];
+
+  return (
+    <section className="bg-cream py-16 md:py-24 text-ink">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <h2 className="max-w-4xl font-display text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.05]">
+          First, we learn
+          <br />
+          what you <span className="wavy-underline text-hot-pink">love.</span>
+        </h2>
+
+        <div className="mt-10 md:mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {cards.map((c, i) => (
+            <motion.div
+              key={c.n}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ delay: i * 0.1 }}
+              whileHover={{ y: -6 }}
+              className="rounded-2xl bg-white p-6 md:p-7 border border-black/5"
+            >
+              <div className="font-display text-5xl md:text-6xl font-extrabold text-hot-pink">
+                {c.n}
+              </div>
+              <div className="mt-3 font-display text-xl md:text-2xl font-bold">{c.title}</div>
+              <div className="mt-4 md:mt-5 flex flex-wrap gap-2">
+                {c.chips.map((ch) => (
+                  <span
+                    key={ch}
+                    className="rounded-full border border-black/10 bg-black/[0.04] px-3 py-1.5 text-sm"
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mt-8 md:mt-10">
+          <Link
+            href="/app"
+            className="inline-flex items-center gap-2 rounded-full bg-ink px-7 py-3.5 font-display font-semibold text-white transition-transform hover:scale-[1.03]"
+          >
+            Take the quiz →
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HowItWorks() {
+  const steps = [
+    {
+      n: "01",
+      title: "DROP ANYTHING",
+      body: "Any photo from your camera roll. Beach, city, bedroom, anything.",
+    },
+    {
+      n: "02",
+      title: "AI READS THE ROOM",
+      body: "GPT-4o analyzes mood, colors, energy, and emotion from your photo.",
+    },
+    {
+      n: "03",
+      title: "SWIPE YOUR SOUND",
+      body: "Five perfect songs. Tinder-style swiping. Save the ones that hit different.",
+    },
+  ];
+
+  return (
+    <section id="how" className="relative overflow-hidden py-16 md:py-28">
+      <Star
+        className="absolute right-[6%] top-20 h-6 w-6 md:h-8 md:w-8 opacity-70 hidden sm:block"
+        color="var(--color-lime)"
+      />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-hot-pink font-display">
+          How it works
+        </p>
+        <h2 className="mt-3 max-w-3xl font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white">
+          Three steps to your perfect sound
+        </h2>
+
+        <div className="mt-12 md:mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+          {steps.map((s, i) => (
+            <motion.div
+              key={s.n}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <div className="font-display text-7xl sm:text-8xl md:text-[120px] font-light leading-none text-hot-pink">
+                {s.n}
+              </div>
+              <div className="mt-3 font-display text-xl md:text-2xl font-bold text-white">
+                {s.title}
+              </div>
+              <div className="mt-3 text-white/60 leading-relaxed">{s.body}</div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Examples() {
+  const cards = [
+    { gradient: "from-[#5C1B2E] to-[#2A0710]", song: "Nights", artist: "Frank Ocean", match: "91%", tags: ["R&B", "Late Night"] },
+    { gradient: "from-[#0F3D8C] to-[#0A1A3A]", song: "Blinding Lights", artist: "The Weeknd", match: "88%", tags: ["Synthwave", "City"] },
+    { gradient: "from-[#D9A05B] to-[#7A4A1F]", song: "Happiness", artist: "Rex Orange County", match: "94%", tags: ["Indie", "Warm"] },
+    { gradient: "from-[#1E1E1E] to-[#000000]", song: "Kill Bill", artist: "SZA", match: "96%", tags: ["R&B", "Moody"] },
+  ];
+
+  return (
+    <section id="features" className="bg-cream py-16 md:py-28 text-ink">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-hot-pink font-display">
+          Real matches
+        </p>
+        <h2 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold">
+          What photos sound like
+        </h2>
+
+        <div className="mt-10 md:mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {cards.map((c, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.08 }}
+              whileHover={{ y: -6 }}
+              className="overflow-hidden rounded-2xl bg-white border border-black/5"
+            >
+              <div className={`relative h-36 md:h-44 bg-gradient-to-br ${c.gradient}`}>
+                <div className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
+                  {c.tags[0]}
+                </div>
+              </div>
+              <div className="p-4 md:p-5">
+                <div className="font-display text-lg font-bold leading-tight">{c.song}</div>
+                <div className="text-sm text-black/60">{c.artist}</div>
+                <div className="mt-3 md:mt-4 flex items-center justify-between">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {c.tags.map((t) => (
+                      <span key={t} className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px]">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="font-display text-sm font-bold text-hot-pink">{c.match}</div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Stats() {
+  return (
+    <section className="relative overflow-hidden py-16 md:py-28">
+      <Star className="absolute left-[6%] top-16 h-8 w-8 md:h-10 md:w-10 hidden sm:block" />
+      <Star
+        className="absolute right-[8%] bottom-16 h-6 w-6 md:h-7 md:w-7 hidden sm:block"
+        color="var(--color-lime)"
+      />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="grid gap-10 sm:grid-cols-3">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-hot-pink">
+              <CountUp to={80} suffix="M+" />
+            </div>
+            <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
+              Tracks searched per match
+            </div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-lime">
+              {"< "}
+              <CountUp to={5} suffix="s" />
+            </div>
+            <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
+              Time to find your song
+            </div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-white">
+              <CountUp to={94} suffix="%" />
+            </div>
+            <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
+              Average match accuracy
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Pricing() {
+  const plans = [
+    { name: "STARTER", price: "$1.99", credits: "10 credits", per: "$0.20 / match", popular: false },
+    { name: "POPULAR", price: "$6.99", credits: "50 credits", per: "$0.14 / match", popular: true },
+    { name: "PRO", price: "$19.99", credits: "200 credits", per: "$0.10 / match", popular: false },
+  ];
+
+  return (
+    <section id="pricing" className="bg-cream py-16 md:py-28 text-ink">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <h2 className="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold">
+          Simple pricing.
+        </h2>
+        <p className="mt-3 font-display text-lg md:text-xl italic text-hot-pink">
+          Start free, pay when you love it.
+        </p>
+
+        <div className="mt-10 md:mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {plans.map((p, i) => (
+            <motion.div
+              key={p.name}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              whileHover={{ y: -8 }}
+              className={`relative rounded-2xl bg-white p-6 md:p-8 border ${
+                p.popular ? "border-2 border-hot-pink" : "border-black/5"
+              }`}
+            >
+              {p.popular && (
+                <div className="absolute -top-3 left-6 rounded-full bg-hot-pink px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
+                  ★ Most Popular
+                </div>
+              )}
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-black/50">
+                {p.name}
+              </div>
+              <div className="mt-4 font-display text-5xl md:text-6xl font-extrabold">{p.price}</div>
+              <div className="mt-2 text-black/60">{p.credits}</div>
+              <div className="mt-1 text-sm text-black/50">{p.per}</div>
+              <Link
+                href="/app"
+                className={`mt-6 md:mt-8 block w-full text-center rounded-full px-6 py-3 font-display font-semibold transition-transform hover:scale-[1.02] ${
+                  p.popular ? "bg-hot-pink text-white" : "bg-ink text-white"
+                }`}
+              >
+                Get started
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA() {
+  return (
+    <section className="relative overflow-hidden py-20 md:py-32 text-center">
+      <Star className="absolute left-[10%] top-24 h-10 w-10 md:h-12 md:w-12 hidden sm:block" />
+      <Star
+        className="absolute right-[12%] top-32 h-6 w-6 md:h-8 md:w-8 hidden sm:block"
+        color="var(--color-lime)"
+      />
+
+      <div className="mx-auto max-w-4xl px-4 sm:px-6">
+        <motion.h2
+          initial={{ opacity: 0, scale: 0.9 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="font-display text-[18vw] sm:text-8xl md:text-9xl lg:text-[140px] font-black leading-none text-white"
+        >
+          READY?
+        </motion.h2>
+        <div className="mt-4 md:mt-6 font-display text-xl md:text-3xl font-bold text-hot-pink">
+          Find your soundtrack.
+        </div>
+        <p className="mt-3 text-white/50">Upload your first photo free. No signup needed.</p>
+        <div className="mt-8 flex justify-center">
+          <PinkButton href="/app" className="!px-10 !py-5 text-lg">
+            Upload a Photo →
+          </PinkButton>
+        </div>
+        <p className="mt-5 text-sm text-white/40">
+          <span className="text-hot-pink">✦</span> 3 free matches included
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-white/10 py-8 md:py-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-6">
+          <div className="font-display text-lg font-bold text-white">
+            VibeSong<span className="text-hot-pink">AI</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-sm text-white/60">
+            <Link href="/app" className="hover:text-white transition-colors">
+              Open App
+            </Link>
+            <a href="#how" className="hover:text-white transition-colors">
+              How it Works
+            </a>
+            <a href="#pricing" className="hover:text-white transition-colors">
+              Pricing
+            </a>
+          </div>
+        </div>
+        <div className="mt-6 md:mt-8 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6 text-sm text-white/40">
+          <div>© 2026 VibeSong AI</div>
+          <div className="italic">Your photo. Your soundtrack.</div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-background text-white">
+      <LandingNav />
+      <Hero />
+      <QuizPreview />
+      <HowItWorks />
+      <Examples />
+      <Stats />
+      <Pricing />
+      <FinalCTA />
+      <Footer />
+    </div>
+  );
+}

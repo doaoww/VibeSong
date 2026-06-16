@@ -1,0 +1,168 @@
+"use client";
+import { useCallback, useRef, useState } from "react";
+import { motion } from "framer-motion";
+
+interface DropZoneProps {
+  onImageReady: (base64: string, mimeType: string, objectUrl: string) => void;
+}
+
+const MAX_SIZE = 15 * 1024 * 1024;
+
+async function extractVideoFrame(
+  file: File
+): Promise<{ base64: string; objectUrl: string }> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.currentTime = 1;
+    video.onseeked = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      canvas.getContext("2d")!.drawImage(video, 0, 0);
+      const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+      resolve({ base64, objectUrl });
+    };
+    video.onerror = reject;
+    video.load();
+  });
+}
+
+async function fileToBase64(
+  file: File
+): Promise<{ base64: string; objectUrl: string }> {
+  const objectUrl = URL.createObjectURL(file);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve({ base64: result.split(",")[1], objectUrl });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export default function DropZone({ onImageReady }: DropZoneProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      setError(null);
+      if (file.size > MAX_SIZE) {
+        setError("File too large. Max 15MB.");
+        return;
+      }
+      const isVideo = file.type.startsWith("video/");
+      const isImage = file.type.startsWith("image/");
+      if (!isVideo && !isImage) {
+        setError("Only JPG, PNG, or MP4 files supported.");
+        return;
+      }
+      try {
+        const { base64, objectUrl } = isVideo
+          ? await extractVideoFrame(file)
+          : await fileToBase64(file);
+        onImageReady(base64, isVideo ? "image/jpeg" : file.type, objectUrl);
+      } catch {
+        setError("Failed to process file. Please try another.");
+      }
+    },
+    [onImageReady]
+  );
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    },
+    [handleFile]
+  );
+
+  return (
+    <div>
+      <motion.div
+        whileTap={{ scale: 0.98 }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={onDrop}
+        onClick={() => inputRef.current?.click()}
+        className={`dashed-upload-border rounded-2xl p-6 flex flex-col items-center text-center gap-4 cursor-pointer transition-all duration-300 ${
+          isDragging
+            ? "bg-hot-pink/10"
+            : "bg-surface-container-low/50 hover:bg-surface-container/60"
+        }`}
+      >
+        <div className="w-14 h-14 bg-hot-pink/15 rounded-full flex items-center justify-center">
+          <span className="material-symbols-outlined text-hot-pink text-3xl">
+            add_photo_alternate
+          </span>
+        </div>
+        <div>
+          <p className="font-display font-bold text-white text-base">
+            Drop your photo or video
+          </p>
+          <p className="text-on-surface-variant text-xs mt-1">
+            JPG, PNG, MP4 · Max 15MB
+          </p>
+        </div>
+        <div className="flex gap-3 w-full">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (inputRef.current) {
+                inputRef.current.accept = "image/*";
+                inputRef.current.click();
+              }
+            }}
+            className="flex-1 flex items-center justify-center gap-2 bg-hot-pink text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              photo_camera
+            </span>
+            Photo
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (inputRef.current) {
+                inputRef.current.accept = "video/*";
+                inputRef.current.click();
+              }
+            }}
+            className="flex-1 flex items-center justify-center gap-2 border border-white/25 text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:border-white/50 active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[18px]">movie</span>
+            Video
+          </button>
+        </div>
+      </motion.div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = "";
+        }}
+      />
+      {error && (
+        <p className="text-error text-xs mt-2 text-center">{error}</p>
+      )}
+    </div>
+  );
+}
