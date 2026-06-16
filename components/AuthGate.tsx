@@ -13,6 +13,25 @@ export default function AuthGate() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+
+    try {
+      const checkRes = await fetch(
+        `/api/auth/check-email?email=${encodeURIComponent(email)}`
+      );
+      if (checkRes.ok) {
+        const { status } = await checkRes.json();
+        if (status === "oauth-only") {
+          setSubmitting(false);
+          setError(
+            "This email is already linked to a Google account — use Continue with Google instead."
+          );
+          return;
+        }
+      }
+    } catch {
+      // If the check fails, fall through and let signIn report the result.
+    }
+
     const result = await signIn("credentials", {
       email,
       password,
@@ -20,7 +39,7 @@ export default function AuthGate() {
     });
     setSubmitting(false);
     if (result?.error) {
-      setError("Wrong email or password.");
+      setError("Wrong password.");
       return;
     }
   };
