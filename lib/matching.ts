@@ -16,6 +16,7 @@ export interface CandidateTrack {
   title: string;
   artist: string;
   reason: string;
+  genres?: string[];
   matchScore?: number;
   viralMomentSeconds?: number;
   photoFitScore?: number;
@@ -131,6 +132,49 @@ function weightsFor(style: DiscoveryStyle) {
     default:
       return { photo: 0.4, taste: 0.35, discovery: 0.15, penalty: 1 };
   }
+}
+
+function normalizeForMatch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function fuzzyIncludesAny(value: string, list: string[]): boolean {
+  const normalized = normalizeForMatch(value);
+  if (!normalized) return false;
+  return list.some((entry) => {
+    const normalizedEntry = normalizeForMatch(entry);
+    if (!normalizedEntry) return false;
+    return normalized.includes(normalizedEntry) || normalizedEntry.includes(normalized);
+  });
+}
+
+/**
+ * Server-side guard so avoid-listed artists/genres and quiz dislikes are
+ * actually downweighted, instead of relying entirely on GPT following the
+ * prompt's avoid instructions.
+ */
+export function applyAvoidPenalties(
+  candidates: CandidateTrack[],
+  options: { avoidArtists: string[]; avoidGenres: string[]; dislikes: string[] }
+): CandidateTrack[] {
+  const { avoidArtists, avoidGenres, dislikes } = options;
+  if (!avoidArtists.length && !avoidGenres.length && !dislikes.length) {
+    return candidates;
+  }
+
+  return candidates.map((track) => {
+    const artistHit = avoidArtists.some(
+      (artist) => normalizeForMatch(artist) === normalizeForMatch(track.artist)
+    );
+    const genreHit = (track.genres ?? []).some(
+      (genre) => fuzzyIncludesAny(genre, avoidGenres) || fuzzyIncludesAny(genre, dislikes)
+    );
+
+    if (!artistHit && !genreHit) return track;
+
+    const bumpedPenalty = Math.max(track.obviousnessPenalty ?? 0, artistHit ? 35 : 28);
+    return { ...track, obviousnessPenalty: bumpedPenalty };
+  });
 }
 
 export function normalizeCandidateScores(

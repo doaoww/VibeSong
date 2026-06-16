@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import openai from "../../../lib/openai";
 import {
+  applyAvoidPenalties,
   getDiscoveryInstructions,
   normalizeCandidateScores,
   normalizeTaste,
@@ -76,6 +77,7 @@ Return ONLY valid JSON, no markdown:
       {
         "title": "string",
         "artist": "string",
+        "genres": ["string", "string"],
         "reason": "string -- 1 sentence: exactly why THIS song's texture/mood fits THIS specific photo and user taste",
         "matchScore": 94,
         "photoFitScore": 92,
@@ -102,36 +104,19 @@ NUMBER RULES:
 - viralMomentSeconds: INTEGER seconds (e.g. 62, 45, 30).
 - energy, valence, brightness, intensity: floats 0.0–1.0.
 
-Generate exactly 24 candidate tracks. Use a mix of familiar hidden gems, taste-adjacent tracks, niche discoveries, and photo-perfect wildcards. vibeTags: exactly 3. Genres: specific (e.g. "lo-fi soul" not "R&B"). NO lazy overplayed hits.`;
+PER-TRACK GENRES:
+- Each track's "genres" array is THAT SPECIFIC SONG's genres, not the overall photo vibe. Be specific (e.g. "lo-fi soul" not "R&B"), 1-3 entries.
+- This matters: we use it to learn what the listener actually saves vs skips over time, so it must reflect the real song, not the photo.
+
+Generate exactly 24 candidate tracks. Use a mix of familiar hidden gems, taste-adjacent tracks, niche discoveries, and photo-perfect wildcards. vibeTags: exactly 3. NO lazy overplayed hits.`;
 
 function buildTasteBlock(taste: UserTaste): string {
-  const similar: Record<string, string[]> = {
-    "Frank Ocean": ["Daniel Caesar", "Steve Lacy", "Brent Faiyaz", "SZA"],
-    "The Weeknd": ["6LACK", "Bryson Tiller", "partynextdoor", "Nav"],
-    "Drake": ["21 Savage", "Future", "Lil Baby", "Gunna"],
-    "Billie Eilish": ["Olivia Rodrigo", "Gracie Abrams", "Lana Del Rey", "Lorde"],
-    "Tyler the Creator": ["Odd Future", "Earl Sweatshirt", "Vince Staples", "Brockhampton"],
-    "Travis Scott": ["Don Toliver", "SZA", "Kid Cudi", "Playboi Carti"],
-    "Kendrick Lamar": ["J. Cole", "Joey Bada$$", "Isaiah Rashad", "Freddie Gibbs"],
-    "Harry Styles": ["Conan Gray", "Rex Orange County", "Tom Grennan", "Niall Horan"],
-    "Bad Bunny": ["J Balvin", "Rauw Alejandro", "Jhayco", "Mora"],
-    "Doja Cat": ["Lizzo", "Nicki Minaj", "Saweetie", "Cardi B"],
-  };
-
-  const artistLines = taste.favoriteArtists.map((a) => {
-    const normalized = Object.keys(similar).find(
-      (k) => k.toLowerCase() === a.toLowerCase()
-    );
-    const extras = normalized ? ` (similar: ${similar[normalized].join(", ")})` : "";
-    return `  - ${a}${extras}`;
-  });
-
   return `
 
 USER TASTE PROFILE (this is the most important personalization signal):
 - Genres they love: ${taste.genres.join(", ") || "not specified"}
 - Favorite artists: ${taste.favoriteArtists.join(", ") || "not specified"}
-- Artists to explore as well: ${artistLines.map(l => l.trim()).join(" | ") || "none"}
+- Use your own knowledge of these artists' sound and scene to find sonic twins and adjacent acts -- don't limit yourself to a fixed list.
 - Their mood preference: ${taste.defaultMood || "not specified"}
 - Discovery style: ${taste.discoveryStyle}
 - Discovery instructions: ${getDiscoveryInstructions(taste.discoveryStyle)}
@@ -222,12 +207,19 @@ function parseGPTJson(raw: string) {
   return JSON.parse(cleaned);
 }
 
-function normalizeScores(result: {
-  musicDNA?: { tracks?: CandidateTrack[] };
-}, taste: UserTaste) {
+function normalizeScores(
+  result: { musicDNA?: { tracks?: CandidateTrack[] } },
+  taste: UserTaste,
+  aggregate: AggregateTasteProfile
+) {
   if (!result?.musicDNA?.tracks) return;
+  const penalized = applyAvoidPenalties(result.musicDNA.tracks, {
+    avoidArtists: aggregate.avoidArtists,
+    avoidGenres: aggregate.avoidGenres,
+    dislikes: taste.dislikes,
+  });
   result.musicDNA.tracks = normalizeCandidateScores(
-    result.musicDNA.tracks,
+    penalized,
     taste.discoveryStyle
   ).slice(0, 12);
   console.log(
@@ -344,7 +336,7 @@ export async function POST(req: NextRequest) {
       result = parseGPTJson(fixRaw);
     }
 
-    normalizeScores(result, taste);
+    normalizeScores(result, taste, aggregate);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

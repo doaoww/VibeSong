@@ -79,6 +79,71 @@ test("normalizeCandidateScores calculates balanced final scores and orders candi
   assert.equal(first.matchScore, Math.round(first.finalScore));
 });
 
+test("applyAvoidPenalties bumps an avoided artist's obviousnessPenalty", () => {
+  const [track] = matching.applyAvoidPenalties(
+    [
+      {
+        title: "Song",
+        artist: "Skipped Artist",
+        reason: "fits",
+        obviousnessPenalty: 2,
+      },
+    ],
+    { avoidArtists: ["Skipped Artist"], avoidGenres: [], dislikes: [] }
+  );
+
+  assert.equal(track.obviousnessPenalty, 35);
+});
+
+test("applyAvoidPenalties bumps a track whose genre overlaps an avoided genre", () => {
+  const [track] = matching.applyAvoidPenalties(
+    [
+      {
+        title: "Song",
+        artist: "Some Artist",
+        reason: "fits",
+        genres: ["EDM", "house"],
+      },
+    ],
+    { avoidArtists: [], avoidGenres: ["edm"], dislikes: [] }
+  );
+
+  assert.equal(track.obviousnessPenalty, 28);
+});
+
+test("applyAvoidPenalties bumps a track matching a quiz dislike phrase", () => {
+  const [track] = matching.applyAvoidPenalties(
+    [
+      {
+        title: "Song",
+        artist: "Some Artist",
+        reason: "fits",
+        genres: ["aggressive trap"],
+      },
+    ],
+    { avoidArtists: [], avoidGenres: [], dislikes: ["Aggressive trap"] }
+  );
+
+  assert.equal(track.obviousnessPenalty, 28);
+});
+
+test("applyAvoidPenalties leaves unrelated tracks untouched", () => {
+  const [track] = matching.applyAvoidPenalties(
+    [
+      {
+        title: "Song",
+        artist: "Liked Artist",
+        reason: "fits",
+        genres: ["dream pop"],
+        obviousnessPenalty: 3,
+      },
+    ],
+    { avoidArtists: ["Skipped Artist"], avoidGenres: ["edm"], dislikes: ["Aggressive trap"] }
+  );
+
+  assert.equal(track.obviousnessPenalty, 3);
+});
+
 test("scoreResolvedTrack rewards iTunes preview quality without changing identity", () => {
   const scored = matching.scoreResolvedTrack(
     {

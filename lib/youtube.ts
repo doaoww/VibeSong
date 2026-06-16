@@ -4,6 +4,7 @@ export interface YouTubeTrack {
   title: string;
   artist: string;
   reason: string;
+  genres?: string[];
   matchScore: number;
   finalScore?: number;
   photoFitScore?: number;
@@ -141,6 +142,7 @@ export async function searchYouTubeTrack(
         title: track.title,
         artist: track.artist,
         reason: track.reason,
+        genres: track.genres,
         matchScore: track.matchScore ?? Math.round(track.finalScore ?? 75),
         finalScore: track.finalScore,
         photoFitScore: track.photoFitScore,

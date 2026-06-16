@@ -4,6 +4,7 @@ export interface GPTTrack {
   title: string;
   artist: string;
   reason: string;
+  genres?: string[];
   matchScore: number;
   viralMomentSeconds?: number;
   photoFitScore?: number;
@@ -50,6 +51,7 @@ export interface Track {
   title: string;
   artist: string;
   reason: string;
+  genres?: string[];
   matchScore: number;
   finalScore?: number;
   photoFitScore?: number;
@@ -135,7 +137,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           previewUrl: track.previewUrl,
           previewProvider: track.previewProvider,
         },
-        genres: get().vibeProfile?.musicDNA.genres ?? [],
+        genres:
+          track.genres && track.genres.length > 0
+            ? track.genres
+            : get().vibeProfile?.musicDNA.genres ?? [],
         sourceImage: get().uploadedImageUrl || undefined,
       }),
     }).catch(() => {});
@@ -166,7 +171,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           previewUrl: track.previewUrl,
           previewProvider: track.previewProvider,
         },
-        genres: get().vibeProfile?.musicDNA.genres ?? [],
+        genres:
+          track.genres && track.genres.length > 0
+            ? track.genres
+            : get().vibeProfile?.musicDNA.genres ?? [],
         sourceImage: get().uploadedImageUrl || undefined,
       }),
     }).catch(() => {});
