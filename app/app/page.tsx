@@ -302,7 +302,7 @@ export default function AppUploadPage() {
               fit.
             </motion.p>
 
-            {!session ? (
+            {!session?.user?.spotifyConnected ? (
               <button
                 onClick={() => signIn("spotify")}
                 className="w-full lg:w-auto flex items-center justify-center gap-2 border border-spotify-green/40 text-spotify-green py-3 px-6 rounded-full text-sm font-semibold hover:bg-spotify-green/10 transition-all"
@@ -471,7 +471,18 @@ export default function AppUploadPage() {
         onAddCredits={handleCreditsAdded}
       />
       {effectiveShowTasteSetup && (
-        <TasteSetup onComplete={() => setShowTasteSetup(false)} />
+        <TasteSetup
+          onComplete={(taste) => {
+            setShowTasteSetup(false);
+            if (session?.user?.id) {
+              fetch("/api/taste", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(taste),
+              }).catch(() => {});
+            }
+          }}
+        />
       )}
     </AppShell>
   );

@@ -1,25 +1,32 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
+async function fetchCredits(): Promise<number | null> {
+  const res = await fetch("/api/credits");
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.credits;
+}
+
 export function useCredits() {
   const [credits, setCredits] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/credits");
-    if (!res.ok) return;
-    const data = await res.json();
-    setCredits(data.credits);
-    setLoaded(true);
+    const value = await fetchCredits();
+    if (value !== null) {
+      setCredits(value);
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/credits");
-      if (!res.ok) return;
-      const data = await res.json();
-      setCredits(data.credits);
-      setLoaded(true);
+      const value = await fetchCredits();
+      if (value !== null) {
+        setCredits(value);
+        setLoaded(true);
+      }
     })();
   }, []);
 
