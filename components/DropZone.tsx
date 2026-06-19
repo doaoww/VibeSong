@@ -1,9 +1,27 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import exifr from "exifr";
+import type { ExifData } from "../store/useAppStore";
 
 interface DropZoneProps {
-  onImageReady: (base64: string, mimeType: string, objectUrl: string) => void;
+  onImageReady: (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => void;
+}
+
+async function extractExif(file: File): Promise<ExifData> {
+  try {
+    const parsed = await exifr.parse(file, { pick: ["DateTimeOriginal", "GPSLatitude", "GPSLongitude"] });
+    if (!parsed) return {};
+    const dt = parsed.DateTimeOriginal;
+    return {
+      capturedHour: dt instanceof Date ? dt.getHours() : undefined,
+      capturedMonth: dt instanceof Date ? dt.getMonth() + 1 : undefined,
+      latitude: typeof parsed.GPSLatitude === "number" ? parsed.GPSLatitude : undefined,
+      longitude: typeof parsed.GPSLongitude === "number" ? parsed.GPSLongitude : undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 const MAX_SIZE = 15 * 1024 * 1024;
@@ -65,10 +83,11 @@ export default function DropZone({ onImageReady }: DropZoneProps) {
         return;
       }
       try {
-        const { base64, objectUrl } = isVideo
-          ? await extractVideoFrame(file)
-          : await fileToBase64(file);
-        onImageReady(base64, isVideo ? "image/jpeg" : file.type, objectUrl);
+        const [{ base64, objectUrl }, exifData] = await Promise.all([
+          isVideo ? extractVideoFrame(file) : fileToBase64(file),
+          isVideo ? Promise.resolve({} as ExifData) : extractExif(file),
+        ]);
+        onImageReady(base64, isVideo ? "image/jpeg" : file.type, objectUrl, exifData);
       } catch {
         setError("Failed to process file. Please try another.");
       }

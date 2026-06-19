@@ -1,5 +1,12 @@
 import { create } from "zustand";
 
+export interface ExifData {
+  capturedHour?: number;   // 0-23
+  capturedMonth?: number;  // 1-12
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface GPTTrack {
   title: string;
   artist: string;
@@ -81,8 +88,10 @@ interface AppState {
   credits: number;
   isAnalyzing: boolean;
   currentCardIndex: number;
+  exifData: ExifData | null;
 
   setUploadedImage: (base64: string, objectUrl: string) => void;
+  setExifData: (d: ExifData | null) => void;
   setVibeProfile: (profile: VibeProfile) => void;
   setTracks: (tracks: Track[]) => void;
   saveTrack: (track: Track) => void;
@@ -104,9 +113,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   credits: 3,
   isAnalyzing: false,
   currentCardIndex: 0,
+  exifData: null,
 
   setUploadedImage: (base64, objectUrl) =>
     set({ uploadedImage: base64, uploadedImageUrl: objectUrl }),
+
+  setExifData: (d) => set({ exifData: d }),
 
   setVibeProfile: (profile) => set({ vibeProfile: profile }),
 

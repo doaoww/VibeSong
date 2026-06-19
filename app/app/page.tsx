@@ -11,7 +11,7 @@ import TasteSetup, { UserTaste } from "../../components/TasteSetup";
 import SongSwipeOnboarding, { SeedSong } from "../../components/SongSwipeOnboarding";
 import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
-import { useAppStore } from "../../store/useAppStore";
+import { useAppStore, ExifData } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import { useAccountSync } from "../../lib/useAccountSync";
 
@@ -49,6 +49,7 @@ export default function AppUploadPage() {
     base64: string;
     mimeType: string;
     objectUrl: string;
+    exifData: ExifData;
   } | null>(null);
 
   const {
@@ -73,7 +74,7 @@ export default function AppUploadPage() {
   }, [pageState]);
 
   const runAnalysis = useCallback(
-    async (base64: string, mimeType: string, objectUrl: string) => {
+    async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => {
       setPageState("analyzing");
       setErrorMsg(null);
       setIsAnalyzing(true);
@@ -83,7 +84,7 @@ export default function AppUploadPage() {
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mimeType }),
+          body: JSON.stringify({ image: base64, mimeType, exifData }),
         });
         if (!analyzeRes.ok) {
           const errBody = await analyzeRes.json().catch(() => ({}));
@@ -131,20 +132,20 @@ export default function AppUploadPage() {
   );
 
   const handleImageReady = useCallback(
-    async (base64: string, mimeType: string, objectUrl: string) => {
+    async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => {
       if (credits <= 0) {
-        setPendingImage({ base64, mimeType, objectUrl });
+        setPendingImage({ base64, mimeType, objectUrl, exifData });
         setShowPricing(true);
         return;
       }
       const ok = await deduct();
       if (!ok) {
-        setPendingImage({ base64, mimeType, objectUrl });
+        setPendingImage({ base64, mimeType, objectUrl, exifData });
         setShowPricing(true);
         return;
       }
       setPageState("uploading");
-      setTimeout(() => runAnalysis(base64, mimeType, objectUrl), 300);
+      setTimeout(() => runAnalysis(base64, mimeType, objectUrl, exifData), 300);
     },
     [credits, deduct, runAnalysis]
   );
@@ -160,7 +161,8 @@ export default function AppUploadPage() {
             runAnalysis(
               pendingImage.base64,
               pendingImage.mimeType,
-              pendingImage.objectUrl
+              pendingImage.objectUrl,
+              pendingImage.exifData
             ),
           300
         );
