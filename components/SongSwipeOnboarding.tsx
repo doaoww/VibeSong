@@ -91,10 +91,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     const audio = new Audio(currentSong.previewUrl);
     audio.volume = 0.65;
     audioRef.current = audio;
-
-    audio.play()
-      .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false));
+    // Don't auto-play — mobile browsers block play() without direct user gesture
 
     return () => {
       audio.pause();
@@ -152,7 +149,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   // ── Prefs screen ──────────────────────────────────────────────────────────
   if (phase === "prefs") {
     return (
-      <div className="fixed inset-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto">
+      <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto" style={{ height: '100dvh' }}>
         <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-1">Setup · 1 of 1</p>
         <h1 className="text-white font-display font-extrabold text-2xl leading-tight mb-6">
           Quick taste check
@@ -211,7 +208,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="fixed inset-0 z-[100] bg-[#080808] flex items-center justify-center">
+      <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex items-center justify-center" style={{ height: '100dvh' }}>
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-hot-pink border-t-transparent animate-spin" />
           <p className="text-white/50 text-sm font-display">Loading songs...</p>
@@ -243,7 +240,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
 
   // ── Swipe screen ──────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[100] bg-[#080808] flex flex-col select-none">
+    <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col select-none" style={{ height: '100dvh' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-12 pb-3 flex-shrink-0">
         <div className="flex items-center gap-1.5">
