@@ -248,16 +248,6 @@ function buildExifBlock(exif: ExifData | null): string {
   return `\n\nPHOTO METADATA (EXIF — use as additional context):\n${parts.join("\n")}`;
 }
 
-function buildCombinedVectorBlock(
-  combined: EmotionalVector,
-  contrastMode: boolean
-): string {
-  const vec = contrastMode ? invertVector(combined) : combined;
-  const mode = contrastMode
-    ? "CONTRAST MODE (inverted — find music that changes the mood)"
-    : "MATCH MODE";
-  return `\n\nCOMBINED MOMENT VECTOR — ${mode}:\n${emotionalVectorToPromptString(vec)}\nMatch candidates CLOSELY to this vector. This is the primary selection target.`;
-}
 
 const REFUSAL_PATTERNS = [
   /^i'?m sorry/i,
