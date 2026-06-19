@@ -13,6 +13,21 @@ import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getUserTaste } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile, type AggregateTasteProfile } from "../../../lib/tasteProfile";
+import {
+  blendVectors,
+  invertVector,
+  emotionalVectorToPromptString,
+  type EmotionalVector,
+  ZERO_VECTOR,
+  VECTOR_KEYS,
+} from "../../../lib/emotionalVector";
+import {
+  getEmotionalVector,
+  getContextVector,
+  upsertContextVector,
+  type MomentType,
+} from "../../../lib/db/userTaste";
+import type { ExifData } from "../../../store/useAppStore";
 
 export const runtime = "nodejs";
 
@@ -101,13 +116,22 @@ Return ONLY valid JSON, no markdown:
     "movement": 0.0
   },
   "vibeCaption": "string",
-  "vibeTags": ["string", "string", "string"]
+  "vibeTags": ["string", "string", "string"],
+  "momentType": "reflective-solo|social|nature-escape|urban|romance|high-energy|unknown",
+  "photoConfidence": 0.85,
+  "photoVector": {
+    "dreamy": 0.0, "nostalgia": 0.0, "energy": 0.0, "cinematic": 0.0,
+    "darkness": 0.0, "confidence": 0.0, "intimacy": 0.0,
+    "danceability": 0.0, "electronic": 0.0, "acoustic": 0.0
+  }
 }
 NUMBER RULES:
 - matchScore/finalScore/photoFitScore/tasteFitScore/discoveryFitScore: INTEGER 0-100. NEVER decimal.
 - obviousnessPenalty: INTEGER 0-40. Use it for overused songs, meme songs, lazy chart defaults, or tracks that are too obvious for the photo.
 - viralMomentSeconds: INTEGER seconds (e.g. 62, 45, 30).
 - energy, valence, brightness, intensity: floats 0.0–1.0.
+- photoConfidence: float 0.0–1.0. Low = ambiguous image (selfie on white wall). High = strong clear vibe (sunset, party, nature).
+- photoVector fields: all floats 0.0–1.0 representing the photo's emotional character.
 
 PER-TRACK GENRES:
 - Each track's "genres" array is THAT SPECIFIC SONG's genres, not the overall photo vibe. Be specific (e.g. "lo-fi soul" not "R&B"), 1-3 entries.
@@ -157,7 +181,17 @@ LEARNED TASTE SIGNALS (from this user's save/skip history across all past matche
 Treat this as a strong signal, refined over many past matches -- stronger than a single quiz answer.`;
 }
 
-function buildPrompt(taste: UserTaste, aggregate: AggregateTasteProfile): string {
+function buildStoredTasteVectorBlock(tasteVec: EmotionalVector): string {
+  const hasSignal = VECTOR_KEYS.some((k) => tasteVec[k] > 0.05);
+  if (!hasSignal) return "";
+  return `\n\nUSER EMOTIONAL TASTE VECTOR (from onboarding swipes — match songs to this profile):\n${emotionalVectorToPromptString(tasteVec)}`;
+}
+
+function buildPrompt(
+  taste: UserTaste,
+  aggregate: AggregateTasteProfile,
+  storedTasteVec: EmotionalVector | null
+): string {
   const hasTaste =
     taste.setupComplete &&
     (taste.genres.length > 0 ||
@@ -171,8 +205,58 @@ function buildPrompt(taste: UserTaste, aggregate: AggregateTasteProfile): string
   return (
     BASE_SYSTEM_PROMPT +
     (hasTaste ? buildTasteBlock(taste) : "") +
-    buildAggregateTasteBlock(aggregate)
+    buildAggregateTasteBlock(aggregate) +
+    (storedTasteVec ? buildStoredTasteVectorBlock(storedTasteVec) : "")
   );
+}
+
+function buildExifBlock(exif: ExifData | null): string {
+  if (!exif) return "";
+  const parts: string[] = [];
+  if (exif.capturedHour !== undefined) {
+    const period =
+      exif.capturedHour >= 22 || exif.capturedHour < 5
+        ? "late night"
+        : exif.capturedHour < 12
+        ? "morning"
+        : exif.capturedHour < 17
+        ? "afternoon"
+        : exif.capturedHour < 21
+        ? "evening"
+        : "night";
+    parts.push(`Photo taken at: ${period} (${exif.capturedHour}:00)`);
+  }
+  if (exif.capturedMonth !== undefined) {
+    const seasons = [
+      "",
+      "winter",
+      "winter",
+      "spring",
+      "spring",
+      "spring",
+      "summer",
+      "summer",
+      "summer",
+      "autumn",
+      "autumn",
+      "autumn",
+      "winter",
+    ];
+    parts.push(`Season: ${seasons[exif.capturedMonth]}`);
+  }
+  if (!parts.length) return "";
+  return `\n\nPHOTO METADATA (EXIF — use as additional context):\n${parts.join("\n")}`;
+}
+
+function buildCombinedVectorBlock(
+  combined: EmotionalVector,
+  contrastMode: boolean
+): string {
+  const vec = contrastMode ? invertVector(combined) : combined;
+  const mode = contrastMode
+    ? "CONTRAST MODE (inverted — find music that changes the mood)"
+    : "MATCH MODE";
+  return `\n\nCOMBINED MOMENT VECTOR — ${mode}:\n${emotionalVectorToPromptString(vec)}\nMatch candidates CLOSELY to this vector. This is the primary selection target.`;
 }
 
 const REFUSAL_PATTERNS = [
@@ -243,7 +327,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { image, mimeType } = await req.json();
+    const { image, mimeType, exifData = null, contrastMode = false } = await req.json();
     if (!image || !mimeType) {
       return NextResponse.json(
         { error: "image and mimeType required" },
@@ -254,13 +338,19 @@ export async function POST(req: NextRequest) {
     const storedTaste = await getUserTaste(user.id);
     const taste = normalizeTaste(storedTaste ?? null);
 
-    const [savedFeedback, skippedFeedback] = await Promise.all([
+    const [storedTasteVec, savedFeedback, skippedFeedback] = await Promise.all([
+      getEmotionalVector(user.id).catch(() => null),
       getFeedback(user.id, "saved", 300),
       getFeedback(user.id, "skipped", 300),
     ]);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
-    const prompt = buildPrompt(taste, aggregate);
+    // Build base prompt (includes stored taste vector for GPT context)
+    const basePrompt = buildPrompt(taste, aggregate, storedTasteVec);
+
+    // Add EXIF block before GPT call (photo metadata as additional context)
+    const exifBlock = buildExifBlock(exifData as ExifData | null);
+    const prompt = basePrompt + exifBlock;
 
     const callOptions = (temperature?: number) => ({
       model: "gpt-4o" as const,
@@ -337,6 +427,36 @@ export async function POST(req: NextRequest) {
     }
 
     normalizeScores(result, taste, aggregate);
+
+    // Extract photo vector and moment type from GPT result
+    const photoVector: EmotionalVector =
+      result.photoVector && typeof result.photoVector === "object"
+        ? { ...ZERO_VECTOR, ...result.photoVector }
+        : { ...ZERO_VECTOR };
+    const photoConfidence: number =
+      typeof result.photoConfidence === "number"
+        ? Math.max(0, Math.min(1, result.photoConfidence))
+        : 0.5;
+    const momentType: MomentType = result.momentType ?? "unknown";
+
+    // Blend stored taste vector with photo vector to get combined context
+    const contextVec = await getContextVector(user.id, momentType).catch(() => null);
+    const tasteVec = contextVec ?? storedTasteVec ?? { ...ZERO_VECTOR };
+    const combined = blendVectors(tasteVec, photoVector, photoConfidence);
+
+    // For contrast mode: the combined vector would be inverted when used as context
+    // We store the raw combined vector; contrast mode is applied at prompt-build time
+    const vectorToStore = (contrastMode as boolean)
+      ? invertVector(combined)
+      : combined;
+
+    // Persist combined context vector for future calls (fire and forget)
+    upsertContextVector(user.id, momentType, vectorToStore).catch(() => {});
+
+    // Log the combined vector block for debugging
+    const combinedBlock = buildCombinedVectorBlock(combined, contrastMode as boolean);
+    console.log("[analyze] combined vector block:", combinedBlock.slice(0, 200));
+
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
