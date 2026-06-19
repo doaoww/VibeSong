@@ -329,6 +329,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
             {currentSong.previewUrl && (
               <button
                 onClick={togglePlay}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="absolute top-4 left-1/2 -translate-x-1/2 z-10"
               >
                 {isPlaying ? (
