@@ -30,6 +30,7 @@ export default function AppHeader({
               alt="VibeSong"
               width={32}
               height={32}
+              unoptimized
               className="rounded-xl ring-1 ring-hot-pink/30"
             />
             <span className="font-display text-base font-bold text-white">

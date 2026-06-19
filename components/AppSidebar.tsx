@@ -23,6 +23,7 @@ export default function AppSidebar() {
             alt="VibeSong"
             width={36}
             height={36}
+            unoptimized
             className="rounded-xl ring-1 ring-hot-pink/30"
           />
           <span className="font-display text-lg font-bold text-white">
