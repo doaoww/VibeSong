@@ -57,9 +57,11 @@ export default function AppUploadPage() {
     setVibeProfile,
     setTracks,
     setIsAnalyzing,
+    setLikedSeedTracks,
     savedSongs,
     vibeProfile,
     uploadedImageUrl,
+    likedSeedTracks,
   } = useAppStore();
 
   const effectiveShowTasteSetup =
@@ -105,7 +107,7 @@ export default function AppUploadPage() {
         const searchRes = await fetch("/api/search-tracks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tracks, discoveryStyle }),
+          body: JSON.stringify({ tracks, discoveryStyle, likedSeedTracks }),
         });
         const ytData = await searchRes.json();
         const ytTracks = Array.isArray(ytData) ? ytData : ytData.found || [];
@@ -128,6 +130,7 @@ export default function AppUploadPage() {
       setTracks,
       setIsAnalyzing,
       router,
+      likedSeedTracks,
     ]
   );
 
@@ -455,6 +458,7 @@ export default function AppUploadPage() {
       {!effectiveShowTasteSetup && showSongSwipe && (
         <SongSwipeOnboarding
           onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[]) => {
+            setLikedSeedTracks(savedSeeds.map((s) => ({ title: s.title, artist: s.artist })));
             const payload = { saved: savedSeeds, skipped: skippedSeeds };
             localStorage.setItem("seedFeedback", JSON.stringify(payload));
             setShowSongSwipe(false);

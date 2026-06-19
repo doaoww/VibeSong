@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveItunesPreview } from "../../../lib/itunes";
 import { scoreResolvedTrack, type DiscoveryStyle, type ResolvedTrack } from "../../../lib/matching";
 import { searchYouTubeTrack, GPTTrack } from "../../../lib/youtube";
+import { getSimilarTracks } from "../../../lib/lastfm";
 
 export const runtime = "nodejs";
 
@@ -45,7 +46,7 @@ async function resolvePlayableTrack(
 
 export async function POST(req: NextRequest) {
   try {
-    const { tracks, discoveryStyle = "balanced" } = await req.json();
+    const { tracks, discoveryStyle = "balanced", likedSeedTracks = [] } = await req.json();
     if (!Array.isArray(tracks)) {
       return NextResponse.json(
         { error: "tracks array required" },
@@ -53,8 +54,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Expand candidate list with Last.fm similar tracks for liked seed songs
+    let lastfmCandidates: Array<{ title: string; artist: string }> = [];
+    if (Array.isArray(likedSeedTracks) && likedSeedTracks.length > 0) {
+      const seedsToQuery = (likedSeedTracks as Array<{ title: string; artist: string }>).slice(0, 3);
+      const similar = await Promise.all(
+        seedsToQuery.map((s) => getSimilarTracks(s.title, s.artist, 8))
+      );
+      lastfmCandidates = similar.flat();
+    }
+
+    // Merge: GPT tracks first, then Last.fm additions (deduplicated by title+artist)
+    const seen = new Set(
+      tracks.map((t: GPTTrack) => `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`)
+    );
+    const merged: GPTTrack[] = [...tracks];
+    for (const lf of lastfmCandidates) {
+      const key = `${lf.title.toLowerCase()}|${lf.artist.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push({
+          title: lf.title,
+          artist: lf.artist,
+          reason: "",
+          matchScore: 70,
+          finalScore: 70,
+        });
+      }
+    }
+
     const results = await Promise.allSettled(
-      tracks.map((t: GPTTrack) =>
+      merged.map((t: GPTTrack) =>
         resolvePlayableTrack(t, discoveryStyle as DiscoveryStyle)
       )
     );

@@ -89,6 +89,7 @@ interface AppState {
   isAnalyzing: boolean;
   currentCardIndex: number;
   exifData: ExifData | null;
+  likedSeedTracks: Array<{ title: string; artist: string }>;
 
   setUploadedImage: (base64: string, objectUrl: string) => void;
   setExifData: (d: ExifData | null) => void;
@@ -101,6 +102,7 @@ interface AppState {
   nextCard: () => void;
   resetSession: () => void;
   loadFeedback: () => Promise<void>;
+  setLikedSeedTracks: (tracks: Array<{ title: string; artist: string }>) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -114,6 +116,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAnalyzing: false,
   currentCardIndex: 0,
   exifData: null,
+  likedSeedTracks: [],
 
   setUploadedImage: (base64, objectUrl) =>
     set({ uploadedImage: base64, uploadedImageUrl: objectUrl }),
@@ -217,4 +220,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       // keep whatever is already in memory on network failure
     }
   },
+
+  setLikedSeedTracks: (tracks) => set({ likedSeedTracks: tracks }),
 }));
