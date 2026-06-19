@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -17,7 +18,13 @@ export default function AppSidebar() {
     <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-64 flex-col border-r border-outline-variant/20 bg-surface-container-lowest/95 backdrop-blur-xl">
       <div className="px-6 py-5 border-b border-outline-variant/20">
         <Link href="/" className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="VibeSong" className="h-9 w-9 rounded-xl" />
+          <Image
+            src="/logo.png"
+            alt="VibeSong"
+            width={36}
+            height={36}
+            className="rounded-xl ring-1 ring-hot-pink/30"
+          />
           <span className="font-display text-lg font-bold text-white">
             VibeSong<span className="text-hot-pink">AI</span>
           </span>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import CreditBadge from "./CreditBadge";
 
 interface AppHeaderProps {
@@ -24,7 +25,13 @@ export default function AppHeader({
       <div className="mx-auto max-w-6xl flex items-center justify-between px-4 md:px-6 lg:px-8 py-3">
         {left ?? (
           <a href="/app" className="flex items-center gap-2 lg:hidden">
-            <img src="/logo.png" alt="VibeSong" className="h-8 w-8 rounded-xl" />
+            <Image
+              src="/logo.png"
+              alt="VibeSong"
+              width={32}
+              height={32}
+              className="rounded-xl ring-1 ring-hot-pink/30"
+            />
             <span className="font-display text-base font-bold text-white">
               VibeSong<span className="text-hot-pink">AI</span>
             </span>
