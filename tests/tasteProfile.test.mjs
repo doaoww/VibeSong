@@ -32,8 +32,8 @@ function loadTsModule(path) {
 
 const tasteProfile = loadTsModule("lib/tasteProfile.ts");
 
-function row(artist, genres = []) {
-  return { artist, genres, title: "x", createdAt: "2026-01-01" };
+function row(artist, genres = [], createdAt = new Date().toISOString()) {
+  return { artist, genres, title: "x", createdAt };
 }
 
 test("buildAggregateTasteProfile ranks saved genres and artists by frequency", () => {
@@ -70,4 +70,20 @@ test("buildAggregateTasteProfile does not avoid a genre that is also frequently 
   const profile = tasteProfile.buildAggregateTasteProfile(saved, skipped);
 
   assert.deepEqual(Array.from(profile.avoidGenres), []);
+});
+
+test("recent saves outweigh old saves", () => {
+  const recentDate = new Date().toISOString();
+  const oldDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days ago
+
+  const saved = [
+    { artist: "Artist A", genres: ["indie"], createdAt: recentDate },
+    { artist: "Artist A", genres: ["indie"], createdAt: recentDate },
+    { artist: "Artist B", genres: ["pop"], createdAt: oldDate },
+    { artist: "Artist B", genres: ["pop"], createdAt: oldDate },
+    { artist: "Artist B", genres: ["pop"], createdAt: oldDate },
+  ];
+  // Artist B has 3 old saves, Artist A has 2 recent — A should rank first
+  const profile = tasteProfile.buildAggregateTasteProfile(saved, []);
+  assert.equal(profile.learnedArtists[0], "Artist A");
 });

@@ -1,6 +1,7 @@
 interface TasteSignal {
   artist: string;
   genres?: string[];
+  createdAt?: string;
 }
 
 export interface AggregateTasteProfile {
@@ -10,13 +11,23 @@ export interface AggregateTasteProfile {
   avoidArtists: string[];
 }
 
+const DECAY_DAYS = 30;
+
+function decayWeight(createdAt: string | undefined): number {
+  if (!createdAt) return 1;
+  const ageMs = Date.now() - new Date(createdAt).getTime();
+  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+  return Math.exp(-ageDays / DECAY_DAYS);
+}
+
 function tally(rows: TasteSignal[], pick: (row: TasteSignal) => string[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const row of rows) {
+    const weight = decayWeight(row.createdAt);
     for (const value of pick(row)) {
       const key = value.trim();
       if (!key) continue;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      counts.set(key, (counts.get(key) ?? 0) + weight);
     }
   }
   return counts;
