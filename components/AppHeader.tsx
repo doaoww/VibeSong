@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import CreditBadge from "./CreditBadge";
 
 interface AppHeaderProps {
@@ -24,18 +23,18 @@ export default function AppHeader({
     <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-outline-variant/20 lg:left-64">
       <div className="mx-auto max-w-6xl flex items-center justify-between px-4 md:px-6 lg:px-8 py-3">
         {left ?? (
-          <a href="/app" className="flex items-center gap-2 lg:hidden">
-            <Image
-              src="/logo.png"
-              alt="VibeSong"
-              width={32}
-              height={32}
-              unoptimized
-              className="rounded-xl ring-1 ring-hot-pink/30"
-            />
-            <span className="font-display text-base font-bold text-white">
-              VibeSong<span className="text-hot-pink">AI</span>
+          <a
+            href="/app"
+            className="flex items-center gap-2 font-display text-base font-bold text-white lg:hidden"
+          >
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-hot-pink">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
             </span>
+            VibeSong<span className="text-hot-pink">AI</span>
           </a>
         )}
 

@@ -2,8 +2,7 @@ import NextAuth from "next-auth";
 import type { DefaultSession } from "next-auth";
 import Spotify from "next-auth/providers/spotify";
 import Google from "next-auth/providers/google";
-import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
+import Resend from "next-auth/providers/resend";
 import { SupabaseAdapter } from "@auth/supabase-adapter";
 import { supabase } from "./lib/supabase";
 
@@ -19,14 +18,6 @@ export async function getSpotifyAccessToken(userId: string): Promise<string | nu
     .eq("provider", "spotify")
     .maybeSingle();
   return data?.access_token ?? null;
-}
-
-interface NextAuthUserRow {
-  id: string;
-  email: string | null;
-  name: string | null;
-  image: string | null;
-  password_hash: string | null;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -48,49 +39,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        const email = credentials?.email as string | undefined;
-        const password = credentials?.password as string | undefined;
-        if (!email || !password) return null;
-
-        const { data: existing } = await supabase
-          .schema("next_auth")
-          .from("users")
-          .select("id, email, name, image, password_hash")
-          .eq("email", email)
-          .maybeSingle<NextAuthUserRow>();
-
-        if (existing) {
-          if (!existing.password_hash) return null;
-          const valid = await bcrypt.compare(password, existing.password_hash);
-          if (!valid) return null;
-          return {
-            id: existing.id,
-            email: existing.email,
-            name: existing.name,
-            image: existing.image,
-          };
+    Resend({
+      apiKey: process.env.RESEND_API_KEY,
+      from: process.env.EMAIL_FROM ?? "VibeSong AI <onboarding@resend.dev>",
+      sendVerificationRequest: async ({ identifier: to, url, provider }) => {
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${provider.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: provider.from,
+            to,
+            subject: "Your VibeSong AI sign-in link",
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#080808;color:#f5f5f5;border-radius:16px;">
+                <h1 style="font-size:24px;font-weight:800;margin:0 0 8px;">Your sign-in link</h1>
+                <p style="color:#888;font-size:15px;margin:0 0 28px;">Click the button below to sign in to VibeSong AI. The link expires in 24 hours.</p>
+                <a href="${url}" style="display:inline-block;background:#7C3AED;color:#fff;font-weight:700;font-size:15px;padding:14px 28px;border-radius:999px;text-decoration:none;">Sign in to VibeSong AI</a>
+                <p style="color:#555;font-size:12px;margin:28px 0 0;">If you didn't request this, you can safely ignore this email.</p>
+              </div>
+            `,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(`Resend error: ${JSON.stringify(body)}`);
         }
-
-        const passwordHash = await bcrypt.hash(password, 10);
-        const { data: created, error } = await supabase
-          .schema("next_auth")
-          .from("users")
-          .insert({ email, password_hash: passwordHash })
-          .select("id, email, name, image")
-          .single();
-        if (error || !created) return null;
-        return {
-          id: created.id,
-          email: created.email,
-          name: created.name,
-          image: created.image,
-        };
       },
     }),
   ],
