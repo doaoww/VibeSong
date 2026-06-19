@@ -442,9 +442,10 @@ export default function AppUploadPage() {
       />
       {effectiveShowOnboarding && (
         <SongSwipeOnboarding
-          onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[], prefs: OnboardingPrefs) => {
-            localStorage.setItem("onboardingDone", "1");
+          onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[], prefs: OnboardingPrefs, completed: boolean) => {
             setShowOnboarding(false);
+            if (!completed) return; // skipped — show again next visit
+            localStorage.setItem("onboardingDone", "1");
             setLikedSeedTracks(savedSeeds.map((s) => ({ title: s.title, artist: s.artist })));
             const payload = { saved: savedSeeds, skipped: skippedSeeds, prefs };
             localStorage.setItem("seedFeedback", JSON.stringify(payload));

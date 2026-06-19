@@ -20,7 +20,7 @@ export interface OnboardingPrefs {
 }
 
 interface Props {
-  onComplete: (saved: SeedSong[], skipped: SeedSong[], prefs: OnboardingPrefs) => void;
+  onComplete: (saved: SeedSong[], skipped: SeedSong[], prefs: OnboardingPrefs, completed: boolean) => void;
 }
 
 const LANGUAGES = [
@@ -254,7 +254,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     return (
       <MusicDNACard
         vector={dnaVector}
-        onContinue={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs); }}
+        onContinue={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, true); }}
       />
     );
   }
@@ -285,7 +285,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
           ))}
         </div>
         <button
-          onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs); }}
+          onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, false); }}
           className="text-white/35 text-xs font-semibold hover:text-white/60 transition-colors px-2 py-1"
         >
           Skip
