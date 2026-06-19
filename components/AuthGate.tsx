@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { signIn } from "next-auth/react";
+import { createSupabaseBrowserClient } from "../lib/supabase/client";
 
 type State = "idle" | "sending" | "sent" | "error";
 
@@ -15,23 +15,30 @@ export default function AuthGate() {
     setState("sending");
     setErrorMsg(null);
 
-    try {
-      const result = await signIn("resend", {
-        email,
-        redirect: false,
-        callbackUrl: "/app",
-      });
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
 
-      if (result?.error) {
-        setErrorMsg("Couldn't send the link. Try again.");
-        setState("error");
-      } else {
-        setState("sent");
-      }
-    } catch {
-      setErrorMsg("Something went wrong. Try again.");
+    if (error) {
+      setErrorMsg("Couldn't send the link. Try again.");
       setState("error");
+    } else {
+      setState("sent");
     }
+  };
+
+  const handleGoogle = () => {
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
   };
 
   return (
@@ -39,7 +46,6 @@ export default function AuthGate() {
       <div className="w-full max-w-sm bg-cream rounded-2xl p-6 space-y-5 text-center">
 
         {state === "sent" ? (
-          // Success state
           <div className="space-y-4 py-2">
             <div className="w-14 h-14 rounded-full bg-hot-pink/15 flex items-center justify-center mx-auto">
               <span className="text-hot-pink text-2xl font-bold">✉</span>
@@ -60,7 +66,6 @@ export default function AuthGate() {
             </p>
           </div>
         ) : (
-          // Input state
           <>
             <div className="space-y-1">
               <h2 className="font-display font-bold text-2xl text-ink">One last step</h2>
@@ -70,7 +75,7 @@ export default function AuthGate() {
             </div>
 
             <button
-              onClick={() => signIn("google", { callbackUrl: "/app" })}
+              onClick={handleGoogle}
               className="w-full py-4 rounded-full font-display font-bold text-base bg-ink text-white active:scale-95 transition-transform"
             >
               Continue with Google
@@ -104,7 +109,7 @@ export default function AuthGate() {
               </p>
             </form>
 
-            {(state === "error" && errorMsg) && (
+            {state === "error" && errorMsg && (
               <p className="text-red-500 text-sm">{errorMsg}</p>
             )}
           </>

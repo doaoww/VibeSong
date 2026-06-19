@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "../../../auth";
+import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getFeedback, insertFeedback, type FeedbackAction } from "../../../lib/db/trackFeedback";
 import type { Track } from "../../../store/useAppStore";
 
@@ -33,13 +33,13 @@ function toTrack(
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getSupabaseUser();
+  if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const [savedRows, skippedRows] = await Promise.all([
-    getFeedback(session.user.id, "saved", 200),
-    getFeedback(session.user.id, "skipped", 200),
+    getFeedback(user.id, "saved", 200),
+    getFeedback(user.id, "skipped", 200),
   ]);
   return NextResponse.json({
     saved: savedRows.map((row) => toTrack(row, "saved")),
@@ -48,8 +48,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getSupabaseUser();
+  if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await insertFeedback(session.user.id, body.action, {
+  await insertFeedback(user.id, body.action, {
     title: body.track.title,
     artist: body.track.artist,
     reason: body.track.reason,

@@ -35,7 +35,7 @@ const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
 
 export default function AppUploadPage() {
   const router = useRouter();
-  const { session, status, tasteComplete } = useAccountSync();
+  const { user, status, tasteComplete } = useAccountSync();
   const { credits, deduct, add } = useCredits();
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
@@ -96,22 +96,6 @@ export default function AppUploadPage() {
 
         let tracks = vibeData.musicDNA?.tracks || [];
 
-        if (session?.user?.spotifyConnected) {
-          try {
-            const enhanceRes = await fetch("/api/enhance", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ vibeProfile: vibeData }),
-            });
-            if (enhanceRes.ok) {
-              const enhanced = await enhanceRes.json();
-              if (enhanced.tracks?.length) tracks = enhanced.tracks;
-            }
-          } catch {
-            // Spotify enhancement is optional
-          }
-        }
-
         const storedTasteRaw = localStorage.getItem("userTaste");
         const discoveryStyle: UserTaste["discoveryStyle"] = storedTasteRaw
           ? JSON.parse(storedTasteRaw)?.discoveryStyle ?? "balanced"
@@ -137,7 +121,7 @@ export default function AppUploadPage() {
       }
     },
     [
-      session,
+      user,
       setUploadedImage,
       setVibeProfile,
       setTracks,
@@ -456,7 +440,7 @@ export default function AppUploadPage() {
           onComplete={(taste) => {
             setShowTasteSetup(false);
             setShowSongSwipe(true);
-            if (session?.user?.id) {
+            if (user?.id) {
               fetch("/api/taste", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -472,7 +456,7 @@ export default function AppUploadPage() {
             const payload = { saved: savedSeeds, skipped: skippedSeeds };
             localStorage.setItem("seedFeedback", JSON.stringify(payload));
             setShowSongSwipe(false);
-            if (session?.user?.id) {
+            if (user?.id) {
               fetch("/api/seed-feedback", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

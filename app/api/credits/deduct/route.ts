@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "../../../../auth";
+import { getSupabaseUser } from "../../../../lib/supabase/server";
 import { deductCredit } from "../../../../lib/db/profiles";
 
 export const runtime = "nodejs";
 
 export async function POST() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getSupabaseUser();
+  if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
-  const result = await deductCredit(session.user.id);
+  const result = await deductCredit(user.id);
   return NextResponse.json(result);
 }

@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import { useAppStore } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
+import { useAccountSync } from "../../lib/useAccountSync";
+import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import PricingModal from "../../components/PricingModal";
 
 interface LearnedTaste {
@@ -15,7 +17,8 @@ interface LearnedTaste {
 }
 
 export default function ProfilePage() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { user } = useAccountSync();
   const { savedSongs, loadFeedback } = useAppStore();
   const { credits, add } = useCredits();
   const [showPricing, setShowPricing] = useState(false);
@@ -26,12 +29,27 @@ export default function ProfilePage() {
   }, [loadFeedback]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!user) return;
     fetch("/api/taste/learned")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setLearnedTaste(data))
       .catch(() => {});
-  }, [session]);
+  }, [user]);
+
+  const handleSignOut = async () => {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
+  const displayName =
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.email?.split("@")[0] ||
+    "user";
+
+  const avatarUrl =
+    user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null;
 
   return (
     <AppShell
@@ -55,7 +73,7 @@ export default function ProfilePage() {
       }
     >
       <div className="max-w-2xl mx-auto lg:max-w-none">
-        {!session ? (
+        {!user ? (
           <div className="flex flex-col items-center justify-center py-12 md:py-16 text-center space-y-6">
             <div className="w-24 h-24 rounded-full bg-hot-pink/15 flex items-center justify-center border-2 border-hot-pink/40">
               <span className="material-symbols-outlined text-5xl text-hot-pink">
@@ -87,10 +105,10 @@ export default function ProfilePage() {
         ) : (
           <div className="lg:grid lg:grid-cols-[280px_1fr] lg:gap-10 lg:items-start space-y-6 lg:space-y-0">
             <div className="flex flex-col items-center lg:items-start space-y-4 pt-2">
-              {session.user?.image ? (
+              {avatarUrl ? (
                 <img
-                  src={session.user.image}
-                  alt={session.user.name || ""}
+                  src={avatarUrl}
+                  alt={displayName}
                   className="w-20 h-20 md:w-24 md:h-24 rounded-full border-2 border-hot-pink"
                 />
               ) : (
@@ -102,9 +120,7 @@ export default function ProfilePage() {
               )}
               <div className="text-center lg:text-left">
                 <p className="font-display font-bold text-white text-lg">
-                  @
-                  {session.user?.name?.replace(/\s+/g, "").toLowerCase() ||
-                    "user"}
+                  @{displayName.replace(/\s+/g, "").toLowerCase()}
                 </p>
               </div>
 
@@ -124,7 +140,7 @@ export default function ProfilePage() {
               </button>
 
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={handleSignOut}
                 className="w-full text-on-surface-variant text-sm hover:text-white transition-colors py-2"
               >
                 Sign out

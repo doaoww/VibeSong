@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "../../../auth";
+import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getOrCreateProfile, markMigrated } from "../../../lib/db/profiles";
 import { upsertUserTaste } from "../../../lib/db/userTaste";
 import { insertFeedback } from "../../../lib/db/trackFeedback";
@@ -33,12 +33,12 @@ function toFeedbackTrack(track: Track) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getSupabaseUser();
+  if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
-  const profile = await getOrCreateProfile(session.user.id);
+  const profile = await getOrCreateProfile(user.id);
   if (profile.migratedLocalData) {
     return NextResponse.json({ migrated: false, alreadyDone: true });
   }
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   if (body.userTaste && typeof body.userTaste === "object") {
     const taste = normalizeTaste(body.userTaste);
     if (taste.setupComplete) {
-      await upsertUserTaste(session.user.id, taste);
+      await upsertUserTaste(user.id, taste);
     }
   }
 
@@ -57,15 +57,15 @@ export async function POST(req: NextRequest) {
 
   await Promise.allSettled([
     ...saved.map((track) =>
-      insertFeedback(session.user.id, "saved", toFeedbackTrack(track))
+      insertFeedback(user.id, "saved", toFeedbackTrack(track))
     ),
     ...skipped.map((track) =>
-      insertFeedback(session.user.id, "skipped", toFeedbackTrack(track))
+      insertFeedback(user.id, "skipped", toFeedbackTrack(track))
     ),
   ]);
 
   await markMigrated(
-    session.user.id,
+    user.id,
     typeof body.credits === "number" ? body.credits : null
   );
 

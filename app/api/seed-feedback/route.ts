@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "../../../auth";
+import { getSupabaseUser } from "../../../lib/supabase/server";
 import { insertFeedback } from "../../../lib/db/trackFeedback";
 
 export const runtime = "nodejs";
@@ -18,8 +18,8 @@ interface Body {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getSupabaseUser();
+  if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   await Promise.allSettled([
     ...saved.map((track) =>
-      insertFeedback(session.user.id, "saved", {
+      insertFeedback(user.id, "saved", {
         title: track.title,
         artist: track.artist,
         genres: track.genres ?? [],
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       })
     ),
     ...skipped.map((track) =>
-      insertFeedback(session.user.id, "skipped", {
+      insertFeedback(user.id, "skipped", {
         title: track.title,
         artist: track.artist,
         genres: track.genres ?? [],

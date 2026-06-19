@@ -9,7 +9,7 @@ import {
   type CandidateTrack,
   type UserTaste,
 } from "../../../lib/matching";
-import { auth } from "../../../auth";
+import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getUserTaste } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile, type AggregateTasteProfile } from "../../../lib/tasteProfile";
@@ -237,8 +237,8 @@ function normalizeScores(
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getSupabaseUser();
+  if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
@@ -251,12 +251,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const storedTaste = await getUserTaste(session.user.id);
+    const storedTaste = await getUserTaste(user.id);
     const taste = normalizeTaste(storedTaste ?? null);
 
     const [savedFeedback, skippedFeedback] = await Promise.all([
-      getFeedback(session.user.id, "saved", 300),
-      getFeedback(session.user.id, "skipped", 300),
+      getFeedback(user.id, "saved", 300),
+      getFeedback(user.id, "skipped", 300),
     ]);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
