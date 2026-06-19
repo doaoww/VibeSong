@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import type { EmotionalVector } from "../lib/emotionalVector";
 
 export interface SeedSong {
   title: string;
@@ -8,6 +9,7 @@ export interface SeedSong {
   genres: string[];
   previewUrl: string | null;
   artwork: string | null;
+  emotionalVector?: EmotionalVector;
 }
 
 interface Props {

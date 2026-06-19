@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUser } from "../../../lib/supabase/server";
 import { insertFeedback } from "../../../lib/db/trackFeedback";
+import { buildTasteVector, type EmotionalVector } from "../../../lib/emotionalVector";
+import { upsertEmotionalVector } from "../../../lib/db/userTaste";
 
 export const runtime = "nodejs";
 
@@ -10,6 +12,7 @@ interface SeedSong {
   genres?: string[];
   previewUrl?: string | null;
   artwork?: string | null;
+  emotionalVector?: EmotionalVector;
 }
 
 interface Body {
@@ -26,6 +29,15 @@ export async function POST(req: NextRequest) {
   const body: Body = await req.json();
   const saved = Array.isArray(body.saved) ? body.saved : [];
   const skipped = Array.isArray(body.skipped) ? body.skipped : [];
+
+  // Build emotional taste vector from swipes
+  const hasSomeVectors = [...saved, ...skipped].some((s) => s.emotionalVector);
+  if (hasSomeVectors) {
+    const tasteVector = buildTasteVector(saved, skipped);
+    await upsertEmotionalVector(user.id, tasteVector).catch((e) =>
+      console.error("[seed-feedback] upsertEmotionalVector failed:", e)
+    );
+  }
 
   await Promise.allSettled([
     ...saved.map((track) =>
