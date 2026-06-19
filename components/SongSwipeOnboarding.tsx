@@ -62,6 +62,9 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   const [swiping, setSwiping] = useState<"left" | "right" | null>(null);
   const [dnaVector, setDnaVector] = useState<EmotionalVector | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingAudioRef = useRef<HTMLAudioElement | null>(null);
+  const songsRef = useRef<SeedSong[]>([]);
+  const indexRef = useRef(0);
 
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-160, 160], [-14, 14]);
@@ -77,46 +80,70 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   }, []);
 
   const currentSong = index < songs.length ? songs[index] : null;
+  songsRef.current = songs;
+  indexRef.current = index;
 
+  // Adopt pending audio (pre-started during swipe gesture) or set up fresh element
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
     setIsPlaying(false);
 
-    if (!currentSong?.previewUrl || phase !== "swipe") return;
+    if (phase !== "swipe") {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      return;
+    }
 
+    if (pendingAudioRef.current) {
+      // Swipe gesture already started this audio — just adopt it
+      audioRef.current = pendingAudioRef.current;
+      pendingAudioRef.current = null;
+      return;
+    }
+
+    // First card: create element but don't auto-play (no gesture yet)
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+    if (!currentSong?.previewUrl) { audioRef.current = null; return; }
     const audio = new Audio(currentSong.previewUrl);
     audio.volume = 0.65;
     audioRef.current = audio;
-    // Don't auto-play — mobile browsers block play() without direct user gesture
 
-    return () => {
-      audio.pause();
-      audio.src = "";
-    };
+    return () => { audio.pause(); audio.src = ""; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, phase]);
 
   const handleAction = useCallback(
-    (action: "saved" | "skipped") => {
-      if (!currentSong) return;
-      if (action === "saved") setSaved((p) => [...p, currentSong]);
-      else setSkipped((p) => [...p, currentSong]);
+    (action: "saved" | "skipped", song: SeedSong) => {
+      if (action === "saved") setSaved((p) => [...p, song]);
+      else setSkipped((p) => [...p, song]);
       x.set(0);
       setSwiping(null);
       setIndex((i) => i + 1);
     },
-    [currentSong, x]
+    [x]
   );
 
   const swipeOff = useCallback(
     (direction: "left" | "right") => {
+      const song = songsRef.current[indexRef.current];
+      if (!song) return;
       setSwiping(direction);
       animate(x, direction === "right" ? 600 : -600, { duration: 0.28 });
-      setTimeout(() => handleAction(direction === "right" ? "saved" : "skipped"), 260);
+
+      // Pre-play next song NOW — still within the user's gesture context
+      const nextSong = songsRef.current[indexRef.current + 1];
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      if (nextSong?.previewUrl) {
+        const audio = new Audio(nextSong.previewUrl);
+        audio.volume = 0.65;
+        pendingAudioRef.current = audio;
+        audio.play()
+          .then(() => setIsPlaying(true))
+          .catch(() => { pendingAudioRef.current = null; setIsPlaying(false); });
+      } else {
+        pendingAudioRef.current = null;
+        setIsPlaying(false);
+      }
+
+      setTimeout(() => handleAction(direction === "right" ? "saved" : "skipped", song), 260);
     },
     [x, handleAction]
   );
