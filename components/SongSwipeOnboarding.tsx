@@ -14,11 +14,45 @@ export interface SeedSong {
   emotionalVector?: EmotionalVector;
 }
 
-interface Props {
-  onComplete: (saved: SeedSong[], skipped: SeedSong[]) => void;
+export interface OnboardingPrefs {
+  languagePreference: string;
+  dislikes: string[];
 }
 
+interface Props {
+  onComplete: (saved: SeedSong[], skipped: SeedSong[], prefs: OnboardingPrefs) => void;
+}
+
+const LANGUAGES = [
+  "No preference",
+  "English",
+  "Korean",
+  "Spanish / Latin",
+  "Russian",
+  "Uzbek",
+  "Arabic",
+  "French",
+  "Hindi",
+  "Japanese",
+];
+
+const DISLIKES_OPTIONS = [
+  "Explicit lyrics",
+  "Heavy metal / screamo",
+  "Very slow / sad songs",
+  "EDM / festival drops",
+  "Foreign language",
+  "Overplayed hits",
+  "Mumble rap",
+  "Generic pop ballads",
+];
+
+type Phase = "prefs" | "swipe" | "done";
+
 export default function SongSwipeOnboarding({ onComplete }: Props) {
+  const [phase, setPhase] = useState<Phase>("prefs");
+  const [prefs, setPrefs] = useState<OnboardingPrefs>({ languagePreference: "No preference", dislikes: [] });
+
   const [songs, setSongs] = useState<SeedSong[]>([]);
   const [loading, setLoading] = useState(true);
   const [index, setIndex] = useState(0);
@@ -52,7 +86,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     }
     setIsPlaying(false);
 
-    if (!currentSong?.previewUrl) return;
+    if (!currentSong?.previewUrl || phase !== "swipe") return;
 
     const audio = new Audio(currentSong.previewUrl);
     audio.volume = 0.65;
@@ -66,9 +100,8 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
       audio.pause();
       audio.src = "";
     };
-    // index change is the real trigger; songs array stable after load
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index]);
+  }, [index, phase]);
 
   const handleAction = useCallback(
     (action: "saved" | "skipped") => {
@@ -107,6 +140,75 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     else audio.play().then(() => setIsPlaying(true)).catch(() => {});
   };
 
+  const toggleDislike = (item: string) => {
+    setPrefs((p) => ({
+      ...p,
+      dislikes: p.dislikes.includes(item)
+        ? p.dislikes.filter((d) => d !== item)
+        : [...p.dislikes, item],
+    }));
+  };
+
+  // ── Prefs screen ──────────────────────────────────────────────────────────
+  if (phase === "prefs") {
+    return (
+      <div className="fixed inset-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto">
+        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-1">Setup · 1 of 1</p>
+        <h1 className="text-white font-display font-extrabold text-2xl leading-tight mb-6">
+          Quick taste check
+        </h1>
+
+        {/* Language */}
+        <div className="mb-6">
+          <p className="text-white/60 text-sm font-semibold mb-3">What language do you prefer?</p>
+          <div className="flex flex-wrap gap-2">
+            {LANGUAGES.map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setPrefs((p) => ({ ...p, languagePreference: lang }))}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                  prefs.languagePreference === lang
+                    ? "bg-hot-pink border-hot-pink text-white"
+                    : "border-white/15 text-white/50 hover:border-white/30"
+                }`}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Dislikes */}
+        <div className="mb-8">
+          <p className="text-white/60 text-sm font-semibold mb-1">Anything you can&apos;t stand? <span className="text-white/30 font-normal">(optional)</span></p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {DISLIKES_OPTIONS.map((item) => (
+              <button
+                key={item}
+                onClick={() => toggleDislike(item)}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                  prefs.dislikes.includes(item)
+                    ? "bg-white/10 border-white/40 text-white"
+                    : "border-white/15 text-white/50 hover:border-white/30"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={() => setPhase("swipe")}
+          className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base glow-pink"
+        >
+          Start swiping →
+        </button>
+      </div>
+    );
+  }
+
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="fixed inset-0 z-[100] bg-[#080808] flex items-center justify-center">
@@ -118,29 +220,28 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     );
   }
 
-  // Done screen — shown after all songs swiped
+  // ── Done screen ───────────────────────────────────────────────────────────
   if (index >= songs.length && songs.length > 0) {
-    // Compute DNA if not done yet
     if (!dnaVector) {
       const vec = buildTasteVector(saved, skipped);
       setDnaVector(vec);
-      return null; // re-render will show card
+      return null;
     }
     return (
       <MusicDNACard
         vector={dnaVector}
-        onContinue={() => { audioRef.current?.pause(); onComplete(saved, skipped); }}
+        onContinue={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs); }}
       />
     );
   }
 
   if (!currentSong) {
-    // No songs loaded (API failed) — skip straight through
     return null;
   }
 
   const nextSong = songs[index + 1] ?? null;
 
+  // ── Swipe screen ──────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[100] bg-[#080808] flex flex-col select-none">
       {/* Header */}
@@ -160,7 +261,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
           ))}
         </div>
         <button
-          onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped); }}
+          onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs); }}
           className="text-white/35 text-xs font-semibold hover:text-white/60 transition-colors px-2 py-1"
         >
           Skip
@@ -176,7 +277,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
       <div className="flex-1 flex items-center justify-center px-5 min-h-0">
         <div className="relative w-full max-w-xs" style={{ height: 440 }}>
 
-          {/* Background card (next song) */}
           {nextSong && (
             <div
               className="absolute inset-0 rounded-2xl overflow-hidden"
@@ -190,7 +290,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
             </div>
           )}
 
-          {/* Active card */}
           <motion.div
             key={`${currentSong.title}-${index}`}
             style={{ x, rotate, zIndex: 1 }}
@@ -211,10 +310,8 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
               <div className="w-full h-full bg-gradient-to-br from-hot-pink/20 to-[#1a0a2e]" />
             )}
 
-            {/* Overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
-            {/* LOVE label */}
             <motion.div
               style={{ opacity: likeOpacity }}
               className="absolute top-5 right-4 bg-hot-pink text-white font-display font-black text-lg px-3 py-1 rounded-lg rotate-12 border-2 border-white/30"
@@ -222,7 +319,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
               LOVE
             </motion.div>
 
-            {/* NOPE label */}
             <motion.div
               style={{ opacity: nopeOpacity }}
               className="absolute top-5 left-4 bg-black/50 backdrop-blur text-white font-display font-black text-lg px-3 py-1 rounded-lg -rotate-12 border-2 border-white/20"
@@ -230,7 +326,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
               NOPE
             </motion.div>
 
-            {/* Playing badge */}
             {currentSong.previewUrl && (
               <button
                 onClick={togglePlay}
@@ -257,7 +352,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
               </button>
             )}
 
-            {/* Song info */}
             <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1.5">
               <p className="text-white font-display font-extrabold text-xl leading-tight">
                 {currentSong.title}

@@ -7,8 +7,7 @@ import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import VibeTags from "../../components/VibeTags";
 import PricingModal from "../../components/PricingModal";
-import TasteSetup, { UserTaste } from "../../components/TasteSetup";
-import SongSwipeOnboarding, { SeedSong } from "../../components/SongSwipeOnboarding";
+import SongSwipeOnboarding, { SeedSong, OnboardingPrefs } from "../../components/SongSwipeOnboarding";
 import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
 import { useAppStore, ExifData } from "../../store/useAppStore";
@@ -41,10 +40,10 @@ export default function AppUploadPage() {
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
-  const [showTasteSetup, setShowTasteSetup] = useState(() =>
-    typeof window !== "undefined" ? !localStorage.getItem("userTaste") : false
-  );
-  const [showSongSwipe, setShowSongSwipe] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("onboardingDone") && !localStorage.getItem("userTaste");
+  });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<{
     base64: string;
@@ -65,8 +64,8 @@ export default function AppUploadPage() {
     likedSeedTracks,
   } = useAppStore();
 
-  const effectiveShowTasteSetup =
-    tasteComplete === null ? showTasteSetup : !tasteComplete;
+  const effectiveShowOnboarding =
+    tasteComplete === null ? showOnboarding : !tasteComplete;
 
   useEffect(() => {
     if (pageState !== "analyzing") return;
@@ -101,10 +100,7 @@ export default function AppUploadPage() {
 
         let tracks = vibeData.musicDNA?.tracks || [];
 
-        const storedTasteRaw = localStorage.getItem("userTaste");
-        const discoveryStyle: UserTaste["discoveryStyle"] = storedTasteRaw
-          ? JSON.parse(storedTasteRaw)?.discoveryStyle ?? "balanced"
-          : "balanced";
+        const discoveryStyle = "balanced";
 
         const searchRes = await fetch("/api/search-tracks", {
           method: "POST",
@@ -245,7 +241,7 @@ export default function AppUploadPage() {
     );
   }
 
-  const needsAuthGate = !effectiveShowTasteSetup && !showSongSwipe && status === "unauthenticated";
+  const needsAuthGate = !effectiveShowOnboarding && status === "unauthenticated";
 
   if (needsAuthGate) {
     return <AuthGate />;
@@ -444,28 +440,14 @@ export default function AppUploadPage() {
         currentCredits={credits}
         onAddCredits={handleCreditsAdded}
       />
-      {effectiveShowTasteSetup && (
-        <TasteSetup
-          onComplete={(taste) => {
-            setShowTasteSetup(false);
-            setShowSongSwipe(true);
-            if (user?.id) {
-              fetch("/api/taste", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(taste),
-              }).catch(() => {});
-            }
-          }}
-        />
-      )}
-      {!effectiveShowTasteSetup && showSongSwipe && (
+      {effectiveShowOnboarding && (
         <SongSwipeOnboarding
-          onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[]) => {
+          onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[], prefs: OnboardingPrefs) => {
+            localStorage.setItem("onboardingDone", "1");
+            setShowOnboarding(false);
             setLikedSeedTracks(savedSeeds.map((s) => ({ title: s.title, artist: s.artist })));
-            const payload = { saved: savedSeeds, skipped: skippedSeeds };
+            const payload = { saved: savedSeeds, skipped: skippedSeeds, prefs };
             localStorage.setItem("seedFeedback", JSON.stringify(payload));
-            setShowSongSwipe(false);
             if (user?.id) {
               fetch("/api/seed-feedback", {
                 method: "POST",
