@@ -301,7 +301,7 @@ function normalizeScores(
   result.musicDNA.tracks = normalizeCandidateScores(
     penalized,
     taste.discoveryStyle
-  ).slice(0, 8);
+  ).slice(0, 12);
   console.log(
     "[analyze] matchScores:",
     result.musicDNA.tracks.map(
