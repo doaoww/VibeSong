@@ -42,7 +42,7 @@ function topKeys(counts: Map<string, number>, limit: number): string[] {
 
 function avoidList(saved: Map<string, number>, skipped: Map<string, number>): string[] {
   return [...skipped.entries()]
-    .filter(([key, skipCount]) => skipCount >= 3 && skipCount > (saved.get(key) ?? 0) * 2)
+    .filter(([key, skipCount]) => skipCount >= 1.5 && skipCount > (saved.get(key) ?? 0) * 2)
     .map(([key]) => key);
 }
 

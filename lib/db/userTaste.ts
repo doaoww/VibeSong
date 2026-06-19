@@ -115,6 +115,18 @@ export async function getContextVector(
   return vec;
 }
 
+export async function getAllContextVectors(
+  userId: string
+): Promise<Record<string, Record<string, number>> | null> {
+  const { data, error } = await supabase
+    .from("user_taste")
+    .select("context_vectors")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.context_vectors as Record<string, Record<string, number>>) ?? null;
+}
+
 export async function upsertContextVector(
   userId: string,
   momentType: MomentType,

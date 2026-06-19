@@ -23,7 +23,7 @@ import {
 } from "../../../lib/emotionalVector";
 import {
   getEmotionalVector,
-  getContextVector,
+  getAllContextVectors,
   upsertContextVector,
   type MomentType,
 } from "../../../lib/db/userTaste";
@@ -190,7 +190,7 @@ function buildStoredTasteVectorBlock(tasteVec: EmotionalVector): string {
 function buildPrompt(
   taste: UserTaste,
   aggregate: AggregateTasteProfile,
-  storedTasteVec: EmotionalVector | null
+  tasteVecForPrompt: EmotionalVector | null
 ): string {
   const hasTaste =
     taste.setupComplete &&
@@ -206,7 +206,7 @@ function buildPrompt(
     BASE_SYSTEM_PROMPT +
     (hasTaste ? buildTasteBlock(taste) : "") +
     buildAggregateTasteBlock(aggregate) +
-    (storedTasteVec ? buildStoredTasteVectorBlock(storedTasteVec) : "")
+    (tasteVecForPrompt ? buildStoredTasteVectorBlock(tasteVecForPrompt) : "")
   );
 }
 
@@ -338,15 +338,27 @@ export async function POST(req: NextRequest) {
     const storedTaste = await getUserTaste(user.id);
     const taste = normalizeTaste(storedTaste ?? null);
 
-    const [storedTasteVec, savedFeedback, skippedFeedback] = await Promise.all([
+    const [storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
       getEmotionalVector(user.id).catch(() => null),
       getFeedback(user.id, "saved", 300),
       getFeedback(user.id, "skipped", 300),
+      getAllContextVectors(user.id).catch(() => null),
     ]);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
-    // Build base prompt (includes stored taste vector for GPT context)
-    const basePrompt = buildPrompt(taste, aggregate, storedTasteVec);
+    // Use the best available context vector for the prompt.
+    // We don't know momentType yet (it comes from GPT), so we use the first available
+    // context vector (any blended context vec is better than the raw onboarding vector),
+    // falling back to the onboarding taste vector if none exist.
+    const contextEntries = Object.entries(allContextVectors ?? {});
+    const bestContextVec =
+      contextEntries.length > 0
+        ? { ...ZERO_VECTOR, ...(Object.values(allContextVectors!)[0] as unknown as Record<string, number>) }
+        : null;
+    const tasteVecForPrompt = bestContextVec ?? storedTasteVec;
+
+    // Build base prompt (includes best taste vector for GPT context)
+    const basePrompt = buildPrompt(taste, aggregate, tasteVecForPrompt);
 
     // Add EXIF block before GPT call (photo metadata as additional context)
     const exifBlock = buildExifBlock(exifData as ExifData | null);
@@ -439,23 +451,23 @@ export async function POST(req: NextRequest) {
         : 0.5;
     const momentType: MomentType = result.momentType ?? "unknown";
 
-    // Blend stored taste vector with photo vector to get combined context
-    const contextVec = await getContextVector(user.id, momentType).catch(() => null);
-    const tasteVec = contextVec ?? storedTasteVec ?? { ...ZERO_VECTOR };
-    const combined = blendVectors(tasteVec, photoVector, photoConfidence);
+    // Blend the moment-specific context vector (if available) with the photo vector.
+    // Now that allContextVectors was fetched upfront, we can look up the exact momentType
+    // without an extra DB call.
+    const momentContextVec = allContextVectors?.[momentType]
+      ? { ...ZERO_VECTOR, ...(allContextVectors[momentType] as unknown as Record<string, number>) }
+      : storedTasteVec ?? { ...ZERO_VECTOR };
+    const combined = blendVectors(momentContextVec, photoVector, photoConfidence);
 
-    // For contrast mode: the combined vector would be inverted when used as context
-    // We store the raw combined vector; contrast mode is applied at prompt-build time
-    const vectorToStore = (contrastMode as boolean)
-      ? invertVector(combined)
-      : combined;
-
-    // Persist combined context vector for future calls (fire and forget)
-    upsertContextVector(user.id, momentType, vectorToStore).catch(() => {});
-
-    // Log the combined vector block for debugging
-    const combinedBlock = buildCombinedVectorBlock(combined, contrastMode as boolean);
-    console.log("[analyze] combined vector block:", combinedBlock.slice(0, 200));
+    // Always store the raw combined vector (never the inverted version).
+    // Contrast mode inversion is applied at display/prompt time only — it should not
+    // pollute the persisted taste signal for future personalization.
+    // Note: combined is intentionally NOT injected into the current call's prompt.
+    // It is stored via upsertContextVector and will appear in the prompt on the NEXT
+    // call for this momentType via buildStoredTasteVectorBlock.
+    // This is a two-call-window personalization: first call uses onboarding/global taste,
+    // subsequent calls for the same momentType use the blended photo+taste vector.
+    upsertContextVector(user.id, momentType, combined).catch(() => {});
 
     return NextResponse.json(result);
   } catch (err) {

@@ -51,15 +51,14 @@ test("buildAggregateTasteProfile ranks saved genres and artists by frequency", (
 });
 
 test("buildAggregateTasteProfile flags a genre as avoid only past the threshold", () => {
-  const skippedBelowThreshold = [row("A", ["edm"]), row("B", ["edm"])];
+  // skipCount uses decayed weights (float). Threshold is now 1.5.
+  // 1 recent skip → weight ~1.0, below threshold.
+  const skippedBelowThreshold = [row("A", ["edm"])];
   const belowProfile = tasteProfile.buildAggregateTasteProfile([], skippedBelowThreshold);
   assert.deepEqual(Array.from(belowProfile.avoidGenres), []);
 
-  const skippedAboveThreshold = [
-    row("A", ["edm"]),
-    row("B", ["edm"]),
-    row("C", ["edm"]),
-  ];
+  // 2 recent skips → weight ~2.0, above threshold.
+  const skippedAboveThreshold = [row("A", ["edm"]), row("B", ["edm"])];
   const aboveProfile = tasteProfile.buildAggregateTasteProfile([], skippedAboveThreshold);
   assert.deepEqual(Array.from(aboveProfile.avoidGenres), ["edm"]);
 });
