@@ -83,8 +83,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Cap at 14 to avoid too many parallel network calls (8 GPT + 6 Last.fm)
     const results = await Promise.allSettled(
-      merged.map((t: GPTTrack) =>
+      merged.slice(0, 14).map((t: GPTTrack) =>
         resolvePlayableTrack(t, discoveryStyle as DiscoveryStyle)
       )
     );

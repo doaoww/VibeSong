@@ -137,7 +137,7 @@ PER-TRACK GENRES:
 - Each track's "genres" array is THAT SPECIFIC SONG's genres, not the overall photo vibe. Be specific (e.g. "lo-fi soul" not "R&B"), 1-3 entries.
 - This matters: we use it to learn what the listener actually saves vs skips over time, so it must reflect the real song, not the photo.
 
-Generate exactly 24 candidate tracks. Use a mix of familiar hidden gems, taste-adjacent tracks, niche discoveries, and photo-perfect wildcards. vibeTags: exactly 3. NO lazy overplayed hits.`;
+Generate exactly 12 candidate tracks. Use a mix of familiar hidden gems, taste-adjacent tracks, niche discoveries, and photo-perfect wildcards. vibeTags: exactly 3. NO lazy overplayed hits.`;
 
 function buildTasteBlock(taste: UserTaste): string {
   return `
@@ -301,7 +301,7 @@ function normalizeScores(
   result.musicDNA.tracks = normalizeCandidateScores(
     penalized,
     taste.discoveryStyle
-  ).slice(0, 12);
+  ).slice(0, 8);
   console.log(
     "[analyze] matchScores:",
     result.musicDNA.tracks.map(
@@ -325,15 +325,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const storedTaste = await getUserTaste(user.id);
-    const taste = normalizeTaste(storedTaste ?? null);
-
-    const [storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
+    const [storedTaste, storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
+      getUserTaste(user.id).catch(() => null),
       getEmotionalVector(user.id).catch(() => null),
       getFeedback(user.id, "saved", 300),
       getFeedback(user.id, "skipped", 300),
       getAllContextVectors(user.id).catch(() => null),
     ]);
+    const taste = normalizeTaste(storedTaste ?? null);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
     // Use the best available context vector for the prompt.
@@ -369,7 +368,7 @@ export async function POST(req: NextRequest) {
           ],
         },
       ],
-      max_tokens: 12000,
+      max_tokens: 5000,
     });
 
     // Attempt 1 — default temperature
