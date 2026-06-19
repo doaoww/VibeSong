@@ -16,18 +16,11 @@ export default function AppSidebar() {
   return (
     <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-64 flex-col border-r border-outline-variant/20 bg-surface-container-lowest/95 backdrop-blur-xl">
       <div className="px-6 py-5 border-b border-outline-variant/20">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-display text-lg font-bold text-white"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-hot-pink">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white" aria-hidden>
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg>
+        <Link href="/" className="flex items-center gap-2.5">
+          <img src="/logo.png" alt="VibeSong" className="h-9 w-9 rounded-xl" />
+          <span className="font-display text-lg font-bold text-white">
+            VibeSong<span className="text-hot-pink">AI</span>
           </span>
-          VibeSong<span className="text-hot-pink">AI</span>
         </Link>
       </div>
 
