@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import type { EmotionalVector } from "../lib/emotionalVector";
+import MusicDNACard from "./MusicDNACard";
+import { buildTasteVector } from "../lib/emotionalVector";
 
 export interface SeedSong {
   title: string;
@@ -24,6 +26,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   const [skipped, setSkipped] = useState<SeedSong[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [swiping, setSwiping] = useState<"left" | "right" | null>(null);
+  const [dnaVector, setDnaVector] = useState<EmotionalVector | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const x = useMotionValue(0);
@@ -117,22 +120,17 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
 
   // Done screen — shown after all songs swiped
   if (index >= songs.length && songs.length > 0) {
+    // Compute DNA if not done yet
+    if (!dnaVector) {
+      const vec = buildTasteVector(saved, skipped);
+      setDnaVector(vec);
+      return null; // re-render will show card
+    }
     return (
-      <div className="fixed inset-0 z-[100] bg-[#080808] flex flex-col items-center justify-center p-6 gap-5">
-        <div className="w-16 h-16 rounded-full bg-hot-pink/15 flex items-center justify-center">
-          <span className="text-hot-pink text-2xl font-display font-black">♫</span>
-        </div>
-        <div className="text-center space-y-2">
-          <h2 className="font-display text-2xl font-bold text-white">Taste locked in</h2>
-          <p className="text-white/50 text-sm">Every match from here is built around you.</p>
-        </div>
-        <button
-          onClick={() => onComplete(saved, skipped)}
-          className="px-8 py-4 rounded-full bg-hot-pink text-white font-display font-bold text-base glow-pink active:scale-95 transition-transform"
-        >
-          Start matching
-        </button>
-      </div>
+      <MusicDNACard
+        vector={dnaVector}
+        onContinue={() => { audioRef.current?.pause(); onComplete(saved, skipped); }}
+      />
     );
   }
 
