@@ -9,6 +9,7 @@ export interface UserTaste {
   dislikes: string[];
   languagePreference: string;
   energyPreference: EnergyPreference;
+  aestheticTags: string[];
   setupComplete: boolean;
 }
 
@@ -47,6 +48,7 @@ const DEFAULT_TASTE: UserTaste = {
   dislikes: [],
   languagePreference: "No preference",
   energyPreference: "depends",
+  aestheticTags: [],
   setupComplete: true,
 };
 
@@ -102,6 +104,7 @@ export function normalizeTaste(input: unknown): UserTaste {
     energyPreference: isEnergyPreference(raw.energyPreference)
       ? raw.energyPreference
       : DEFAULT_TASTE.energyPreference,
+    aestheticTags: cleanArray(raw.aestheticTags),
     setupComplete:
       typeof raw.setupComplete === "boolean" ? raw.setupComplete : DEFAULT_TASTE.setupComplete,
   };
@@ -183,10 +186,20 @@ export function applyAvoidPenalties(
 // track's "language" field.
 const LANGUAGE_PREFERENCE_ALIASES: Record<string, string[]> = {
   english: ["english"],
-  "korean / k-pop": ["korean"],
-  latin: ["spanish", "portuguese", "latin"],
+  korean: ["korean"],
+  "spanish / latin": ["spanish", "latin"],
   russian: ["russian"],
   uzbek: ["uzbek"],
+  arabic: ["arabic"],
+  hindi: ["hindi", "urdu"],
+  french: ["french"],
+  japanese: ["japanese"],
+  portuguese: ["portuguese", "brazilian portuguese"],
+  turkish: ["turkish"],
+  german: ["german"],
+  mandarin: ["mandarin", "chinese", "cantonese"],
+  italian: ["italian"],
+  afrobeats: ["yoruba", "igbo", "pidgin", "twi"],
 };
 
 const NO_LANGUAGE_PREFERENCE = new Set(["no preference", "global mix"]);

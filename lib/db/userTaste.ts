@@ -9,6 +9,7 @@ interface UserTasteRow {
   dislikes: string[];
   language_preference: string;
   energy_preference: string;
+  aesthetic_tags: string[];
   setup_complete: boolean;
 }
 
@@ -16,7 +17,7 @@ export async function getUserTaste(userId: string): Promise<UserTaste | null> {
   const { data, error } = await supabase
     .from("user_taste")
     .select(
-      "genres, favorite_artists, default_mood, discovery_style, dislikes, language_preference, energy_preference, setup_complete"
+      "genres, favorite_artists, default_mood, discovery_style, dislikes, language_preference, energy_preference, aesthetic_tags, setup_complete"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -32,6 +33,7 @@ export async function getUserTaste(userId: string): Promise<UserTaste | null> {
     dislikes: row.dislikes,
     languagePreference: row.language_preference,
     energyPreference: row.energy_preference,
+    aestheticTags: row.aesthetic_tags ?? [],
     setupComplete: row.setup_complete,
   });
 }
@@ -47,6 +49,7 @@ export async function upsertUserTaste(userId: string, taste: UserTaste): Promise
     dislikes: normalized.dislikes,
     language_preference: normalized.languagePreference,
     energy_preference: normalized.energyPreference,
+    aesthetic_tags: normalized.aestheticTags,
     setup_complete: normalized.setupComplete,
     updated_at: new Date().toISOString(),
   });

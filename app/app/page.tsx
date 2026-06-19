@@ -8,6 +8,7 @@ import AppHeader from "../../components/AppHeader";
 import VibeTags from "../../components/VibeTags";
 import PricingModal from "../../components/PricingModal";
 import TasteSetup, { UserTaste } from "../../components/TasteSetup";
+import SongSwipeOnboarding, { SeedSong } from "../../components/SongSwipeOnboarding";
 import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
 import { useAppStore } from "../../store/useAppStore";
@@ -42,6 +43,7 @@ export default function AppUploadPage() {
   const [showTasteSetup, setShowTasteSetup] = useState(() =>
     typeof window !== "undefined" ? !localStorage.getItem("userTaste") : false
   );
+  const [showSongSwipe, setShowSongSwipe] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<{
     base64: string;
@@ -252,7 +254,7 @@ export default function AppUploadPage() {
     );
   }
 
-  const needsAuthGate = !effectiveShowTasteSetup && status === "unauthenticated";
+  const needsAuthGate = !effectiveShowTasteSetup && !showSongSwipe && status === "unauthenticated";
 
   if (needsAuthGate) {
     return <AuthGate />;
@@ -453,12 +455,31 @@ export default function AppUploadPage() {
         <TasteSetup
           onComplete={(taste) => {
             setShowTasteSetup(false);
+            setShowSongSwipe(true);
             if (session?.user?.id) {
               fetch("/api/taste", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(taste),
               }).catch(() => {});
+            }
+          }}
+        />
+      )}
+      {!effectiveShowTasteSetup && showSongSwipe && (
+        <SongSwipeOnboarding
+          onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[]) => {
+            const payload = { saved: savedSeeds, skipped: skippedSeeds };
+            localStorage.setItem("seedFeedback", JSON.stringify(payload));
+            setShowSongSwipe(false);
+            if (session?.user?.id) {
+              fetch("/api/seed-feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              })
+                .then(() => localStorage.removeItem("seedFeedback"))
+                .catch(() => {});
             }
           }}
         />

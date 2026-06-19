@@ -30,6 +30,18 @@ export function useAccountSync() {
         }),
       }).catch(() => {});
 
+      // Migrate song swipe onboarding results if present
+      const seedFeedbackRaw = localStorage.getItem("seedFeedback");
+      if (seedFeedbackRaw) {
+        fetch("/api/seed-feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: seedFeedbackRaw,
+        })
+          .then(() => localStorage.removeItem("seedFeedback"))
+          .catch(() => {});
+      }
+
       const tasteRes = await fetch("/api/taste");
       const taste = tasteRes.ok ? await tasteRes.json() : null;
       setTasteComplete(Boolean(taste?.setupComplete));

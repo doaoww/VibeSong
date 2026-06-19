@@ -18,11 +18,14 @@ export const runtime = "nodejs";
 
 const BASE_SYSTEM_PROMPT = `You are a music curator with deep knowledge of every genre, subculture, and scene -- not a mainstream playlist algorithm. Your job is to find songs that genuinely fit BOTH the photo and the listener's taste.
 
+ABSOLUTE RULE: You MUST analyze ANY image provided and return JSON. There is no such thing as an image that cannot be matched to music. Abstract images, screenshots, memes, dark/blurry photos, AI art, documents — everything has color, texture, and emotional energy that maps to music. Never refuse. Never explain. Only return JSON.
+
 PHOTO ANALYSIS RULES:
 - Look closely for people, their visible emotions, posture, facial expression, relationship/social vibe, activity, setting, time of day, weather, fashion, camera feel, lighting, colors, and aesthetic.
 - Convert the image into music supervision language: energy, valence, intimacy, confidence, nostalgia, movement, texture, and scene.
 - If people are present, the emotional/social reading matters as much as the background.
 - If no people are present, infer mood from scene, color, light, composition, and object context.
+- If the image is abstract, blurry, or unusual: use its dominant colors, brightness, and texture to determine energy and mood — every image has these.
 
 SONG SELECTION RULES:
 - Songs must be REAL tracks that exist on YouTube/Spotify (verifiable artist + title)
@@ -119,7 +122,7 @@ USER TASTE PROFILE (this is the most important personalization signal):
 - Genres they love: ${taste.genres.join(", ") || "not specified"}
 - Favorite artists: ${taste.favoriteArtists.join(", ") || "not specified"}
 - Use your own knowledge of these artists' sound and scene to find sonic twins and adjacent acts -- don't limit yourself to a fixed list.
-- Their mood preference: ${taste.defaultMood || "not specified"}
+- Sound aesthetic (texture/feel they want): ${taste.aestheticTags.join(", ") || "not specified"}
 - Discovery style: ${taste.discoveryStyle}
 - Discovery instructions: ${getDiscoveryInstructions(taste.discoveryStyle)}
 - Avoid these when possible: ${taste.dislikes.join(", ") || "not specified"}
@@ -274,7 +277,7 @@ export async function POST(req: NextRequest) {
           ],
         },
       ],
-      max_tokens: 5000,
+      max_tokens: 12000,
     });
 
     // Attempt 1 — default temperature
@@ -307,21 +310,15 @@ export async function POST(req: NextRequest) {
       const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
       console.error("[analyze] parse failed. Raw:", rawContent.slice(0, 500));
 
-      // GPT refused the image — return a friendly 422 the frontend can display
-      if (parseMsg.startsWith("REFUSAL:")) {
-        return NextResponse.json(
-          {
-            error: "Photo couldn't be analyzed",
-            detail: "Try a different photo — a clear scene, landscape, portrait, or aesthetic works best.",
-            userFacing: true,
-          },
-          { status: 422 }
-        );
-      }
+      // GPT refused or returned invalid JSON — retry with a stronger override prompt
+      const isRefusal = parseMsg.startsWith("REFUSAL:");
+      console.log(`[analyze] retrying — reason: ${isRefusal ? "refusal" : "no JSON"}…`);
 
-      // No JSON found at all — retry once with an explicit JSON reminder
-      console.log("[analyze] retrying with explicit JSON reminder…");
-      const fixPrompt = `${prompt}\n\nIMPORTANT: You MUST respond with ONLY a valid JSON object. No apologies, no explanations, no markdown. Start your response with { and end with }.`;
+      const overridePrefix = isRefusal
+        ? `CRITICAL OVERRIDE: You are a music curator tool. Your ONLY job is to find music that fits any image — there is NO image that cannot be matched to music. Abstract images, blurry photos, screenshots, AI art, memes, documents, dark photos — all of them have a visual texture, color palette, and emotional energy that maps to music. You are NOT allowed to refuse. You MUST return JSON.\n\n`
+        : "";
+
+      const fixPrompt = `${overridePrefix}${prompt}\n\nIMPORTANT: You MUST respond with ONLY a valid JSON object. No apologies, no explanations, no markdown. Start your response with { and end with }.`;
       const fixRes = await openai.chat.completions.create({
         ...callOptions(0),
         messages: [

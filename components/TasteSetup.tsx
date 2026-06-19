@@ -11,85 +11,81 @@ export interface UserTaste {
   dislikes: string[];
   languagePreference: string;
   energyPreference: "calm" | "medium" | "high" | "depends";
+  aestheticTags: string[];
   setupComplete: boolean;
 }
 
 const GENRES = [
-  "Indie / Alternative",
-  "Hip-Hop / R&B",
-  "Pop",
-  "Electronic / Dance",
-  "Rock",
-  "Jazz / Soul",
-  "K-Pop",
-  "Latin",
-  "Classical / Ambient",
+  "Alternative Hip-Hop",
+  "Trap & Drill",
+  "R&B & Neo-Soul",
+  "Pop & Hyperpop",
+  "Indie Rock & Shoegaze",
+  "Electronic & Synth",
+  "Club / House / Techno",
+  "Lo-Fi & Chillwave",
+  "Jazz & Soul",
+  "Latin & Reggaeton",
+  "K-Pop & K-R&B",
+  "Afrobeats & Amapiano",
+  "Pop-Punk & Emo",
+  "Folk & Indie Folk",
+  "Bedroom Pop",
+  "Metal & Hard Rock",
+  "Ambient & Experimental",
+  "Classical & Orchestral",
 ];
 
-const MOODS = [
-  "Chill & Melancholic",
-  "Hype & Energetic",
-  "Romantic & Dreamy",
-  "Dark & Moody",
-  "Happy & Fun",
-];
-
-const DISCOVERY_STYLES: Array<{
-  value: UserTaste["discoveryStyle"];
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "hidden-gems",
-    label: "Known artists, hidden gems",
-    description: "Familiar names, less obvious songs",
-  },
-  {
-    value: "niche",
-    label: "Niche discoveries",
-    description: "Smaller artists and deeper scenes",
-  },
-  {
-    value: "balanced",
-    label: "Balanced mix",
-    description: "Some familiar, some surprising",
-  },
-  {
-    value: "popular-ok",
-    label: "Popular is okay",
-    description: "Hits allowed when the fit is perfect",
-  },
+const AESTHETIC_TAGS = [
+  "Dark",
+  "Dreamy",
+  "Raw",
+  "Euphoric",
+  "Nostalgic",
+  "Hypnotic",
+  "Gritty",
+  "Ethereal",
+  "Minimalist",
+  "Anthemic",
+  "Romantic",
+  "Playful",
+  "Cinematic",
+  "Introspective",
+  "Aggressive",
+  "Smooth",
 ];
 
 const DISLIKES = [
-  "Overplayed TikTok songs",
-  "Very sad songs",
-  "Aggressive trap",
-  "Slow songs",
-  "Generic pop",
-  "EDM drops",
-  "Old songs",
+  "Overplayed hits",
+  "Mumble rap",
+  "Heavy metal / screamo",
+  "Very sad / slow songs",
+  "Generic pop ballads",
+  "EDM / festival drops",
   "Explicit lyrics",
+  "Songs over 5 min",
+  "Pre-2010 music",
+  "Foreign language vocals",
 ];
 
 const LANGUAGES = [
   "No preference",
   "English",
-  "Korean / K-Pop",
-  "Latin",
+  "Korean",
+  "Spanish / Latin",
   "Russian",
   "Uzbek",
+  "Arabic",
+  "Hindi",
+  "French",
+  "Japanese",
+  "Portuguese",
+  "Turkish",
+  "German",
+  "Mandarin",
+  "Italian",
+  "Afrobeats",
   "Global mix",
-];
-
-const ENERGY_OPTIONS: Array<{
-  value: UserTaste["energyPreference"];
-  label: string;
-}> = [
-  { value: "depends", label: "Depends on photo" },
-  { value: "calm", label: "Calm" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High energy" },
 ];
 
 const DEFAULT_TASTE: UserTaste = {
@@ -100,6 +96,7 @@ const DEFAULT_TASTE: UserTaste = {
   dislikes: [],
   languagePreference: "No preference",
   energyPreference: "depends",
+  aestheticTags: [],
   setupComplete: true,
 };
 
@@ -124,13 +121,11 @@ function StepShell({
       initial={{ opacity: 0, x: 30 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -30 }}
-      transition={{ duration: 0.25 }}
+      transition={{ duration: 0.22 }}
       className="space-y-5"
     >
       <div className="space-y-1">
-        <p className="font-display text-5xl font-extrabold text-hot-pink">
-          {number}
-        </p>
+        <p className="font-display text-5xl font-extrabold text-hot-pink">{number}</p>
         <h2 className="font-display font-bold text-2xl text-ink">{title}</h2>
         <p className="text-black/60 text-sm">{subtitle}</p>
       </div>
@@ -145,35 +140,24 @@ export default function TasteSetup({ onComplete }: Props) {
   const [artistQuery, setArtistQuery] = useState("");
   const [artistSuggestions, setArtistSuggestions] = useState<string[]>([]);
   const [selectedArtists, setSelectedArtists] = useState<string[]>([]);
-  const [mood, setMood] = useState("");
-  const [discoveryStyle, setDiscoveryStyle] =
-    useState<UserTaste["discoveryStyle"]>("balanced");
+  const [aestheticTags, setAestheticTags] = useState<string[]>([]);
   const [dislikes, setDislikes] = useState<string[]>([]);
   const [languagePreference, setLanguagePreference] = useState("No preference");
-  const [energyPreference, setEnergyPreference] =
-    useState<UserTaste["energyPreference"]>("depends");
 
-  const toggleGenre = (value: string) => {
-    setGenres((prev) =>
-      prev.includes(value)
-        ? prev.filter((item) => item !== value)
-        : [...prev, value]
-    );
+  const toggle = (value: string, list: string[], setList: (v: string[]) => void) => {
+    setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
   };
 
   useEffect(() => {
-    const query = artistQuery.trim();
-    const timeout = setTimeout(() => {
-      if (query.length < 2) {
-        setArtistSuggestions([]);
-        return;
-      }
-      fetch(`/api/artist-search?q=${encodeURIComponent(query)}`)
-        .then((res) => (res.ok ? res.json() : { artists: [] }))
-        .then((data) => setArtistSuggestions(data.artists ?? []))
+    const q = artistQuery.trim();
+    const t = setTimeout(() => {
+      if (q.length < 2) { setArtistSuggestions([]); return; }
+      fetch(`/api/artist-search?q=${encodeURIComponent(q)}`)
+        .then((r) => (r.ok ? r.json() : { artists: [] }))
+        .then((d) => setArtistSuggestions(d.artists ?? []))
         .catch(() => setArtistSuggestions([]));
     }, 300);
-    return () => clearTimeout(timeout);
+    return () => clearTimeout(t);
   }, [artistQuery]);
 
   const addArtist = (name: string) => {
@@ -184,18 +168,6 @@ export default function TasteSetup({ onComplete }: Props) {
     setArtistSuggestions([]);
   };
 
-  const removeArtist = (name: string) => {
-    setSelectedArtists((prev) => prev.filter((a) => a !== name));
-  };
-
-  const toggleDislike = (value: string) => {
-    setDislikes((prev) =>
-      prev.includes(value)
-        ? prev.filter((item) => item !== value)
-        : [...prev, value]
-    );
-  };
-
   const save = (taste: UserTaste) => {
     localStorage.setItem("userTaste", JSON.stringify(taste));
     onComplete(taste);
@@ -203,65 +175,70 @@ export default function TasteSetup({ onComplete }: Props) {
 
   const handleSkip = () => save(DEFAULT_TASTE);
 
-  const handleFinish = () => {
+  const handleFinish = () =>
     save({
       genres,
       favoriteArtists: selectedArtists,
-      defaultMood: mood,
-      discoveryStyle,
+      defaultMood: "",
+      discoveryStyle: "balanced",
       dislikes,
       languagePreference,
-      energyPreference,
+      energyPreference: "depends",
+      aestheticTags,
       setupComplete: true,
     });
-  };
+
+  const navBtn = (label: string, onClick: () => void, disabled = false) => (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white disabled:opacity-30 disabled:cursor-not-allowed transition-opacity active:scale-95"
+    >
+      {label}
+    </button>
+  );
+
+  const backBtn = (toStep: number) => (
+    <button
+      onClick={() => setStep(toStep)}
+      className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
+    >
+      Back
+    </button>
+  );
 
   const steps = [
-    <StepShell
-      key="genres"
-      number="01"
-      title="What's your vibe?"
-      subtitle="Pick 1 or 2 genres you love"
-    >
-      <div className="flex flex-wrap gap-2">
-        {GENRES.map((genre) => (
+    // Step 01 — Genres
+    <StepShell key="genres" number="01" title="Your sound" subtitle="Pick 2–4 genres you love">
+      <div className="flex flex-wrap gap-2 max-h-52 overflow-y-auto">
+        {GENRES.map((g) => (
           <button
-            key={genre}
-            onClick={() => toggleGenre(genre)}
-            className={`px-4 py-2.5 rounded-full text-sm font-semibold border transition-all active:scale-95 ${
-              genres.includes(genre)
+            key={g}
+            onClick={() => toggle(g, genres, setGenres)}
+            className={`px-3 py-2 rounded-full text-xs font-semibold border transition-all active:scale-95 ${
+              genres.includes(g)
                 ? "bg-hot-pink text-white border-transparent"
                 : "bg-black/[0.04] border-black/10 text-black/70 hover:border-hot-pink/40"
             }`}
           >
-            {genre}
+            {g}
           </button>
         ))}
       </div>
-      <button
-        disabled={genres.length === 0}
-        onClick={() => setStep(1)}
-        className="w-full py-4 rounded-full font-display font-bold text-base bg-ink text-white disabled:opacity-30 disabled:cursor-not-allowed transition-opacity active:scale-95"
-      >
-        Next
-      </button>
+      {navBtn("Next", () => setStep(1), genres.length === 0)}
     </StepShell>,
 
-    <StepShell
-      key="artists"
-      number="02"
-      title="Name artists you love"
-      subtitle="Search and pick a few"
-    >
+    // Step 02 — Artists
+    <StepShell key="artists" number="02" title="Artists you love" subtitle="The more you add, the better we match">
       {selectedArtists.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {selectedArtists.map((artist) => (
+          {selectedArtists.map((a) => (
             <button
-              key={artist}
-              onClick={() => removeArtist(artist)}
+              key={a}
+              onClick={() => setSelectedArtists((prev) => prev.filter((x) => x !== a))}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold bg-hot-pink text-white active:scale-95 transition-transform"
             >
-              {artist}
+              {a}
               <span className="text-white/70">×</span>
             </button>
           ))}
@@ -271,240 +248,103 @@ export default function TasteSetup({ onComplete }: Props) {
         <input
           type="text"
           value={artistQuery}
-          onChange={(event) => setArtistQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              addArtist(artistQuery);
-            }
-          }}
+          onChange={(e) => setArtistQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addArtist(artistQuery); } }}
           placeholder="e.g. Frank Ocean"
           className="w-full bg-white border border-black/10 rounded-xl px-4 py-4 text-ink placeholder:text-black/40 focus:outline-none focus:border-hot-pink transition-colors text-base"
           autoFocus
         />
         {artistSuggestions.length > 0 && (
           <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-black/10 rounded-xl overflow-hidden shadow-lg z-10">
-            {artistSuggestions.map((artist) => (
+            {artistSuggestions.map((a) => (
               <button
-                key={artist}
-                onClick={() => addArtist(artist)}
+                key={a}
+                onClick={() => addArtist(a)}
                 className="w-full text-left px-4 py-3 text-sm text-ink hover:bg-hot-pink/10 transition-colors"
               >
-                {artist}
+                {a}
               </button>
             ))}
           </div>
         )}
       </div>
-      <p className="text-black/40 text-xs">
-        Can&apos;t find them? Type the name and press Enter.
-      </p>
+      <p className="text-black/40 text-xs">Can&apos;t find them? Type the name and press Enter.</p>
       <div className="flex gap-3">
-        <button
-          onClick={() => setStep(0)}
-          className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
-        >
-          Back
-        </button>
-        <button
-          disabled={selectedArtists.length === 0}
-          onClick={() => setStep(2)}
-          className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white disabled:opacity-30 disabled:cursor-not-allowed transition-opacity active:scale-95"
-        >
-          Next
-        </button>
+        {backBtn(0)}
+        {navBtn("Next", () => setStep(2), selectedArtists.length === 0)}
       </div>
     </StepShell>,
 
-    <StepShell
-      key="mood"
-      number="03"
-      title="Your usual mood?"
-      subtitle="Pick what fits you most"
-    >
-      <div className="flex flex-col gap-2">
-        {MOODS.map((option) => (
-          <button
-            key={option}
-            onClick={() => setMood(option)}
-            className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold border text-left transition-all active:scale-[0.98] ${
-              mood === option
-                ? "bg-hot-pink text-white border-transparent"
-                : "bg-white border-black/10 text-black/70 hover:border-hot-pink/40"
-            }`}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => setStep(1)}
-          className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
-        >
-          Back
-        </button>
-        <button
-          disabled={mood.length === 0}
-          onClick={() => setStep(3)}
-          className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white disabled:opacity-30 disabled:cursor-not-allowed transition-opacity active:scale-95"
-        >
-          Next
-        </button>
-      </div>
-    </StepShell>,
-
-    <StepShell
-      key="discovery"
-      number="04"
-      title="What kind of songs?"
-      subtitle="Choose how discovery should feel"
-    >
-      <div className="space-y-2">
-        {DISCOVERY_STYLES.map((option) => (
-          <button
-            key={option.value}
-            onClick={() => setDiscoveryStyle(option.value)}
-            className={`w-full px-4 py-3 rounded-xl text-left border transition-all active:scale-[0.98] ${
-              discoveryStyle === option.value
-                ? "bg-hot-pink text-white border-transparent"
-                : "bg-white border-black/10 text-black/70 hover:border-hot-pink/40"
-            }`}
-          >
-            <span className="block font-semibold text-sm">{option.label}</span>
-            <span
-              className={`block text-xs mt-0.5 ${
-                discoveryStyle === option.value ? "text-white/75" : "text-black/45"
-              }`}
-            >
-              {option.description}
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => setStep(2)}
-          className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
-        >
-          Back
-        </button>
-        <button
-          onClick={() => setStep(4)}
-          className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white transition-opacity active:scale-95"
-        >
-          Next
-        </button>
-      </div>
-    </StepShell>,
-
-    <StepShell
-      key="dislikes"
-      number="05"
-      title="What should we avoid?"
-      subtitle="Optional, pick any deal-breakers"
-    >
+    // Step 03 — Aesthetic tags
+    <StepShell key="aesthetic" number="03" title="Your vibe" subtitle="Pick 3–5 words that describe your taste">
       <div className="flex flex-wrap gap-2">
-        {DISLIKES.map((option) => (
+        {AESTHETIC_TAGS.map((tag) => (
           <button
-            key={option}
-            onClick={() => toggleDislike(option)}
-            className={`px-3 py-2 rounded-full text-xs font-semibold border transition-all active:scale-95 ${
-              dislikes.includes(option)
+            key={tag}
+            onClick={() => toggle(tag, aestheticTags, setAestheticTags)}
+            className={`px-4 py-2.5 rounded-full text-sm font-semibold border transition-all active:scale-95 ${
+              aestheticTags.includes(tag)
                 ? "bg-hot-pink text-white border-transparent"
                 : "bg-black/[0.04] border-black/10 text-black/70 hover:border-hot-pink/40"
             }`}
           >
-            {option}
+            {tag}
           </button>
         ))}
       </div>
       <div className="flex gap-3">
-        <button
-          onClick={() => setStep(3)}
-          className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
-        >
-          Back
-        </button>
-        <button
-          onClick={() => setStep(5)}
-          className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white transition-opacity active:scale-95"
-        >
-          Next
-        </button>
+        {backBtn(1)}
+        {navBtn("Next", () => setStep(3), aestheticTags.length < 3)}
       </div>
     </StepShell>,
 
-    <StepShell
-      key="language"
-      number="06"
-      title="Language or scene?"
-      subtitle="Optional preference for vocals"
-    >
-      <div className="grid grid-cols-2 gap-2">
-        {LANGUAGES.map((option) => (
+    // Step 04 — Dislikes (optional)
+    <StepShell key="dislikes" number="04" title="What to avoid?" subtitle="Optional — pick any deal-breakers">
+      <div className="flex flex-wrap gap-2">
+        {DISLIKES.map((d) => (
           <button
-            key={option}
-            onClick={() => setLanguagePreference(option)}
+            key={d}
+            onClick={() => toggle(d, dislikes, setDislikes)}
+            className={`px-3 py-2 rounded-full text-xs font-semibold border transition-all active:scale-95 ${
+              dislikes.includes(d)
+                ? "bg-hot-pink text-white border-transparent"
+                : "bg-black/[0.04] border-black/10 text-black/70 hover:border-hot-pink/40"
+            }`}
+          >
+            {d}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        {backBtn(2)}
+        {navBtn("Next", () => setStep(4))}
+      </div>
+    </StepShell>,
+
+    // Step 05 — Language
+    <StepShell key="language" number="05" title="Language?" subtitle="Optional — what vocals do you prefer?">
+      <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto">
+        {LANGUAGES.map((lang) => (
+          <button
+            key={lang}
+            onClick={() => setLanguagePreference(lang)}
             className={`px-3 py-3 rounded-xl text-xs font-semibold border transition-all active:scale-[0.98] ${
-              languagePreference === option
+              languagePreference === lang
                 ? "bg-hot-pink text-white border-transparent"
                 : "bg-white border-black/10 text-black/70 hover:border-hot-pink/40"
             }`}
           >
-            {option}
+            {lang}
           </button>
         ))}
       </div>
       <div className="flex gap-3">
-        <button
-          onClick={() => setStep(4)}
-          className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
-        >
-          Back
-        </button>
-        <button
-          onClick={() => setStep(6)}
-          className="flex-1 py-4 rounded-full font-display font-bold text-base bg-ink text-white transition-opacity active:scale-95"
-        >
-          Next
-        </button>
-      </div>
-    </StepShell>,
-
-    <StepShell
-      key="energy"
-      number="07"
-      title="Energy level?"
-      subtitle="We still listen to the photo first"
-    >
-      <div className="grid grid-cols-2 gap-2">
-        {ENERGY_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            onClick={() => setEnergyPreference(option.value)}
-            className={`px-4 py-4 rounded-xl text-sm font-semibold border transition-all active:scale-[0.98] ${
-              energyPreference === option.value
-                ? "bg-hot-pink text-white border-transparent"
-                : "bg-white border-black/10 text-black/70 hover:border-hot-pink/40"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => setStep(5)}
-          className="px-6 py-4 rounded-full border border-black/10 text-black/60 font-semibold text-sm hover:bg-black/[0.04] transition-colors"
-        >
-          Back
-        </button>
+        {backBtn(3)}
         <button
           onClick={handleFinish}
           className="flex-1 py-4 rounded-full font-display font-bold text-base bg-hot-pink text-white transition-opacity active:scale-95 glow-pink"
         >
-          Find your sound
+          Find my sound
         </button>
       </div>
     </StepShell>,
@@ -518,15 +358,11 @@ export default function TasteSetup({ onComplete }: Props) {
         className="w-full max-w-sm bg-cream rounded-2xl p-6 space-y-6"
       >
         <div className="flex items-center gap-1.5">
-          {steps.map((_, index) => (
+          {steps.map((_, i) => (
             <div
-              key={index}
+              key={i}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                index === step
-                  ? "w-5 bg-hot-pink"
-                  : index < step
-                  ? "w-2.5 bg-hot-pink/50"
-                  : "w-2.5 bg-black/10"
+                i === step ? "w-5 bg-hot-pink" : i < step ? "w-2.5 bg-hot-pink/50" : "w-2.5 bg-black/10"
               }`}
             />
           ))}

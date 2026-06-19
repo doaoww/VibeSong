@@ -101,9 +101,13 @@ create table public.user_taste (
   dislikes text[] not null default '{}',
   language_preference text not null default 'No preference',
   energy_preference text not null default 'depends',
+  aesthetic_tags text[] not null default '{}',
   setup_complete boolean not null default false,
   updated_at timestamptz not null default now()
 );
+
+-- Migration (run in Supabase SQL editor if table already exists):
+-- ALTER TABLE public.user_taste ADD COLUMN IF NOT EXISTS aesthetic_tags text[] NOT NULL DEFAULT '{}';
 
 create table public.track_feedback (
   id bigint generated always as identity primary key,
