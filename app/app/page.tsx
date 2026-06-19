@@ -14,6 +14,7 @@ import AuthGate from "../../components/AuthGate";
 import { useAppStore, ExifData } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import { useAccountSync } from "../../lib/useAccountSync";
+import ContrastModeToggle from "../../components/ContrastModeToggle";
 
 type HomeState = "idle" | "uploading" | "analyzing";
 
@@ -83,10 +84,11 @@ export default function AppUploadPage() {
       setUploadedImage(base64, objectUrl);
 
       try {
+        const { contrastMode } = useAppStore.getState();
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mimeType, exifData }),
+          body: JSON.stringify({ image: base64, mimeType, exifData, contrastMode }),
         });
         if (!analyzeRes.ok) {
           const errBody = await analyzeRes.json().catch(() => ({}));
@@ -340,6 +342,8 @@ export default function AppUploadPage() {
             )}
 
             <DropZone onImageReady={handleImageReady} />
+
+            <ContrastModeToggle />
 
             <p className="text-center text-xs text-on-surface-variant">
               <span className="text-hot-pink">✦</span> {credits} free matches ·

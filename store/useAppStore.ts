@@ -90,6 +90,7 @@ interface AppState {
   currentCardIndex: number;
   exifData: ExifData | null;
   likedSeedTracks: Array<{ title: string; artist: string }>;
+  contrastMode: boolean;
 
   setUploadedImage: (base64: string, objectUrl: string) => void;
   setExifData: (d: ExifData | null) => void;
@@ -103,6 +104,7 @@ interface AppState {
   resetSession: () => void;
   loadFeedback: () => Promise<void>;
   setLikedSeedTracks: (tracks: Array<{ title: string; artist: string }>) => void;
+  setContrastMode: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -117,6 +119,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentCardIndex: 0,
   exifData: null,
   likedSeedTracks: [],
+  contrastMode: false,
 
   setUploadedImage: (base64, objectUrl) =>
     set({ uploadedImage: base64, uploadedImageUrl: objectUrl }),
@@ -222,4 +225,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setLikedSeedTracks: (tracks) => set({ likedSeedTracks: tracks }),
+
+  setContrastMode: (v) => set({ contrastMode: v }),
 }));
