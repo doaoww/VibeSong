@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import DropZone from "../../components/DropZone";
 import AppShell from "../../components/AppShell";
@@ -28,7 +28,6 @@ const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
 
 export default function AppUploadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, status, tasteComplete } = useAccountSync();
   const { credits, loaded, deduct, add, refresh } = useCredits();
   const [pageState, setPageState] = useState<HomeState>("idle");
@@ -37,15 +36,15 @@ export default function AppUploadPage() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("payment") === "success") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") === "success") {
       setPaymentSuccess(true);
       window.history.replaceState({}, "", "/app");
-      // Webhook may arrive slightly after redirect — refresh credits after short delay
       const t1 = setTimeout(() => refresh(), 2000);
       const t2 = setTimeout(() => setPaymentSuccess(false), 5000);
       return () => { clearTimeout(t1); clearTimeout(t2); };
     }
-  }, [searchParams, refresh]);
+  }, [refresh]);
   // Default true: server renders onboarding in the initial HTML so it appears on first paint.
   // useLayoutEffect hides it synchronously (before next paint) for users who have already completed.
   const [showOnboarding, setShowOnboarding] = useState(true);
