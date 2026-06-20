@@ -24,13 +24,6 @@ const ANALYZING_TEXTS = [
   "Curating your soundtrack...",
 ];
 
-const QUICK_PROMPTS = [
-  "Sunset Drive",
-  "Cyberpunk Night",
-  "Rainy Window",
-  "Gym Energy",
-];
-
 const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
 
 export default function AppUploadPage() {
@@ -306,30 +299,6 @@ export default function AppUploadPage() {
               fit.
             </motion.p>
 
-            <section className="space-y-3 hidden lg:block">
-              <h2 className="font-display font-bold text-base text-white">
-                Quick Prompts
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {QUICK_PROMPTS.map((prompt, i) => (
-                  <button
-                    key={prompt}
-                    onClick={() =>
-                      router.push(
-                        `/results?prompt=${encodeURIComponent(prompt)}`
-                      )
-                    }
-                    className={`px-4 py-2 rounded-full text-xs font-semibold font-display transition-all hover:scale-105 active:scale-95 ${
-                      i === 0
-                        ? "text-white bg-hot-pink glow-pink"
-                        : "bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-white/30"
-                    }`}
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </section>
           </section>
 
           <section className="space-y-4 mt-6 lg:mt-0">
@@ -407,28 +376,6 @@ export default function AppUploadPage() {
           </section>
         )}
 
-        <section className="space-y-3 lg:hidden">
-          <h2 className="font-display font-bold text-base text-white">
-            Quick Prompts
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {QUICK_PROMPTS.map((prompt, i) => (
-              <button
-                key={prompt}
-                onClick={() =>
-                  router.push(`/results?prompt=${encodeURIComponent(prompt)}`)
-                }
-                className={`px-4 py-2 rounded-full text-xs font-semibold font-display transition-all hover:scale-105 active:scale-95 ${
-                  i === 0
-                    ? "text-white bg-hot-pink glow-pink"
-                    : "bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-white/30"
-                }`}
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        </section>
 
         <div className="relative overflow-hidden border-y border-outline-variant/20 py-4 -mx-4 md:-mx-6 lg:mx-0 lg:rounded-xl lg:border lg:border-outline-variant/20">
           <div className="marquee-track flex whitespace-nowrap font-display text-2xl md:text-3xl font-extrabold uppercase tracking-tight">
