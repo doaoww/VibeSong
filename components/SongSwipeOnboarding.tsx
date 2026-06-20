@@ -301,23 +301,15 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
               </button>
             )}
             <button
-              onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, true); }}
+              onClick={() => setPhase("dna")}
               className={`w-full py-3.5 rounded-xl font-display font-bold text-base active:scale-95 transition-all ${
                 canImprove
                   ? "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
                   : "bg-hot-pink text-white glow-pink"
               }`}
             >
-              Start matching
+              See my Music DNA →
             </button>
-            {dnaVector && (
-              <button
-                onClick={() => setPhase("dna")}
-                className="w-full text-white/30 text-xs font-semibold hover:text-white/50 transition-colors py-1"
-              >
-                See my Music DNA →
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -326,7 +318,12 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
 
   // ── DNA screen ────────────────────────────────────────────────────────────
   if (phase === "dna") {
-    if (!dnaVector) return null;
+    if (!dnaVector) {
+      // Fallback: dnaVector not ready yet, complete directly
+      audioRef.current?.pause();
+      onComplete(saved, skipped, prefs, true);
+      return null;
+    }
     return (
       <MusicDNACard
         vector={dnaVector}
