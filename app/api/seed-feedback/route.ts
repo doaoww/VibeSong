@@ -38,9 +38,8 @@ export async function POST(req: NextRequest) {
   const skipped = Array.isArray(body.skipped) ? body.skipped : [];
   const prefs = body.prefs ?? {};
 
-  // Build emotional taste vector from swipes
-  const hasSomeVectors = [...saved, ...skipped].some((s) => s.emotionalVector);
-  if (hasSomeVectors) {
+  // Build emotional taste vector from swipes (falls back to genre inference if no explicit vectors)
+  if (saved.length + skipped.length > 0) {
     const tasteVector = buildTasteVector(saved, skipped);
     await upsertEmotionalVector(user.id, tasteVector).catch((e) =>
       console.error("[seed-feedback] upsertEmotionalVector failed:", e)
