@@ -40,10 +40,13 @@ export default function AppUploadPage() {
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !localStorage.getItem("onboardingDone") && !localStorage.getItem("userTaste");
-  });
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check localStorage after hydration — avoids SSR mismatch that caused the delay
+  useEffect(() => {
+    const done = localStorage.getItem("onboardingDone") || localStorage.getItem("userTaste");
+    if (!done) setShowOnboarding(true);
+  }, []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<{
     base64: string;

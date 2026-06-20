@@ -42,6 +42,15 @@ export default function ProfilePage() {
     router.push("/");
   };
 
+  const handleRetakeQuiz = async () => {
+    localStorage.removeItem("onboardingDone");
+    localStorage.removeItem("seedFeedback");
+    if (user) {
+      await fetch("/api/taste/reset", { method: "POST" }).catch(() => {});
+    }
+    router.push("/app");
+  };
+
   const displayName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
@@ -137,6 +146,13 @@ export default function ProfilePage() {
                 className="w-full border border-hot-pink text-hot-pink font-display font-bold py-3 rounded-xl hover:bg-hot-pink/10 active:scale-95 transition-all"
               >
                 Manage Credits · {credits} left
+              </button>
+
+              <button
+                onClick={handleRetakeQuiz}
+                className="w-full border border-white/10 text-white/50 font-semibold text-sm py-3 rounded-xl hover:border-white/20 hover:text-white/70 active:scale-95 transition-all"
+              >
+                Retake taste quiz
               </button>
 
               <button
