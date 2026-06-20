@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { EmotionalVector } from "../../../lib/emotionalVector";
 
 export const runtime = "nodejs";
@@ -137,8 +137,14 @@ async function fetchPreview(
   }
 }
 
-export async function GET() {
-  const candidates = shuffle(SEED_POOL).slice(0, 14);
+async function resolveSongs(excludeTitles: string[]) {
+  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
+  const pool = excludeSet.size > 0
+    ? SEED_POOL.filter((s) => !excludeSet.has(s.title.toLowerCase()))
+    : SEED_POOL;
+
+  // Pick enough candidates to get 10 with previews despite iTunes failures
+  const candidates = shuffle(pool).slice(0, Math.min(pool.length, 16));
   const resolved = await Promise.all(
     candidates.map(async (song) => {
       const { previewUrl, artwork } = await fetchPreview(song.title, song.artist);
@@ -147,6 +153,18 @@ export async function GET() {
   );
   const withPreviews = resolved.filter((s) => s.previewUrl).slice(0, 10);
   const withoutPreviews = resolved.filter((s) => !s.previewUrl);
-  const final = [...withPreviews, ...withoutPreviews].slice(0, 10);
+  return [...withPreviews, ...withoutPreviews].slice(0, 10);
+}
+
+export async function GET() {
+  const final = await resolveSongs([]);
+  return NextResponse.json(final);
+}
+
+// POST: load more songs excluding already-seen titles
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const exclude: string[] = Array.isArray(body.exclude) ? body.exclude : [];
+  const final = await resolveSongs(exclude);
   return NextResponse.json(final);
 }

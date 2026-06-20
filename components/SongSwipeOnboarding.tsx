@@ -116,12 +116,14 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   const loadMoreSongs = useCallback(async () => {
     setLoadingMore(true);
     try {
-      const res = await fetch("/api/seed-tracks");
+      const exclude = songs.map((s) => s.title);
+      const res = await fetch("/api/seed-tracks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exclude }),
+      });
       const data: SeedSong[] = await res.json();
-      const shownTitles = new Set(songs.map((s) => s.title.toLowerCase()));
-      const fresh = (Array.isArray(data) ? data : []).filter(
-        (s) => !shownTitles.has(s.title.toLowerCase())
-      );
+      const fresh = Array.isArray(data) ? data : [];
       if (fresh.length > 0) {
         setSongs((prev) => [...prev, ...fresh]);
         setPhase("swipe");
