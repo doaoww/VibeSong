@@ -6,6 +6,7 @@ import type { ExifData } from "../store/useAppStore";
 
 interface DropZoneProps {
   onImageReady: (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => void;
+  disabled?: boolean;
 }
 
 async function extractExif(file: File): Promise<ExifData> {
@@ -64,7 +65,7 @@ async function fileToBase64(
   });
 }
 
-export default function DropZone({ onImageReady }: DropZoneProps) {
+export default function DropZone({ onImageReady, disabled = false }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,18 +109,21 @@ export default function DropZone({ onImageReady }: DropZoneProps) {
   return (
     <div>
       <motion.div
-        whileTap={{ scale: 0.98 }}
+        whileTap={disabled ? undefined : { scale: 0.98 }}
         onDragOver={(e) => {
+          if (disabled) return;
           e.preventDefault();
           setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`dashed-upload-border rounded-2xl p-6 flex flex-col items-center text-center gap-4 cursor-pointer transition-all duration-300 ${
-          isDragging
-            ? "bg-hot-pink/10"
-            : "bg-surface-container-low/50 hover:bg-surface-container/60"
+        onDrop={disabled ? undefined : onDrop}
+        onClick={() => { if (!disabled) inputRef.current?.click(); }}
+        className={`dashed-upload-border rounded-2xl p-6 flex flex-col items-center text-center gap-4 transition-all duration-300 ${
+          disabled
+            ? "opacity-50 cursor-not-allowed"
+            : isDragging
+            ? "bg-hot-pink/10 cursor-pointer"
+            : "bg-surface-container-low/50 hover:bg-surface-container/60 cursor-pointer"
         }`}
       >
         <div className="w-14 h-14 bg-hot-pink/15 rounded-full flex items-center justify-center">
@@ -138,14 +142,15 @@ export default function DropZone({ onImageReady }: DropZoneProps) {
         <div className="flex gap-3 w-full">
           <button
             type="button"
+            disabled={disabled}
             onClick={(e) => {
               e.stopPropagation();
-              if (inputRef.current) {
+              if (!disabled && inputRef.current) {
                 inputRef.current.accept = "image/*";
                 inputRef.current.click();
               }
             }}
-            className="flex-1 flex items-center justify-center gap-2 bg-hot-pink text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+            className="flex-1 flex items-center justify-center gap-2 bg-hot-pink text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:bg-[#ff4488] active:scale-95 transition-all glow-pink disabled:pointer-events-none"
           >
             <span className="material-symbols-outlined text-[18px]">
               photo_camera
@@ -154,14 +159,15 @@ export default function DropZone({ onImageReady }: DropZoneProps) {
           </button>
           <button
             type="button"
+            disabled={disabled}
             onClick={(e) => {
               e.stopPropagation();
-              if (inputRef.current) {
+              if (!disabled && inputRef.current) {
                 inputRef.current.accept = "video/*";
                 inputRef.current.click();
               }
             }}
-            className="flex-1 flex items-center justify-center gap-2 border border-white/25 text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:border-white/50 active:scale-95 transition-all"
+            className="flex-1 flex items-center justify-center gap-2 border border-white/25 text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:border-white/50 active:scale-95 transition-all disabled:pointer-events-none"
           >
             <span className="material-symbols-outlined text-[18px]">movie</span>
             Video

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import DropZone from "../../components/DropZone";
 import AppShell from "../../components/AppShell";
@@ -28,11 +28,24 @@ const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
 
 export default function AppUploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, status, tasteComplete } = useAccountSync();
-  const { credits, deduct, add } = useCredits();
+  const { credits, loaded, deduct, add, refresh } = useCredits();
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("payment") === "success") {
+      setPaymentSuccess(true);
+      window.history.replaceState({}, "", "/app");
+      // Webhook may arrive slightly after redirect — refresh credits after short delay
+      const t1 = setTimeout(() => refresh(), 2000);
+      const t2 = setTimeout(() => setPaymentSuccess(false), 5000);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [searchParams, refresh]);
   // Default true: server renders onboarding in the initial HTML so it appears on first paint.
   // useLayoutEffect hides it synchronously (before next paint) for users who have already completed.
   const [showOnboarding, setShowOnboarding] = useState(true);
@@ -126,6 +139,7 @@ export default function AppUploadPage() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("Analysis failed:", msg);
+        add(1); // Refund the credit — analysis didn't complete
         setIsAnalyzing(false);
         setPageState("idle");
         setErrorMsg(msg);
@@ -133,6 +147,7 @@ export default function AppUploadPage() {
     },
     [
       user,
+      add,
       setUploadedImage,
       setVibeProfile,
       setTracks,
@@ -270,6 +285,17 @@ export default function AppUploadPage() {
         />
       }
     >
+      {paymentSuccess && (
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2"
+        >
+          <span>✓</span> Credits added — enjoy your matches!
+        </motion.div>
+      )}
+
       <div className="space-y-8 lg:space-y-10">
         {/* Desktop: two-column layout */}
         <div className="lg:grid lg:grid-cols-2 lg:gap-10 lg:items-start">
@@ -326,7 +352,7 @@ export default function AppUploadPage() {
               </div>
             )}
 
-            <DropZone onImageReady={handleImageReady} />
+            <DropZone onImageReady={handleImageReady} disabled={loaded && credits <= 0} />
 
             <ContrastModeToggle />
 

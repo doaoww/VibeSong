@@ -56,7 +56,9 @@ export function selectBestItunesResult(
     }
   }
 
-  return best?.score ? best.result : null;
+  // Require at least a reasonable artist match (score≥2) to avoid returning
+  // a random track from the same artist with a completely different title.
+  return best && best.score >= 2 ? best.result : null;
 }
 
 interface ItunesArtistResult {

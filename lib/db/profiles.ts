@@ -69,6 +69,18 @@ export async function addCredits(userId: string, amount: number): Promise<number
   return data.credits;
 }
 
+export async function setCredits(userId: string, amount: number): Promise<number> {
+  await getOrCreateProfile(userId);
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ credits: amount })
+    .eq("user_id", userId)
+    .select("credits")
+    .single();
+  if (error) throw error;
+  return data.credits;
+}
+
 export async function markMigrated(userId: string, credits: number | null): Promise<void> {
   const profile = await getOrCreateProfile(userId);
   const { error } = await supabase

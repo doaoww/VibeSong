@@ -27,6 +27,7 @@ export default function YouTubePlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [playerReady, setPlayerReady] = useState(Boolean(previewUrl));
+  const prevVisibleRef = useRef(visible);
 
   const start = Math.max(0, Math.floor(startSeconds));
   const origin =
@@ -91,6 +92,25 @@ export default function YouTubePlayer({
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isPlaying, sendCommand, hasAudioPreview]);
+
+  // Autoplay iTunes preview when card becomes top; pause when it leaves
+  useEffect(() => {
+    const wasVisible = prevVisibleRef.current;
+    prevVisibleRef.current = visible;
+
+    if (!hasAudioPreview || !audioRef.current) return;
+
+    if (visible && !wasVisible) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {}); // Browser may block autoplay silently
+      setIsPlaying(true);
+    } else if (!visible && wasVisible) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
+      setProgress(0);
+    }
+  }, [visible, hasAudioPreview]);
 
   const handleToggle = () => {
     const next = !isPlaying;

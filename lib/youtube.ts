@@ -22,6 +22,15 @@ export type GPTTrack = CandidateTrack;
 
 const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
 
+// Module-level cache persists across requests within the same Vercel function instance.
+// Avoids burning YouTube quota (100 units/search, 10k units/day free) on repeated lookups.
+interface YtCacheEntry { result: YouTubeTrack | null; expiresAt: number }
+const ytCache = new Map<string, YtCacheEntry>();
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+function ytCacheKey(track: GPTTrack): string {
+  return `${track.title.toLowerCase().trim()}|${track.artist.toLowerCase().trim()}`;
+}
+
 const SKIP_TERMS = [
   "live",
   "concert",
@@ -100,6 +109,10 @@ async function searchYouTube(query: string, maxResults = 8): Promise<string[]> {
 export async function searchYouTubeTrack(
   track: GPTTrack
 ): Promise<YouTubeTrack | null> {
+  const key = ytCacheKey(track);
+  const cached = ytCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+
   // Try three query strategies in order
   const queries = [
     `${track.artist} ${track.title} official audio`,
@@ -138,7 +151,7 @@ export async function searchYouTubeTrack(
       if (seconds < 60 || seconds > 480) continue;
       if (shouldSkip(item.snippet.title, track.title)) continue;
 
-      return {
+      const result: YouTubeTrack = {
         title: track.title,
         artist: track.artist,
         reason: track.reason,
@@ -158,8 +171,11 @@ export async function searchYouTubeTrack(
         youtubeUrl: `https://www.youtube.com/watch?v=${item.id}`,
         previewProvider: "youtube",
       };
+      ytCache.set(key, { result, expiresAt: Date.now() + CACHE_TTL });
+      return result;
     }
   }
 
+  ytCache.set(key, { result: null, expiresAt: Date.now() + CACHE_TTL });
   return null;
 }

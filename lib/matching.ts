@@ -252,11 +252,9 @@ export function normalizeCandidateScores(
         tasteFitScore * weights.taste +
         discoveryFitScore * weights.discovery -
         obviousnessPenalty * weights.penalty;
-      const finalScore = clamp(
-        typeof track.finalScore === "number" ? (calculated + track.finalScore) / 2 : calculated,
-        61,
-        97
-      );
+      // Use our weighted calculation directly — averaging with GPT's self-reported finalScore
+      // double-counts the same sub-scores GPT used to derive it.
+      const finalScore = clamp(calculated, 40, 99);
 
       return {
         ...track,
@@ -283,7 +281,7 @@ export function scoreResolvedTrack(
       ? 3
       : 0;
   const styleBonus = discoveryStyle === "popular-ok" ? 1 : 0;
-  const finalScore = clamp((track.finalScore ?? track.matchScore) + previewQualityScore + styleBonus, 61, 99);
+  const finalScore = clamp((track.finalScore ?? track.matchScore) + previewQualityScore + styleBonus, 40, 99);
 
   return {
     ...track,
