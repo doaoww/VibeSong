@@ -47,7 +47,7 @@ const DISLIKES_OPTIONS = [
   "Generic pop ballads",
 ];
 
-type Phase = "prefs" | "swipe" | "done";
+type Phase = "prefs" | "swipe" | "progress" | "dna";
 
 export default function SongSwipeOnboarding({ onComplete }: Props) {
   const [phase, setPhase] = useState<Phase>("prefs");
@@ -61,6 +61,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [swiping, setSwiping] = useState<"left" | "right" | null>(null);
   const [dnaVector, setDnaVector] = useState<EmotionalVector | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   // Single persistent Audio element — iOS only unlocks the element the user tapped,
   // so reusing the same element across songs lets auto-play work after first tap.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -100,6 +101,38 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     // Succeeds after first user tap unlocks the element on iOS
     audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
   }, [index, phase, currentSong?.previewUrl]);
+
+  // Detect when all songs in current batch are swiped → go to progress screen
+  useEffect(() => {
+    if (phase === "swipe" && songs.length > 0 && index >= songs.length) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      setDnaVector(buildTasteVector(saved, skipped));
+      setPhase("progress");
+    }
+  }, [phase, index, songs.length, saved, skipped]);
+
+  const loadMoreSongs = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const res = await fetch("/api/seed-tracks");
+      const data: SeedSong[] = await res.json();
+      const shownTitles = new Set(songs.map((s) => s.title.toLowerCase()));
+      const fresh = (Array.isArray(data) ? data : []).filter(
+        (s) => !shownTitles.has(s.title.toLowerCase())
+      );
+      if (fresh.length > 0) {
+        setSongs((prev) => [...prev, ...fresh]);
+        setPhase("swipe");
+      } else {
+        setPhase("dna");
+      }
+    } catch {
+      setPhase("dna");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [songs]);
 
   const handleAction = useCallback(
     (action: "saved" | "skipped", song: SeedSong) => {
@@ -218,13 +251,74 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     );
   }
 
-  // ── Done screen ───────────────────────────────────────────────────────────
-  if (index >= songs.length && songs.length > 0) {
-    if (!dnaVector) {
-      const vec = buildTasteVector(saved, skipped);
-      setDnaVector(vec);
-      return null;
-    }
+  // ── Progress screen ───────────────────────────────────────────────────────
+  if (phase === "progress") {
+    const totalSwiped = saved.length + skipped.length;
+    const confidence = Math.min(90, Math.round(20 + totalSwiped * 2));
+    const nextConfidence = Math.min(90, confidence + 20);
+    const canImprove = confidence < 88;
+    const circumference = 2 * Math.PI * 58;
+
+    return (
+      <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col items-center justify-center px-6" style={{ height: "100dvh" }}>
+        <div className="w-full max-w-sm text-center space-y-8">
+          <div className="relative inline-flex items-center justify-center">
+            <svg width="144" height="144" className="-rotate-90">
+              <circle cx="72" cy="72" r="58" fill="none" stroke="#1f1f1f" strokeWidth="10" />
+              <circle
+                cx="72" cy="72" r="58" fill="none"
+                stroke="#ec4899" strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference * (1 - confidence / 100)}
+                style={{ transition: "stroke-dashoffset 1.2s ease" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-white font-display font-extrabold text-3xl">{confidence}%</span>
+              <span className="text-white/40 text-xs mt-0.5">taste match</span>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-white font-display font-extrabold text-xl mb-2">
+              We know your taste!
+            </h2>
+            <p className="text-white/50 text-sm">
+              {canImprove
+                ? `Swipe 10 more songs to reach ${nextConfidence}% accuracy`
+                : "Your taste profile is fully calibrated"}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {canImprove && (
+              <button
+                onClick={loadMoreSongs}
+                disabled={loadingMore}
+                className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base glow-pink disabled:opacity-60 active:scale-95 transition-all"
+              >
+                {loadingMore ? "Loading..." : "Swipe 10 more →"}
+              </button>
+            )}
+            <button
+              onClick={() => setPhase("dna")}
+              className={`w-full py-3.5 rounded-xl font-display font-bold text-base active:scale-95 transition-all ${
+                canImprove
+                  ? "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                  : "bg-hot-pink text-white glow-pink"
+              }`}
+            >
+              Start matching
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DNA screen ────────────────────────────────────────────────────────────
+  if (phase === "dna") {
+    if (!dnaVector) return null;
     return (
       <MusicDNACard
         vector={dnaVector}
