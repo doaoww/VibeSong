@@ -54,38 +54,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Expand candidate list with Last.fm similar tracks for liked seed songs
-    let lastfmCandidates: Array<{ title: string; artist: string }> = [];
-    if (Array.isArray(likedSeedTracks) && likedSeedTracks.length > 0) {
-      const seedsToQuery = (likedSeedTracks as Array<{ title: string; artist: string }>).slice(0, 3);
-      const similar = await Promise.all(
-        seedsToQuery.map((s) => getSimilarTracks(s.title, s.artist, 8))
-      );
-      lastfmCandidates = similar.flat();
-    }
-
-    // Merge: GPT tracks first, then Last.fm additions (deduplicated by title+artist)
-    const seen = new Set(
-      tracks.map((t: GPTTrack) => `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`)
-    );
-    const merged: GPTTrack[] = [...tracks];
-    for (const lf of lastfmCandidates) {
-      const key = `${lf.title.toLowerCase()}|${lf.artist.toLowerCase()}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push({
-          title: lf.title,
-          artist: lf.artist,
-          reason: "",
-          matchScore: 70,
-          finalScore: 70,
-        });
-      }
-    }
-
-    // Cap at 14 to avoid too many parallel network calls (8 GPT + 6 Last.fm)
+    // Resolve all GPT-curated tracks — don't cap below the candidate count
     const results = await Promise.allSettled(
-      merged.slice(0, 14).map((t: GPTTrack) =>
+      tracks.slice(0, 18).map((t: GPTTrack) =>
         resolvePlayableTrack(t, discoveryStyle as DiscoveryStyle)
       )
     );
@@ -94,7 +65,7 @@ export async function POST(req: NextRequest) {
       .map((r) => (r.status === "fulfilled" ? r.value : null))
       .filter((t): t is NonNullable<typeof t> => t !== null)
       .sort((a, b) => (b.finalScore ?? b.matchScore) - (a.finalScore ?? a.matchScore))
-      .slice(0, 8);
+      .slice(0, 15);
 
     if (found.length < 5) {
       return NextResponse.json(
