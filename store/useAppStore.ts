@@ -131,7 +131,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       savedAt: Date.now(),
       sourceImage: get().uploadedImageUrl || undefined,
     };
-    set((s) => ({ savedSongs: [...s.savedSongs, withMeta] }));
+    set((s) => {
+      const updated = [...s.savedSongs, withMeta];
+      // Persist to localStorage as fallback for anonymous users or offline
+      try { localStorage.setItem("vs_saved", JSON.stringify(updated.slice(-200))); } catch {}
+      return { savedSongs: updated };
+    });
     fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -211,12 +216,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadFeedback: async () => {
     try {
       const res = await fetch("/api/feedback");
-      if (!res.ok) return;
-      const data = await res.json();
-      set({ savedSongs: data.saved ?? [], skippedSongs: data.skipped ?? [] });
-    } catch {
-      // keep whatever is already in memory on network failure
-    }
+      if (res.ok) {
+        const data = await res.json();
+        set({ savedSongs: data.saved ?? [], skippedSongs: data.skipped ?? [] });
+        // Sync DB result back to localStorage cache
+        try { localStorage.setItem("vs_saved", JSON.stringify(data.saved ?? [])); } catch {}
+        return;
+      }
+    } catch {}
+    // Fallback: restore from localStorage (anonymous users / network failure)
+    try {
+      const ls = localStorage.getItem("vs_saved");
+      if (ls) set({ savedSongs: JSON.parse(ls) });
+    } catch {}
   },
 
   setLikedSeedTracks: (tracks) => set({ likedSeedTracks: tracks }),

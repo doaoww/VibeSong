@@ -60,7 +60,11 @@ export default function AppUploadPage() {
     vibeProfile,
     uploadedImageUrl,
     likedSeedTracks,
+    loadFeedback,
   } = useAppStore();
+
+  // Restore saved songs on mount (DB for signed-in, localStorage for anonymous)
+  useEffect(() => { loadFeedback(); }, [loadFeedback]);
 
   // Priority order:
   // 1. completedThisSession — user just finished the quiz right now
