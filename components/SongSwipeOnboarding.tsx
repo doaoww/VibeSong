@@ -301,7 +301,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
               </button>
             )}
             <button
-              onClick={() => setPhase("dna")}
+              onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, true); }}
               className={`w-full py-3.5 rounded-xl font-display font-bold text-base active:scale-95 transition-all ${
                 canImprove
                   ? "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
@@ -310,6 +310,14 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
             >
               Start matching
             </button>
+            {dnaVector && (
+              <button
+                onClick={() => setPhase("dna")}
+                className="w-full text-white/30 text-xs font-semibold hover:text-white/50 transition-colors py-1"
+              >
+                See my Music DNA →
+              </button>
+            )}
           </div>
         </div>
       </div>
