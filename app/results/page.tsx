@@ -125,10 +125,10 @@ export default function ResultsPage() {
   } = useAppStore();
 
   const [gone, setGone] = useState<Set<number>>(new Set());
-  const [savedCount, setSavedCount] = useState(0);
+  const [savedTracks, setSavedTracks] = useState<Track[]>([]);
   const [done, setDone] = useState(false);
 
-  const displayTracks = tracks.slice(0, 5);
+  const displayTracks = tracks;
 
   useEffect(() => {
     if (tracks.length === 0) router.replace("/app");
@@ -143,7 +143,7 @@ export default function ResultsPage() {
 
   const handleSave = (idx: number, track: Track) => {
     saveTrack(track);
-    setSavedCount((c) => c + 1);
+    setSavedTracks((p) => [...p, track]);
     const newGone = new Set(gone).add(idx);
     setGone(newGone);
     nextCard();
@@ -160,35 +160,109 @@ export default function ResultsPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center space-y-6">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", damping: 15 }}
-        >
-          <span
-            className="material-symbols-outlined text-hot-pink"
-            style={{ fontSize: 72, fontVariationSettings: "'FILL' 1" }}
+      <div className="min-h-screen bg-background flex flex-col overflow-y-auto">
+        <div className="max-w-sm mx-auto w-full px-5 pt-14 pb-10 space-y-7">
+          {/* Photo thumbnail */}
+          {uploadedImageUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative"
+            >
+              <img
+                src={uploadedImageUrl}
+                alt="Your vibe"
+                className="w-full max-h-52 object-cover rounded-2xl"
+              />
+              {vibeProfile?.vibeCaption && (
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-2xl px-4 py-3">
+                  <p className="text-white text-sm font-semibold italic">
+                    {vibeProfile.vibeCaption}
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.15 }}
+            className="text-center space-y-1"
           >
-            library_music
-          </span>
-        </motion.div>
-        <h1 className="text-white font-display font-bold text-2xl md:text-3xl">
-          You saved {savedCount} song{savedCount !== 1 ? "s" : ""}!
-        </h1>
-        <p className="text-on-surface-variant">Your vibe is curated.</p>
-        <button
-          onClick={() => router.push("/library")}
-          className="bg-hot-pink text-white font-display font-bold py-4 px-8 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
-        >
-          View in Library →
-        </button>
-        <button
-          onClick={() => router.push("/app")}
-          className="text-on-surface-variant text-sm hover:text-white transition-colors"
-        >
-          Match another photo
-        </button>
+            {savedTracks.length > 0 ? (
+              <>
+                <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">Your soundtrack</p>
+                <h1 className="font-display font-black text-white text-2xl">
+                  {savedTracks.length} song{savedTracks.length !== 1 ? "s" : ""} chosen ✦
+                </h1>
+              </>
+            ) : (
+              <>
+                <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">Nothing saved</p>
+                <h1 className="font-display font-black text-white text-2xl">Try another photo?</h1>
+              </>
+            )}
+          </motion.div>
+
+          {/* Saved songs list */}
+          {savedTracks.length > 0 && (
+            <div className="space-y-2">
+              {savedTracks.map((track, i) => (
+                <motion.div
+                  key={track.title + i}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 + i * 0.06 }}
+                  className="flex items-center gap-3 bg-surface-container rounded-xl p-3 border border-outline-variant/20"
+                >
+                  {(track.artwork || track.thumbnail) ? (
+                    <img
+                      src={track.artwork || track.thumbnail}
+                      alt={track.title}
+                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-hot-pink/15 flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-hot-pink text-xl"
+                        style={{ fontVariationSettings: "'FILL' 1" }}>music_note</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-semibold text-sm truncate">{track.title}</p>
+                    <p className="text-white/50 text-xs truncate">{track.artist}</p>
+                  </div>
+                  <span className="material-symbols-outlined text-hot-pink text-lg flex-shrink-0"
+                    style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* Actions */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 + savedTracks.length * 0.06 }}
+            className="space-y-3"
+          >
+            {savedTracks.length > 0 && (
+              <button
+                onClick={() => router.push("/library")}
+                className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+              >
+                Open Library →
+              </button>
+            )}
+            <button
+              onClick={() => router.push("/app")}
+              className="w-full border border-white/10 text-white/60 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white/80 active:scale-95 transition-all"
+            >
+              Match another photo
+            </button>
+          </motion.div>
+        </div>
       </div>
     );
   }
