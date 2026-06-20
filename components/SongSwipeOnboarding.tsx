@@ -54,7 +54,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   const [prefs, setPrefs] = useState<OnboardingPrefs>({ languagePreference: "No preference", dislikes: [] });
 
   const [songs, setSongs] = useState<SeedSong[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [index, setIndex] = useState(0);
   const [saved, setSaved] = useState<SeedSong[]>([]);
   const [skipped, setSkipped] = useState<SeedSong[]>([]);
@@ -80,13 +80,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     return () => { audio.pause(); audio.src = ""; audioRef.current = null; };
   }, []);
 
-  useEffect(() => {
-    fetch("/api/seed-tracks")
-      .then((r) => r.json())
-      .then((data) => setSongs(Array.isArray(data) ? data : []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   const currentSong = index < songs.length ? songs[index] : null;
 
@@ -120,7 +113,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
       const res = await fetch("/api/seed-tracks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ exclude }),
+        body: JSON.stringify({ exclude, language: prefs.languagePreference }),
       });
       const data: SeedSong[] = await res.json();
       const fresh = Array.isArray(data) ? data : [];
@@ -135,7 +128,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [songs]);
+  }, [songs, prefs.languagePreference]);
 
   const handleAction = useCallback(
     (action: "saved" | "skipped", song: SeedSong) => {
@@ -238,7 +231,30 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
         </div>
 
         <button
-          onClick={() => setPhase("swipe")}
+          onClick={async () => {
+            setLoading(true);
+            setPhase("swipe");
+            try {
+              const res = await fetch("/api/seed-tracks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ exclude: [], language: prefs.languagePreference }),
+              });
+              const data = await res.json();
+              const loaded: SeedSong[] = Array.isArray(data) ? data : [];
+              if (loaded.length === 0) {
+                setDnaVector(buildTasteVector([], []));
+                setPhase("dna");
+              } else {
+                setSongs(loaded);
+              }
+            } catch {
+              setDnaVector(buildTasteVector([], []));
+              setPhase("dna");
+            } finally {
+              setLoading(false);
+            }
+          }}
           className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base glow-pink"
         >
           Start swiping →
