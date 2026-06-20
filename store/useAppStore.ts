@@ -89,6 +89,7 @@ interface AppState {
   isAnalyzing: boolean;
   currentCardIndex: number;
   likedSeedTracks: Array<{ title: string; artist: string }>;
+  onboardingPrefs: { languagePreference: string; dislikes: string[] };
   contrastMode: boolean;
 
   setUploadedImage: (base64: string, objectUrl: string) => void;
@@ -102,6 +103,7 @@ interface AppState {
   resetSession: () => void;
   loadFeedback: () => Promise<void>;
   setLikedSeedTracks: (tracks: Array<{ title: string; artist: string }>) => void;
+  setOnboardingPrefs: (prefs: { languagePreference: string; dislikes: string[] }) => void;
   setContrastMode: (v: boolean) => void;
 }
 
@@ -116,6 +118,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAnalyzing: false,
   currentCardIndex: 0,
   likedSeedTracks: [],
+  onboardingPrefs: { languagePreference: "No preference", dislikes: [] },
   contrastMode: false,
 
   setUploadedImage: (base64, objectUrl) =>
@@ -232,6 +235,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setLikedSeedTracks: (tracks) => set({ likedSeedTracks: tracks }),
+
+  setOnboardingPrefs: (prefs) => set({ onboardingPrefs: prefs }),
 
   setContrastMode: (v) => set({ contrastMode: v }),
 }));

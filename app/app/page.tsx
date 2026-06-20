@@ -68,6 +68,7 @@ export default function AppUploadPage() {
     setTracks,
     setIsAnalyzing,
     setLikedSeedTracks,
+    setOnboardingPrefs,
     savedSongs,
     vibeProfile,
     uploadedImageUrl,
@@ -77,6 +78,17 @@ export default function AppUploadPage() {
 
   // Restore saved songs on mount (DB for signed-in, localStorage for anonymous)
   useEffect(() => { loadFeedback(); }, [loadFeedback]);
+
+  // Restore onboarding prefs from localStorage on mount
+  useEffect(() => {
+    try {
+      const ls = localStorage.getItem("seedFeedback");
+      if (ls) {
+        const { prefs } = JSON.parse(ls);
+        if (prefs?.languagePreference) setOnboardingPrefs(prefs);
+      }
+    } catch {}
+  }, [setOnboardingPrefs]);
 
   // Priority order:
   // 1. completedThisSession — user just finished the quiz right now
@@ -106,7 +118,7 @@ export default function AppUploadPage() {
       setUploadedImage(base64, objectUrl);
 
       try {
-        const { contrastMode } = useAppStore.getState();
+        const { contrastMode, onboardingPrefs } = useAppStore.getState();
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -128,7 +140,13 @@ export default function AppUploadPage() {
         const searchRes = await fetch("/api/search-tracks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tracks, discoveryStyle, likedSeedTracks }),
+          body: JSON.stringify({
+            tracks,
+            discoveryStyle,
+            likedSeedTracks,
+            languagePreference: onboardingPrefs.languagePreference,
+            dislikes: onboardingPrefs.dislikes,
+          }),
         });
         const ytData = await searchRes.json();
         const ytTracks = Array.isArray(ytData) ? ytData : ytData.found || [];
@@ -441,6 +459,7 @@ export default function AppUploadPage() {
             setCompletedThisSession(true); // prevent tasteComplete===false from re-showing
             localStorage.setItem("onboardingDone", "1");
             setLikedSeedTracks(savedSeeds.map((s) => ({ title: s.title, artist: s.artist })));
+            setOnboardingPrefs(prefs);
             const payload = { saved: savedSeeds, skipped: skippedSeeds, prefs };
             localStorage.setItem("seedFeedback", JSON.stringify(payload));
             if (user?.id) {

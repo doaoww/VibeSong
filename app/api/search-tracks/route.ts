@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveItunesPreview } from "../../../lib/itunes";
-import { scoreResolvedTrack, type DiscoveryStyle, type ResolvedTrack } from "../../../lib/matching";
+import {
+  scoreResolvedTrack,
+  applyAvoidPenalties,
+  applyLanguagePenalty,
+  normalizeCandidateScores,
+  type DiscoveryStyle,
+  type ResolvedTrack,
+} from "../../../lib/matching";
 import { searchYouTubeTrack, GPTTrack } from "../../../lib/youtube";
 import { getSimilarTracks } from "../../../lib/lastfm";
 
@@ -46,7 +53,13 @@ async function resolvePlayableTrack(
 
 export async function POST(req: NextRequest) {
   try {
-    const { tracks, discoveryStyle = "balanced", likedSeedTracks = [] } = await req.json();
+    const {
+      tracks,
+      discoveryStyle = "balanced",
+      likedSeedTracks = [],
+      languagePreference = "No preference",
+      dislikes = [],
+    } = await req.json();
     if (!Array.isArray(tracks)) {
       return NextResponse.json(
         { error: "tracks array required" },
@@ -54,9 +67,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Apply onboarding quiz preferences: language and dislikes filtering
+    let penalized = applyLanguagePenalty(tracks, languagePreference);
+    penalized = applyAvoidPenalties(penalized, { avoidArtists: [], avoidGenres: [], dislikes });
+    const rescored = normalizeCandidateScores(penalized, discoveryStyle as DiscoveryStyle);
+
     // Resolve all GPT-curated tracks — don't cap below the candidate count
     const results = await Promise.allSettled(
-      tracks.slice(0, 18).map((t: GPTTrack) =>
+      rescored.slice(0, 18).map((t: GPTTrack) =>
         resolvePlayableTrack(t, discoveryStyle as DiscoveryStyle)
       )
     );
