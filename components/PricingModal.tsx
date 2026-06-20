@@ -50,10 +50,16 @@ export default function PricingModal({
 }: PricingModalProps) {
   const [selected, setSelected] = useState("popular");
 
+  const [adding, setAdding] = useState(false);
+  const [done, setDone] = useState(false);
+
   const handleContinue = async () => {
     const pkg = PACKAGES.find((p) => p.id === selected)!;
+    setAdding(true);
     await onAddCredits(pkg.credits);
-    onClose();
+    setAdding(false);
+    setDone(true);
+    setTimeout(onClose, 900);
   };
 
   return (
@@ -99,6 +105,10 @@ export default function PricingModal({
               <p className="text-black/40 text-xs">
                 Each photo match uses 1 credit
               </p>
+              <div className="inline-flex items-center gap-1.5 mt-2 bg-lime/15 text-black/70 text-[11px] font-semibold px-3 py-1 rounded-full">
+                <span>🎉</span>
+                <span>Beta: credits are free right now</span>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -180,9 +190,14 @@ export default function PricingModal({
 
             <button
               onClick={handleContinue}
-              className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-[0.98] transition-all glow-pink"
+              disabled={adding || done}
+              className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-[0.98] transition-all glow-pink disabled:opacity-70"
             >
-              Continue →
+              {done
+                ? `✓ ${PACKAGES.find((p) => p.id === selected)!.credits} credits added!`
+                : adding
+                ? "Adding…"
+                : `Get ${PACKAGES.find((p) => p.id === selected)!.credits} credits free →`}
             </button>
           </motion.div>
         </motion.div>
