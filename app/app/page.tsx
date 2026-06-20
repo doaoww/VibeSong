@@ -85,6 +85,7 @@ export default function AppUploadPage() {
   // 4. tasteComplete === false — signed in but DB says not done → show quiz
   // 5. default: show (new user, still loading)
   const effectiveShowOnboarding =
+    status === "authenticated" &&
     !completedThisSession &&
     tasteComplete !== true &&
     showOnboarding;
@@ -268,7 +269,7 @@ export default function AppUploadPage() {
     );
   }
 
-  const needsAuthGate = !effectiveShowOnboarding && status === "unauthenticated";
+  const needsAuthGate = status === "unauthenticated";
 
   if (needsAuthGate) {
     return <AuthGate />;
