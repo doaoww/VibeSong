@@ -40,12 +40,13 @@ export default function AppUploadPage() {
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // Default true: server renders onboarding in the initial HTML so it appears on first paint.
+  // useLayoutEffect hides it synchronously (before next paint) for users who have already completed.
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
-  // useLayoutEffect runs before browser paint — onboarding appears with zero visible delay
   useLayoutEffect(() => {
     const done = localStorage.getItem("onboardingDone") || localStorage.getItem("userTaste");
-    if (!done) setShowOnboarding(true);
+    if (done) setShowOnboarding(false);
   }, []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<{
@@ -67,8 +68,9 @@ export default function AppUploadPage() {
     likedSeedTracks,
   } = useAppStore();
 
-  const effectiveShowOnboarding =
-    tasteComplete === null ? showOnboarding : !tasteComplete;
+  // tasteComplete === true means DB confirmed done → always hide
+  // Otherwise use local state (true by default, false once localStorage confirms done)
+  const effectiveShowOnboarding = tasteComplete === true ? false : showOnboarding;
 
   useEffect(() => {
     if (pageState !== "analyzing") return;
