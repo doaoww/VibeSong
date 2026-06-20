@@ -237,8 +237,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     return null;
   }
 
-  const nextSong = songs[index + 1] ?? null;
-
   // ── Swipe screen ──────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col select-none" style={{ height: '100dvh' }}>
@@ -274,19 +272,6 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
       {/* Card stack */}
       <div className="flex-1 flex items-center justify-center px-5 min-h-0">
         <div className="relative w-full max-w-xs" style={{ height: 440 }}>
-
-          {nextSong && (
-            <div
-              className="absolute inset-0 rounded-2xl overflow-hidden"
-              style={{ transform: "scale(0.94) translateY(10px)", zIndex: 0 }}
-            >
-              {nextSong.artwork ? (
-                <img src={nextSong.artwork} alt="" className="w-full h-full object-cover opacity-50" />
-              ) : (
-                <div className="w-full h-full bg-[#1a1a1a]" />
-              )}
-            </div>
-          )}
 
           <motion.div
             key={`${currentSong.title}-${index}`}
