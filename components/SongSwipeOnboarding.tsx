@@ -348,24 +348,22 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   return (
     <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col select-none" style={{ height: '100dvh' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-12 pb-3 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          {songs.map((_, i) => (
+      <div className="flex items-center justify-between px-5 pt-12 pb-3 flex-shrink-0 gap-3">
+        {/* Progress bar — fixed width, never overflows regardless of song count */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
             <div
-              key={i}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                i < index
-                  ? "w-4 bg-hot-pink/40"
-                  : i === index
-                  ? "w-7 bg-hot-pink"
-                  : "w-4 bg-white/10"
-              }`}
+              className="h-full bg-hot-pink rounded-full transition-all duration-300"
+              style={{ width: `${Math.round(((index + 1) / songs.length) * 100)}%` }}
             />
-          ))}
+          </div>
+          <span className="text-white/35 text-[11px] font-mono flex-shrink-0">
+            {index + 1}/{songs.length}
+          </span>
         </div>
         <button
           onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, false); }}
-          className="text-white/35 text-xs font-semibold hover:text-white/60 transition-colors px-2 py-1"
+          className="text-white/40 text-xs font-semibold hover:text-white/70 transition-colors flex-shrink-0 px-3 py-2 -mr-1"
         >
           Skip
         </button>
