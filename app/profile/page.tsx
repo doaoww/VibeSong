@@ -45,6 +45,7 @@ export default function ProfilePage() {
   const handleRetakeQuiz = async () => {
     localStorage.removeItem("onboardingDone");
     localStorage.removeItem("seedFeedback");
+    localStorage.removeItem("userTaste");
     if (user) {
       await fetch("/api/taste/reset", { method: "POST" }).catch(() => {});
     }

@@ -68,9 +68,11 @@ export default function AppUploadPage() {
     likedSeedTracks,
   } = useAppStore();
 
-  // tasteComplete === true means DB confirmed done → always hide
-  // Otherwise use local state (true by default, false once localStorage confirms done)
-  const effectiveShowOnboarding = tasteComplete === true ? false : showOnboarding;
+  // DB is authoritative when loaded; fall back to localStorage cache while loading (null)
+  const effectiveShowOnboarding =
+    tasteComplete === true ? false :
+    tasteComplete === false ? true :
+    showOnboarding;
 
   useEffect(() => {
     if (pageState !== "analyzing") return;
