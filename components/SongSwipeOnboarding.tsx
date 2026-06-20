@@ -61,15 +61,22 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [swiping, setSwiping] = useState<"left" | "right" | null>(null);
   const [dnaVector, setDnaVector] = useState<EmotionalVector | null>(null);
+  // Single persistent Audio element — iOS only unlocks the element the user tapped,
+  // so reusing the same element across songs lets auto-play work after first tap.
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const pendingAudioRef = useRef<HTMLAudioElement | null>(null);
-  const songsRef = useRef<SeedSong[]>([]);
-  const indexRef = useRef(0);
 
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-160, 160], [-14, 14]);
   const likeOpacity = useTransform(x, [25, 90], [0, 1]);
   const nopeOpacity = useTransform(x, [-90, -25], [1, 0]);
+
+  // Create one persistent audio element for the entire onboarding session
+  useEffect(() => {
+    const audio = new Audio();
+    audio.volume = 0.65;
+    audioRef.current = audio;
+    return () => { audio.pause(); audio.src = ""; audioRef.current = null; };
+  }, []);
 
   useEffect(() => {
     fetch("/api/seed-tracks")
@@ -80,33 +87,18 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   }, []);
 
   const currentSong = index < songs.length ? songs[index] : null;
-  songsRef.current = songs;
-  indexRef.current = index;
 
-  // Adopt pending audio (pre-started during swipe gesture) or set up fresh element
+  // On song change: update src on the same element and attempt auto-play
   useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || phase !== "swipe") return;
+    audio.pause();
     setIsPlaying(false);
-
-    if (phase !== "swipe") {
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-      return;
-    }
-
-    if (pendingAudioRef.current) {
-      // Swipe gesture already started this audio — just adopt it
-      audioRef.current = pendingAudioRef.current;
-      pendingAudioRef.current = null;
-      return;
-    }
-
-    // First card: create element but don't auto-play (no gesture yet)
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
-    if (!currentSong?.previewUrl) { audioRef.current = null; return; }
-    const audio = new Audio(currentSong.previewUrl);
-    audio.volume = 0.65;
-    audioRef.current = audio;
-
-    return () => { audio.pause(); audio.src = ""; };
+    if (!currentSong?.previewUrl) return;
+    audio.src = currentSong.previewUrl;
+    audio.load();
+    // Will succeed silently after first user tap unlocks the element on iOS
+    audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, phase]);
 
@@ -122,27 +114,9 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   );
 
   const swipeOff = useCallback(
-    (direction: "left" | "right") => {
-      const song = songsRef.current[indexRef.current];
-      if (!song) return;
+    (direction: "left" | "right", song: SeedSong) => {
       setSwiping(direction);
       animate(x, direction === "right" ? 600 : -600, { duration: 0.28 });
-
-      // Pre-play next song NOW — still within the user's gesture context
-      const nextSong = songsRef.current[indexRef.current + 1];
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-      if (nextSong?.previewUrl) {
-        const audio = new Audio(nextSong.previewUrl);
-        audio.volume = 0.65;
-        pendingAudioRef.current = audio;
-        audio.play()
-          .then(() => setIsPlaying(true))
-          .catch(() => { pendingAudioRef.current = null; setIsPlaying(false); });
-      } else {
-        pendingAudioRef.current = null;
-        setIsPlaying(false);
-      }
-
       setTimeout(() => handleAction(direction === "right" ? "saved" : "skipped", song), 260);
     },
     [x, handleAction]
@@ -150,11 +124,12 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
 
   const handleDragEnd = useCallback(
     (_: unknown, info: { offset: { x: number } }) => {
-      if (info.offset.x > 80) swipeOff("right");
-      else if (info.offset.x < -80) swipeOff("left");
+      if (!currentSong) return;
+      if (info.offset.x > 80) swipeOff("right", currentSong);
+      else if (info.offset.x < -80) swipeOff("left", currentSong);
       else animate(x, 0, { type: "spring", stiffness: 380, damping: 28 });
     },
-    [x, swipeOff]
+    [x, swipeOff, currentSong]
   );
 
   const togglePlay = () => {
@@ -400,14 +375,14 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
       {/* Action buttons */}
       <div className="flex items-center justify-center gap-10 pt-3 pb-10 flex-shrink-0">
         <button
-          onClick={() => swipeOff("left")}
+          onClick={() => currentSong && swipeOff("left", currentSong)}
           className="w-14 h-14 rounded-full border border-white/15 bg-white/5 flex items-center justify-center text-white/50 text-xl hover:border-white/30 hover:bg-white/10 transition-all active:scale-90"
           aria-label="Skip"
         >
           ✕
         </button>
         <button
-          onClick={() => swipeOff("right")}
+          onClick={() => currentSong && swipeOff("right", currentSong)}
           className="w-18 h-18 rounded-full bg-hot-pink flex items-center justify-center text-white text-2xl glow-pink hover:scale-105 transition-all active:scale-95 shadow-xl"
           style={{ width: 68, height: 68 }}
           aria-label="Love it"
