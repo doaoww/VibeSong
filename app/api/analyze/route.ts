@@ -311,10 +311,8 @@ function normalizeScores(
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getSupabaseUser();
-  if (!user?.id) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  // Auth is optional — anonymous users can analyze, they just don't get personalization
+  const user = await getSupabaseUser().catch(() => null);
 
   try {
     const { image, mimeType, exifData = null, contrastMode = false } = await req.json();
@@ -325,13 +323,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [storedTaste, storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
-      getUserTaste(user.id).catch(() => null),
-      getEmotionalVector(user.id).catch(() => null),
-      getFeedback(user.id, "saved", 300),
-      getFeedback(user.id, "skipped", 300),
-      getAllContextVectors(user.id).catch(() => null),
-    ]);
+    let storedTaste = null;
+    let storedTasteVec = null;
+    let savedFeedback: Awaited<ReturnType<typeof getFeedback>> = [];
+    let skippedFeedback: Awaited<ReturnType<typeof getFeedback>> = [];
+    let allContextVectors = null;
+
+    if (user?.id) {
+      [storedTaste, storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
+        getUserTaste(user.id).catch(() => null),
+        getEmotionalVector(user.id).catch(() => null),
+        getFeedback(user.id, "saved", 300),
+        getFeedback(user.id, "skipped", 300),
+        getAllContextVectors(user.id).catch(() => null),
+      ]);
+    }
     const taste = normalizeTaste(storedTaste ?? null);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
@@ -448,15 +454,9 @@ export async function POST(req: NextRequest) {
       : storedTasteVec ?? { ...ZERO_VECTOR };
     const combined = blendVectors(momentContextVec, photoVector, photoConfidence);
 
-    // Always store the raw combined vector (never the inverted version).
-    // Contrast mode inversion is applied at display/prompt time only — it should not
-    // pollute the persisted taste signal for future personalization.
-    // Note: combined is intentionally NOT injected into the current call's prompt.
-    // It is stored via upsertContextVector and will appear in the prompt on the NEXT
-    // call for this momentType via buildStoredTasteVectorBlock.
-    // This is a two-call-window personalization: first call uses onboarding/global taste,
-    // subsequent calls for the same momentType use the blended photo+taste vector.
-    upsertContextVector(user.id, momentType, combined).catch(() => {});
+    if (user?.id) {
+      upsertContextVector(user.id, momentType, combined).catch(() => {});
+    }
 
     return NextResponse.json(result);
   } catch (err) {

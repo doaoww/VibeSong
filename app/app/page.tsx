@@ -152,13 +152,16 @@ export default function AppUploadPage() {
         setShowPricing(true);
         return;
       }
-      const ok = await deduct();
-      if (!ok) {
-        setPendingImage({ base64, mimeType, objectUrl, exifData });
-        setShowPricing(true);
-        return;
-      }
+      // Show analyzing screen immediately — don't await deduct() to avoid UI delay.
+      // Deduct runs in background; if it fails (race condition) we restore the screen.
       setPageState("uploading");
+      deduct().then((ok) => {
+        if (!ok) {
+          setPageState("idle");
+          setPendingImage({ base64, mimeType, objectUrl, exifData });
+          setShowPricing(true);
+        }
+      });
       setTimeout(() => runAnalysis(base64, mimeType, objectUrl, exifData), 300);
     },
     [credits, deduct, runAnalysis]
