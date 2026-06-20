@@ -69,13 +69,15 @@ export default function AppUploadPage() {
     likedSeedTracks,
   } = useAppStore();
 
-  // DB is authoritative when loaded; fall back to localStorage cache while loading (null).
-  // completedThisSession overrides everything — prevents tasteComplete===false from
-  // re-showing the onboarding after the user clicks "Start matching".
+  // Priority order:
+  // 1. completedThisSession — user just finished the quiz right now
+  // 2. tasteComplete === true — DB confirms quiz done (most authoritative)
+  // 3. showOnboarding === false — localStorage has "onboardingDone" flag (anonymous completion)
+  // 4. tasteComplete === false — signed in but DB says not done → show quiz
+  // 5. default: show (new user, still loading)
   const effectiveShowOnboarding =
-    completedThisSession ? false :
-    tasteComplete === true ? false :
-    tasteComplete === false ? true :
+    !completedThisSession &&
+    tasteComplete !== true &&
     showOnboarding;
 
   useEffect(() => {
