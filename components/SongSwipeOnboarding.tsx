@@ -88,7 +88,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
 
   const currentSong = index < songs.length ? songs[index] : null;
 
-  // On song change: update src on the same element and attempt auto-play
+  // On song change (or when songs finish loading): update src and attempt auto-play
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || phase !== "swipe") return;
@@ -97,10 +97,9 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     if (!currentSong?.previewUrl) return;
     audio.src = currentSong.previewUrl;
     audio.load();
-    // Will succeed silently after first user tap unlocks the element on iOS
+    // Succeeds after first user tap unlocks the element on iOS
     audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, phase]);
+  }, [index, phase, currentSong?.previewUrl]);
 
   const handleAction = useCallback(
     (action: "saved" | "skipped", song: SeedSong) => {

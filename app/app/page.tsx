@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import DropZone from "../../components/DropZone";
@@ -42,8 +42,8 @@ export default function AppUploadPage() {
   const [showPricing, setShowPricing] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Check localStorage after hydration — avoids SSR mismatch that caused the delay
-  useEffect(() => {
+  // useLayoutEffect runs before browser paint — onboarding appears with zero visible delay
+  useLayoutEffect(() => {
     const done = localStorage.getItem("onboardingDone") || localStorage.getItem("userTaste");
     if (!done) setShowOnboarding(true);
   }, []);
