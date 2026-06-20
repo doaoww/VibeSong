@@ -311,8 +311,10 @@ function normalizeScores(
 }
 
 export async function POST(req: NextRequest) {
-  // Auth is optional — anonymous users can analyze, they just don't get personalization
-  const user = await getSupabaseUser().catch(() => null);
+  const user = await getSupabaseUser();
+  if (!user?.id) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  }
 
   try {
     const { image, mimeType, exifData = null, contrastMode = false } = await req.json();
@@ -323,21 +325,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let storedTaste = null;
-    let storedTasteVec = null;
-    let savedFeedback: Awaited<ReturnType<typeof getFeedback>> = [];
-    let skippedFeedback: Awaited<ReturnType<typeof getFeedback>> = [];
-    let allContextVectors = null;
-
-    if (user?.id) {
-      [storedTaste, storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
-        getUserTaste(user.id).catch(() => null),
-        getEmotionalVector(user.id).catch(() => null),
-        getFeedback(user.id, "saved", 300),
-        getFeedback(user.id, "skipped", 300),
-        getAllContextVectors(user.id).catch(() => null),
-      ]);
-    }
+    // All DB calls wrapped with fallbacks — any single failure must not kill the analysis
+    const [storedTaste, storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
+      getUserTaste(user.id).catch(() => null),
+      getEmotionalVector(user.id).catch(() => null),
+      getFeedback(user.id, "saved", 300).catch(() => [] as Awaited<ReturnType<typeof getFeedback>>),
+      getFeedback(user.id, "skipped", 300).catch(() => [] as Awaited<ReturnType<typeof getFeedback>>),
+      getAllContextVectors(user.id).catch(() => null),
+    ]);
     const taste = normalizeTaste(storedTaste ?? null);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
@@ -454,9 +449,7 @@ export async function POST(req: NextRequest) {
       : storedTasteVec ?? { ...ZERO_VECTOR };
     const combined = blendVectors(momentContextVec, photoVector, photoConfidence);
 
-    if (user?.id) {
-      upsertContextVector(user.id, momentType, combined).catch(() => {});
-    }
+    upsertContextVector(user.id, momentType, combined).catch(() => {});
 
     return NextResponse.json(result);
   } catch (err) {
