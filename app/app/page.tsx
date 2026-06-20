@@ -43,6 +43,7 @@ export default function AppUploadPage() {
   // Default true: server renders onboarding in the initial HTML so it appears on first paint.
   // useLayoutEffect hides it synchronously (before next paint) for users who have already completed.
   const [showOnboarding, setShowOnboarding] = useState(true);
+  const [completedThisSession, setCompletedThisSession] = useState(false);
 
   useLayoutEffect(() => {
     const done = localStorage.getItem("onboardingDone") || localStorage.getItem("userTaste");
@@ -68,8 +69,11 @@ export default function AppUploadPage() {
     likedSeedTracks,
   } = useAppStore();
 
-  // DB is authoritative when loaded; fall back to localStorage cache while loading (null)
+  // DB is authoritative when loaded; fall back to localStorage cache while loading (null).
+  // completedThisSession overrides everything — prevents tasteComplete===false from
+  // re-showing the onboarding after the user clicks "Start matching".
   const effectiveShowOnboarding =
+    completedThisSession ? false :
     tasteComplete === true ? false :
     tasteComplete === false ? true :
     showOnboarding;
@@ -452,6 +456,7 @@ export default function AppUploadPage() {
           onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[], prefs: OnboardingPrefs, completed: boolean) => {
             setShowOnboarding(false);
             if (!completed) return; // skipped — show again next visit
+            setCompletedThisSession(true); // prevent tasteComplete===false from re-showing
             localStorage.setItem("onboardingDone", "1");
             setLikedSeedTracks(savedSeeds.map((s) => ({ title: s.title, artist: s.artist })));
             const payload = { saved: savedSeeds, skipped: skippedSeeds, prefs };
