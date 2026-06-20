@@ -65,6 +65,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   // Single persistent Audio element — iOS only unlocks the element the user tapped,
   // so reusing the same element across songs lets auto-play work after first tap.
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const swipingRef = useRef(false); // guard against double-fire from drag + button click
 
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-160, 160], [-14, 14]);
@@ -147,9 +148,14 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
 
   const swipeOff = useCallback(
     (direction: "left" | "right", song: SeedSong) => {
+      if (swipingRef.current) return; // prevent double-fire (drag + button click same gesture)
+      swipingRef.current = true;
       setSwiping(direction);
       animate(x, direction === "right" ? 600 : -600, { duration: 0.28 });
-      setTimeout(() => handleAction(direction === "right" ? "saved" : "skipped", song), 260);
+      setTimeout(() => {
+        handleAction(direction === "right" ? "saved" : "skipped", song);
+        swipingRef.current = false;
+      }, 300);
     },
     [x, handleAction]
   );
