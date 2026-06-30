@@ -1,18 +1,6 @@
-import type { EmotionalVector } from "./emotionalVector";
+﻿import type { EmotionalVector } from "./emotionalVector";
 
-// When this module runs inside a Node.js vm sandbox (e.g. in tests via loadTsModule),
-// array literals use the sandbox's Array constructor. assert.deepStrictEqual then fails
-// when comparing against outer-realm arrays because the constructors differ.
-// process is injected from the outer realm into the sandbox context, so process.argv
-// is an outer-realm Array — using its constructor gives us the outer-realm Array
-// for all array-returning exports. In production (Next.js), this is just Array.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const OuterArray: typeof Array =
-  typeof process !== "undefined" && Array.isArray(process.argv)
-    ? (process.argv as unknown as { constructor: typeof Array }).constructor
-    : Array;
-
-export const VECTOR_KEYS: Array<keyof EmotionalVector> = OuterArray.from([
+export const VECTOR_KEYS: Array<keyof EmotionalVector> = Array.from([
   "dreamy", "nostalgia", "energy", "cinematic", "darkness",
   "confidence", "intimacy", "danceability", "electronic", "acoustic",
 ]) as Array<keyof EmotionalVector>;

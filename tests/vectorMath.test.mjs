@@ -13,7 +13,7 @@ function loadTsModule(path) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
   const cjsModule = { exports: {} };
-  const context = vm.createContext({ exports: cjsModule.exports, module: cjsModule, require, console, process, URLSearchParams });
+  const context = vm.createContext({ exports: cjsModule.exports, module: cjsModule, require, console, process, URLSearchParams, Array });
   vm.runInContext(output, context, { filename: path });
   return cjsModule.exports;
 }
