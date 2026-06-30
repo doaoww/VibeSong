@@ -36,7 +36,7 @@ export interface VibeProfile {
     tempo: string;
     genres: string[];
     mood: string;
-    tracks: GPTTrack[];
+    tracks?: GPTTrack[];  // optional — GPT no longer returns songs
   };
   people?: {
     count: number;

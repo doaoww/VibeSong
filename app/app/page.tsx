@@ -10,7 +10,7 @@ import PricingModal from "../../components/PricingModal";
 import SongSwipeOnboarding, { SeedSong, OnboardingPrefs } from "../../components/SongSwipeOnboarding";
 import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
-import { useAppStore, ExifData } from "../../store/useAppStore";
+import { useAppStore, ExifData, Track } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import { useAccountSync } from "../../lib/useAccountSync";
 import ContrastModeToggle from "../../components/ContrastModeToggle";
@@ -133,24 +133,49 @@ export default function AppUploadPage() {
         const vibeData = await analyzeRes.json();
         setVibeProfile(vibeData);
 
-        let tracks = vibeData.musicDNA?.tracks || [];
-
-        const discoveryStyle = "balanced";
-
-        const searchRes = await fetch("/api/search-tracks", {
+        // Call recommendation engine with the photo vector
+        const recommendRes = await fetch("/api/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            tracks,
-            discoveryStyle,
-            likedSeedTracks,
-            languagePreference: onboardingPrefs.languagePreference,
-            dislikes: onboardingPrefs.dislikes,
+            photoVectorArray: vibeData.photoVectorArray,
+            vibeBoosts: {},
+            storyIntentTags: [],
+            antiTags: [],
           }),
         });
-        const ytData = await searchRes.json();
-        const ytTracks = Array.isArray(ytData) ? ytData : ytData.found || [];
-        setTracks(ytTracks);
+        if (!recommendRes.ok) {
+          const errBody = await recommendRes.json().catch(() => ({}));
+          throw new Error(errBody.detail || errBody.error || `Recommend API ${recommendRes.status}`);
+        }
+        const recommendData = await recommendRes.json();
+        const recommendedSongs = Array.isArray(recommendData.songs) ? recommendData.songs : [];
+
+        // Map catalog songs to Track format for the existing swipe UI
+        const mappedTracks: Track[] = recommendedSongs.map((s: {
+          title: string; artist: string; language: string;
+          story_intent_tags: string[]; mood_tags: string[]; genre_tags: string[];
+          scoreComponents: { finalScore: number; photoFit: number; tasteFit: number; storyFit: number };
+          artwork_url: string | null; itunes_preview_url: string | null;
+          apple_music_url: string | null; youtube_id: string | null;
+        }) => ({
+          title: s.title,
+          artist: s.artist,
+          reason: s.story_intent_tags[0] || s.mood_tags[0] || "Matched to your photo vibe",
+          genres: s.genre_tags,
+          matchScore: s.scoreComponents.finalScore,
+          finalScore: s.scoreComponents.finalScore,
+          photoFitScore: s.scoreComponents.photoFit,
+          tasteFitScore: s.scoreComponents.tasteFit,
+          thumbnail: s.artwork_url || "",
+          artwork: s.artwork_url || undefined,
+          previewUrl: s.itunes_preview_url || undefined,
+          previewProvider: (s.itunes_preview_url ? "itunes" : undefined) as "itunes" | "youtube" | undefined,
+          appleMusicUrl: s.apple_music_url || undefined,
+          youtubeId: s.youtube_id || undefined,
+          sourceImage: useAppStore.getState().uploadedImageUrl || undefined,
+        }));
+        setTracks(mappedTracks);
 
         setIsAnalyzing(false);
         router.push("/results");
