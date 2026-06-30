@@ -1,25 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import openai from "../../../lib/openai";
-import {
-  applyAvoidPenalties,
-  applyLanguagePenalty,
-  getDiscoveryInstructions,
-  normalizeCandidateScores,
-  normalizeTaste,
-  type CandidateTrack,
-  type UserTaste,
-} from "../../../lib/matching";
 import { getSupabaseUser } from "../../../lib/supabase/server";
-import { getUserTaste } from "../../../lib/db/userTaste";
-import { getFeedback } from "../../../lib/db/trackFeedback";
-import { buildAggregateTasteProfile, type AggregateTasteProfile } from "../../../lib/tasteProfile";
 import {
   blendVectors,
-  invertVector,
-  emotionalVectorToPromptString,
   type EmotionalVector,
   ZERO_VECTOR,
-  VECTOR_KEYS,
 } from "../../../lib/emotionalVector";
 import {
   getEmotionalVector,
@@ -27,53 +12,26 @@ import {
   upsertContextVector,
   type MomentType,
 } from "../../../lib/db/userTaste";
+import { vectorToArray } from "../../../lib/vectorMath";
 import type { ExifData } from "../../../store/useAppStore";
 
 export const runtime = "nodejs";
 
-const BASE_SYSTEM_PROMPT = `You are a music curator with deep knowledge of every genre, subculture, and scene -- not a mainstream playlist algorithm. Your job is to find songs that genuinely fit BOTH the photo and the listener's taste.
+const BASE_SYSTEM_PROMPT = `You are a photo vibe analyst. Your job is to understand the emotional and aesthetic character of a photo so that songs can be matched to it from a database.
 
-ABSOLUTE RULE: You MUST analyze ANY image provided and return JSON. There is no such thing as an image that cannot be matched to music. Abstract images, screenshots, memes, dark/blurry photos, AI art, documents — everything has color, texture, and emotional energy that maps to music. Never refuse. Never explain. Only return JSON.
+ABSOLUTE RULE: Analyze ANY image. Abstract images, memes, dark photos, screenshots — everything has visual energy. Never refuse. Only return JSON.
 
-PHOTO ANALYSIS RULES — READ THE MOMENT, NOT JUST THE AESTHETICS:
-Your #1 job is to understand WHAT IS HAPPENING and HOW THE PERSON FEELS — not just what the photo looks like.
+PHOTO ANALYSIS — READ THE MOMENT:
+Understand WHAT IS HAPPENING and HOW THE PERSON FEELS, not just aesthetics.
 
-STEP 1 — Ask yourself: "What is this person communicating? What would they caption this on Instagram Stories?"
-- A broken nail / chipped polish → frustration, chaos, relatable drama → HIGH energy, LOW valence (NOT intimate or serene)
-- A messy room / disaster → overwhelmed, chaotic, stressed → HIGH energy, LOW valence (NOT cozy)
-- A selfie with a bad day expression → raw emotion, venting → emotional intensity HIGH
-- A gym/workout mirror → confidence, hustle, discipline → HIGH energy, HIGH confidence
-- A party or group → social, celebratory, euphoric → HIGH energy
-- A sunset / nature → nostalgic, peaceful, cinematic → LOW energy, HIGH valence
-- A late-night snack / comfort food → indulgent, quiet, unbothered → LOW energy, HIGH valence
-- A mirror selfie → confidence or vulnerability — read the FACE and body language
-- Food, drink, fashion close-ups → aspirational or ironic depending on how it's framed
-- Memes, screenshots, text conversations → social drama, emotional energy
-- Abstract or random objects → read WHY someone would share THIS. What feeling does it project?
+- A broken nail / chaos → frustration, high energy, LOW valence
+- A gym selfie → confidence, hustle, HIGH energy
+- A sunset / nature → nostalgic, peaceful, LOW energy
+- A mirror selfie → read face + body language carefully
+- Memes, screenshots → read the emotional energy, not the content
+- HUMOR & IRONY: If this would be posted with 😭💀💅 "send help" "not me" — that IS the energy. High energy, chaotic, NOT serene.
 
-STEP 2 — HUMOR & IRONY DETECTION. If the photo would be posted with 😭 💀 💅 "lol" "send help" "not me" "I'm fine" — that IS the energy. Map to: chaotic, frustrated, darkly funny, high energy. NEVER label these as serene, intimate, or reflective.
-
-STEP 3 — Only after reading the moment: consider lighting, color, and aesthetic as secondary signals that confirm or add texture to the emotional read.
-
-vibeCaption = 3–6 words that capture the exact cultural moment like a real caption. Examples: "chaos but make it cute" | "main character moment" | "send help" | "girl dinner era" | "cozy and unbothered" | "dramatic as always" | "literally why" | "she's fine (she's not)" | "soft life era"
-
-SONG SELECTION RULES:
-- Songs must be REAL tracks that exist on YouTube/Spotify (verifiable artist + title)
-- Prefer 2018-2026 but allow timeless tracks if they perfectly match the vibe
-- DO NOT default to chart-topping mainstream hits -- anyone can do that
-- DO pick cult favorites, critically acclaimed albums, scene anthems, deep cuts, and genre-defining tracks that most people haven't heard but fans would immediately recognize
-- Avoid: Levitating, Blinding Lights, Watermelon Sugar, Shape of You, or any song that has been in every ad/reel for 3 years
-- Each recommendation must feel like a friend with great taste specifically chose it for THIS photo
-- viralMomentSeconds = the timestamp (seconds) of the most emotionally resonant moment of the track
-- Famous artists are allowed. Lazy obvious songs are not. A deep cut from a known artist can be excellent.
-
-SCORING RULES:
-- photoFitScore: 0-100, how well the song matches the exact image.
-- tasteFitScore: 0-100, how likely this user is to personally like it.
-- discoveryFitScore: 0-100, how well it matches the user's desired discovery style.
-- obviousnessPenalty: 0-40, how lazy/overused/obvious the song choice is.
-- finalScore: 61-97, balanced total after scores and penalty.
-- Every finalScore should be realistic, not all 90+.
+vibeCaption = 3–6 words capturing the exact cultural moment: "chaos but make it cute" | "main character moment" | "expensive and cold" | "she's fine (she's not)"
 
 Return ONLY valid JSON, no markdown:
 {
@@ -106,23 +64,7 @@ Return ONLY valid JSON, no markdown:
     "valence": 0.0,
     "tempo": "slow|medium|fast",
     "genres": ["string"],
-    "mood": "string",
-    "tracks": [
-      {
-        "title": "string",
-        "artist": "string",
-        "genres": ["string", "string"],
-        "language": "string -- the language the vocals are actually sung in (e.g. English, Korean, Spanish, Russian, Uzbek), or Instrumental if there are no vocals",
-        "reason": "string -- 1 sentence: exactly why THIS song's texture/mood fits THIS specific photo and user taste",
-        "matchScore": 94,
-        "photoFitScore": 92,
-        "tasteFitScore": 88,
-        "discoveryFitScore": 85,
-        "obviousnessPenalty": 4,
-        "finalScore": 89,
-        "viralMomentSeconds": 62
-      }
-    ]
+    "mood": "string"
   },
   "vibeMetrics": {
     "intimacy": 0.0,
@@ -141,88 +83,13 @@ Return ONLY valid JSON, no markdown:
   }
 }
 NUMBER RULES:
-- matchScore/finalScore/photoFitScore/tasteFitScore/discoveryFitScore: INTEGER 0-100. NEVER decimal.
-- obviousnessPenalty: INTEGER 0-40. Use it for overused songs, meme songs, lazy chart defaults, or tracks that are too obvious for the photo.
-- viralMomentSeconds: INTEGER seconds (e.g. 62, 45, 30).
-- energy, valence, brightness, intensity: floats 0.0–1.0.
-- photoConfidence: float 0.0–1.0. Low = ambiguous image (selfie on white wall). High = strong clear vibe (sunset, party, nature).
-- photoVector fields: all floats 0.0–1.0 representing the photo's emotional character.
+- energy, valence, brightness, intensity, vibeMetrics fields: floats 0.0–1.0
+- photoConfidence: float 0.0–1.0
+- photoVector fields: all floats 0.0–1.0
+- vibeTags: exactly 3`;
 
-PER-TRACK GENRES:
-- Each track's "genres" array is THAT SPECIFIC SONG's genres, not the overall photo vibe. Be specific (e.g. "lo-fi soul" not "R&B"), 1-3 entries.
-- This matters: we use it to learn what the listener actually saves vs skips over time, so it must reflect the real song, not the photo.
-
-Generate exactly 15 candidate tracks. EVERY track must be as carefully chosen as your #1 pick — no filler, no padding, no lazy picks at the end. Each track needs a specific reason it fits THIS photo and THIS listener. Use a mix of familiar hidden gems, taste-adjacent tracks, niche discoveries, and photo-perfect wildcards. vibeTags: exactly 3. NO lazy overplayed hits.`;
-
-function buildTasteBlock(taste: UserTaste): string {
-  return `
-
-USER TASTE PROFILE (this is the most important personalization signal):
-- Genres they love: ${taste.genres.join(", ") || "not specified"}
-- Favorite artists: ${taste.favoriteArtists.join(", ") || "not specified"}
-- Use your own knowledge of these artists' sound and scene to find sonic twins and adjacent acts -- don't limit yourself to a fixed list.
-- Sound aesthetic (texture/feel they want): ${taste.aestheticTags.join(", ") || "not specified"}
-- Discovery style: ${taste.discoveryStyle}
-- Discovery instructions: ${getDiscoveryInstructions(taste.discoveryStyle)}
-- Avoid these when possible: ${taste.dislikes.join(", ") || "not specified"}
-- Language/region preference: ${taste.languagePreference}
-- Energy preference: ${taste.energyPreference}
-
-TASTE OVERRIDE RULES:
-1. At least half of candidates must fit the user's genres, favorite artists, or adjacent scenes.
-2. At least 4 candidates should be by exact favorite artists or close sonic twins if that does not clash with the photo.
-3. Go deep into their genres: album cuts, B-sides, cult classics, critical darlings, and scene favorites.
-4. If dislikes conflict with a candidate, increase obviousnessPenalty or remove it.
-5. Still make sure nothing clashes with the photo. A chill evening photo should not get aggressive trap unless user taste and visual energy strongly support it.
-6. The goal: recommendations that make the user say "how did it know I'd like this?"`;
-}
-
-function buildAggregateTasteBlock(profile: AggregateTasteProfile): string {
-  const hasSignal =
-    profile.learnedGenres.length > 0 ||
-    profile.avoidGenres.length > 0 ||
-    profile.learnedArtists.length > 0 ||
-    profile.avoidArtists.length > 0;
-  if (!hasSignal) return "";
-
-  return `
-
-LEARNED TASTE SIGNALS (from this user's save/skip history across all past matches):
-- Genres they keep saving: ${profile.learnedGenres.join(", ") || "none yet"}
-- Genres they keep skipping, avoid these: ${profile.avoidGenres.join(", ") || "none"}
-- Artists they keep saving: ${profile.learnedArtists.join(", ") || "none yet"}
-- Artists they keep skipping, avoid these: ${profile.avoidArtists.join(", ") || "none"}
-
-Treat this as a strong signal, refined over many past matches -- stronger than a single quiz answer.`;
-}
-
-function buildStoredTasteVectorBlock(tasteVec: EmotionalVector): string {
-  const hasSignal = VECTOR_KEYS.some((k) => tasteVec[k] > 0.05);
-  if (!hasSignal) return "";
-  return `\n\nUSER EMOTIONAL TASTE VECTOR (from onboarding swipes — match songs to this profile):\n${emotionalVectorToPromptString(tasteVec)}`;
-}
-
-function buildPrompt(
-  taste: UserTaste,
-  aggregate: AggregateTasteProfile,
-  tasteVecForPrompt: EmotionalVector | null
-): string {
-  const hasTaste =
-    taste.setupComplete &&
-    (taste.genres.length > 0 ||
-      taste.favoriteArtists.length > 0 ||
-      taste.defaultMood ||
-      taste.discoveryStyle !== "balanced" ||
-      taste.dislikes.length > 0 ||
-      taste.languagePreference !== "No preference" ||
-      taste.energyPreference !== "depends");
-
-  return (
-    BASE_SYSTEM_PROMPT +
-    (hasTaste ? buildTasteBlock(taste) : "") +
-    buildAggregateTasteBlock(aggregate) +
-    (tasteVecForPrompt ? buildStoredTasteVectorBlock(tasteVecForPrompt) : "")
-  );
+function buildPrompt(exifBlock: string): string {
+  return BASE_SYSTEM_PROMPT + exifBlock;
 }
 
 function buildExifBlock(exif: ExifData | null): string {
@@ -301,30 +168,6 @@ function parseGPTJson(raw: string) {
   return JSON.parse(cleaned);
 }
 
-function normalizeScores(
-  result: { musicDNA?: { tracks?: CandidateTrack[] } },
-  taste: UserTaste,
-  aggregate: AggregateTasteProfile
-) {
-  if (!result?.musicDNA?.tracks) return;
-  const avoided = applyAvoidPenalties(result.musicDNA.tracks, {
-    avoidArtists: aggregate.avoidArtists,
-    avoidGenres: aggregate.avoidGenres,
-    dislikes: taste.dislikes,
-  });
-  const penalized = applyLanguagePenalty(avoided, taste.languagePreference);
-  result.musicDNA.tracks = normalizeCandidateScores(
-    penalized,
-    taste.discoveryStyle
-  ).slice(0, 15);
-  console.log(
-    "[analyze] matchScores:",
-    result.musicDNA.tracks.map(
-      (t) => `${String(t.title)}: ${t.matchScore}`
-    )
-  );
-}
-
 export async function POST(req: NextRequest) {
   const user = await getSupabaseUser();
   if (!user?.id) {
@@ -341,33 +184,14 @@ export async function POST(req: NextRequest) {
     }
 
     // All DB calls wrapped with fallbacks — any single failure must not kill the analysis
-    const [storedTaste, storedTasteVec, savedFeedback, skippedFeedback, allContextVectors] = await Promise.all([
-      getUserTaste(user.id).catch(() => null),
+    const [storedTasteVec, allContextVectors] = await Promise.all([
       getEmotionalVector(user.id).catch(() => null),
-      getFeedback(user.id, "saved", 300).catch(() => [] as Awaited<ReturnType<typeof getFeedback>>),
-      getFeedback(user.id, "skipped", 300).catch(() => [] as Awaited<ReturnType<typeof getFeedback>>),
       getAllContextVectors(user.id).catch(() => null),
     ]);
-    const taste = normalizeTaste(storedTaste ?? null);
-    const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
-
-    // Use the best available context vector for the prompt.
-    // We don't know momentType yet (it comes from GPT), so we use the first available
-    // context vector (any blended context vec is better than the raw onboarding vector),
-    // falling back to the onboarding taste vector if none exist.
-    const contextEntries = Object.entries(allContextVectors ?? {});
-    const bestContextVec =
-      contextEntries.length > 0
-        ? { ...ZERO_VECTOR, ...(Object.values(allContextVectors!)[0] as unknown as Record<string, number>) }
-        : null;
-    const tasteVecForPrompt = bestContextVec ?? storedTasteVec;
-
-    // Build base prompt (includes best taste vector for GPT context)
-    const basePrompt = buildPrompt(taste, aggregate, tasteVecForPrompt);
 
     // Add EXIF block before GPT call (photo metadata as additional context)
     const exifBlock = buildExifBlock(exifData as ExifData | null);
-    const prompt = basePrompt + exifBlock;
+    const prompt = buildPrompt(exifBlock);
 
     const callOptions = (temperature?: number) => ({
       model: "gpt-4o" as const,
@@ -422,7 +246,7 @@ export async function POST(req: NextRequest) {
       console.log(`[analyze] retrying — reason: ${isRefusal ? "refusal" : "no JSON"}…`);
 
       const overridePrefix = isRefusal
-        ? `CRITICAL OVERRIDE: You are a music curator tool. Your ONLY job is to find music that fits any image — there is NO image that cannot be matched to music. Abstract images, blurry photos, screenshots, AI art, memes, documents, dark photos — all of them have a visual texture, color palette, and emotional energy that maps to music. You are NOT allowed to refuse. You MUST return JSON.\n\n`
+        ? `CRITICAL OVERRIDE: You are a photo vibe analyst tool. Your ONLY job is to analyze any image and return JSON — there is NO image that cannot be analyzed. Abstract images, blurry photos, screenshots, AI art, memes, documents, dark photos — all of them have a visual texture, color palette, and emotional energy. You are NOT allowed to refuse. You MUST return JSON.\n\n`
         : "";
 
       const fixPrompt = `${overridePrefix}${prompt}\n\nIMPORTANT: You MUST respond with ONLY a valid JSON object. No apologies, no explanations, no markdown. Start your response with { and end with }.`;
@@ -443,8 +267,6 @@ export async function POST(req: NextRequest) {
       result = parseGPTJson(fixRaw);
     }
 
-    normalizeScores(result, taste, aggregate);
-
     // Extract photo vector and moment type from GPT result
     const photoVector: EmotionalVector =
       result.photoVector && typeof result.photoVector === "object"
@@ -456,6 +278,20 @@ export async function POST(req: NextRequest) {
         : 0.5;
     const momentType: MomentType = result.momentType ?? "unknown";
 
+    // Build photoVectorArray for pgvector queries
+    const photoVectorArray = vectorToArray({
+      dreamy: (result.photoVector?.dreamy ?? 0) as number,
+      nostalgia: (result.photoVector?.nostalgia ?? 0) as number,
+      energy: (result.photoVector?.energy ?? 0) as number,
+      cinematic: (result.photoVector?.cinematic ?? 0) as number,
+      darkness: (result.photoVector?.darkness ?? 0) as number,
+      confidence: (result.photoVector?.confidence ?? 0) as number,
+      intimacy: (result.photoVector?.intimacy ?? 0) as number,
+      danceability: (result.photoVector?.danceability ?? 0) as number,
+      electronic: (result.photoVector?.electronic ?? 0) as number,
+      acoustic: (result.photoVector?.acoustic ?? 0) as number,
+    });
+
     // Blend the moment-specific context vector (if available) with the photo vector.
     // Now that allContextVectors was fetched upfront, we can look up the exact momentType
     // without an extra DB call.
@@ -466,7 +302,7 @@ export async function POST(req: NextRequest) {
 
     upsertContextVector(user.id, momentType, combined).catch(() => {});
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, photoVectorArray });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/api/analyze error:", message);
