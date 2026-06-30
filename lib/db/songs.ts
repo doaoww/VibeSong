@@ -9,7 +9,7 @@ export interface CatalogSong {
   language: string;
   energy: number;
   popularity_tier: number;
-  emotional_vector: number[];
+  emotional_vector: number[] | null;
   genre_tags: string[];
   aesthetic_tags: string[];
   mood_tags: string[];
