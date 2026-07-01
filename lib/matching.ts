@@ -1,15 +1,18 @@
 export type DiscoveryStyle = "hidden-gems" | "niche" | "balanced" | "popular-ok";
 export type EnergyPreference = "calm" | "medium" | "high" | "depends";
+export type LanguageOpenness = "strict" | "flexible" | "open";
 
 export interface UserTaste {
-  genres: string[];
   favoriteArtists: string[];
   defaultMood: string;
   discoveryStyle: DiscoveryStyle;
-  dislikes: string[];
-  languagePreference: string;
+  languages: string[];
+  languageOpenness: LanguageOpenness;
   energyPreference: EnergyPreference;
   aestheticTags: string[];
+  genreScores: Record<string, number>;
+  avoidedStoryTags: string[];
+  favoriteStorySongs: string[];
   setupComplete: boolean;
 }
 
@@ -41,14 +44,16 @@ export interface ResolvedTrack extends CandidateTrack {
 }
 
 const DEFAULT_TASTE: UserTaste = {
-  genres: [],
   favoriteArtists: [],
   defaultMood: "",
   discoveryStyle: "balanced",
-  dislikes: [],
-  languagePreference: "No preference",
+  languages: [],
+  languageOpenness: "flexible",
   energyPreference: "depends",
   aestheticTags: [],
+  genreScores: {},
+  avoidedStoryTags: [],
+  favoriteStorySongs: [],
   setupComplete: true,
 };
 
@@ -60,6 +65,7 @@ const DISCOVERY_STYLES: DiscoveryStyle[] = [
 ];
 
 const ENERGY_PREFERENCES: EnergyPreference[] = ["calm", "medium", "high", "depends"];
+const LANGUAGE_OPENNESS: LanguageOpenness[] = ["strict", "flexible", "open"];
 
 function cleanString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -68,6 +74,15 @@ function cleanString(value: unknown): string {
 function cleanArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map(cleanString).filter(Boolean);
+}
+
+function cleanScoreMap(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object") return {};
+  const result: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === "number" && !Number.isNaN(raw)) result[key] = raw;
+  }
+  return result;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -88,23 +103,31 @@ function isEnergyPreference(value: unknown): value is EnergyPreference {
   return typeof value === "string" && ENERGY_PREFERENCES.includes(value as EnergyPreference);
 }
 
+function isLanguageOpenness(value: unknown): value is LanguageOpenness {
+  return typeof value === "string" && LANGUAGE_OPENNESS.includes(value as LanguageOpenness);
+}
+
 export function normalizeTaste(input: unknown): UserTaste {
   if (!input || typeof input !== "object") return DEFAULT_TASTE;
   const raw = input as Record<string, unknown>;
 
   return {
-    genres: cleanArray(raw.genres),
     favoriteArtists: cleanArray(raw.favoriteArtists),
     defaultMood: cleanString(raw.defaultMood),
     discoveryStyle: isDiscoveryStyle(raw.discoveryStyle)
       ? raw.discoveryStyle
       : DEFAULT_TASTE.discoveryStyle,
-    dislikes: cleanArray(raw.dislikes),
-    languagePreference: cleanString(raw.languagePreference) || DEFAULT_TASTE.languagePreference,
+    languages: cleanArray(raw.languages),
+    languageOpenness: isLanguageOpenness(raw.languageOpenness)
+      ? raw.languageOpenness
+      : DEFAULT_TASTE.languageOpenness,
     energyPreference: isEnergyPreference(raw.energyPreference)
       ? raw.energyPreference
       : DEFAULT_TASTE.energyPreference,
     aestheticTags: cleanArray(raw.aestheticTags),
+    genreScores: cleanScoreMap(raw.genreScores),
+    avoidedStoryTags: cleanArray(raw.avoidedStoryTags),
+    favoriteStorySongs: cleanArray(raw.favoriteStorySongs),
     setupComplete:
       typeof raw.setupComplete === "boolean" ? raw.setupComplete : DEFAULT_TASTE.setupComplete,
   };

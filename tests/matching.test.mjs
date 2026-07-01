@@ -40,12 +40,48 @@ test("normalizeTaste upgrades old taste objects with balanced defaults", () => {
     setupComplete: true,
   });
 
-  assert.deepEqual(Array.from(taste.genres), ["Hip-Hop / R&B"]);
+  // Old-shaped fields (genres, dislikes, languagePreference) no longer exist on
+  // UserTaste; they're replaced by languages/languageOpenness/genreScores/
+  // avoidedStoryTags/favoriteStorySongs, which fall back to their defaults here.
   assert.deepEqual(Array.from(taste.favoriteArtists), ["Frank Ocean"]);
+  assert.equal(taste.defaultMood, "Chill & Melancholic");
   assert.equal(taste.discoveryStyle, "balanced");
-  assert.deepEqual(Array.from(taste.dislikes), []);
-  assert.equal(taste.languagePreference, "No preference");
+  assert.deepEqual(Array.from(taste.languages), []);
+  assert.equal(taste.languageOpenness, "flexible");
+  assert.deepEqual({ ...taste.genreScores }, {});
+  assert.deepEqual(Array.from(taste.avoidedStoryTags), []);
+  assert.deepEqual(Array.from(taste.favoriteStorySongs), []);
   assert.equal(taste.energyPreference, "depends");
+  assert.equal(taste.setupComplete, true);
+});
+
+test("normalizeTaste fills defaults for empty input", () => {
+  const taste = matching.normalizeTaste({});
+  assert.deepEqual(Array.from(taste.languages), []);
+  assert.equal(taste.languageOpenness, "flexible");
+  assert.deepEqual({ ...taste.genreScores }, {});
+  assert.deepEqual(Array.from(taste.avoidedStoryTags), []);
+  assert.deepEqual(Array.from(taste.favoriteStorySongs), []);
+});
+
+test("normalizeTaste keeps valid languageOpenness and drops invalid genreScores entries", () => {
+  const taste = matching.normalizeTaste({
+    languages: ["Russian", "English"],
+    languageOpenness: "strict",
+    genreScores: { "hip-hop": 0.8, "not-a-number": "oops", edm: -1 },
+    avoidedStoryTags: ["expensive sadness", 42],
+    favoriteStorySongs: ["a-uuid", 7],
+  });
+  assert.deepEqual(Array.from(taste.languages), ["Russian", "English"]);
+  assert.equal(taste.languageOpenness, "strict");
+  assert.deepEqual({ ...taste.genreScores }, { "hip-hop": 0.8, edm: -1 });
+  assert.deepEqual(Array.from(taste.avoidedStoryTags), ["expensive sadness"]);
+  assert.deepEqual(Array.from(taste.favoriteStorySongs), ["a-uuid"]);
+});
+
+test("normalizeTaste rejects invalid languageOpenness", () => {
+  const taste = matching.normalizeTaste({ languageOpenness: "sometimes" });
+  assert.equal(taste.languageOpenness, "flexible");
 });
 
 test("normalizeCandidateScores calculates balanced final scores and orders candidates", () => {
