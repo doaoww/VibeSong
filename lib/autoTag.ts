@@ -1,6 +1,71 @@
 import openai from "./openai";
 import type { EmotionalVector } from "./emotionalVector";
 import { ZERO_VECTOR } from "./emotionalVector";
+import {
+  STORY_INTENT_TAGS,
+  MODERN_AESTHETIC_TAGS,
+  MOOD_TAGS,
+  STORY_CONTEXT_TAGS,
+  STORY_INTENT_TAGS_SET,
+  MODERN_AESTHETIC_TAGS_SET,
+  MOOD_TAGS_SET,
+  STORY_CONTEXT_TAGS_SET,
+  splitByCanonical,
+} from "./tagTaxonomy";
+import { NullLyricsProvider } from "./lyrics";
+
+export type ConfidenceLevel = "known_track" | "known_artist_only" | "metadata_inference" | "uncertain";
+
+const CONFIDENCE_LEVEL_SCORES: Record<ConfidenceLevel, number> = {
+  known_track: 0.9,
+  known_artist_only: 0.6,
+  metadata_inference: 0.4,
+  uncertain: 0.25,
+};
+
+/** Maps GPT's categorical self-assessment to a fixed numeric score — never trusts a raw self-reported number. */
+export function mapConfidenceLevel(level: string): number {
+  return CONFIDENCE_LEVEL_SCORES[level as ConfidenceLevel] ?? CONFIDENCE_LEVEL_SCORES.uncertain;
+}
+
+export interface SourceConfidenceResult {
+  score: number;
+  evidenceSources: string[];
+}
+
+/**
+ * Deterministic confidence from what evidence was actually available.
+ * Lyrics deliberately do not contribute yet — NullLyricsProvider is a no-op seam.
+ */
+export function computeSourceConfidence(
+  matchType: "exact" | "fallback" | "none",
+  lastfmTags: string[],
+  durationSeconds: number | null,
+  year: number | null
+): SourceConfidenceResult {
+  let score = 0;
+  const evidenceSources: string[] = [];
+
+  if (matchType === "exact") {
+    score += 0.4;
+    evidenceSources.push("itunes_exact");
+  } else if (matchType === "fallback") {
+    score += 0.2;
+    evidenceSources.push("itunes_fallback");
+  }
+
+  if (lastfmTags.length > 0) {
+    score += 0.3;
+    evidenceSources.push("lastfm_tags");
+  }
+
+  if (durationSeconds !== null && year !== null) {
+    score += 0.15;
+    evidenceSources.push("metadata_complete");
+  }
+
+  return { score: Math.max(0, Math.min(1, score)), evidenceSources };
+}
 
 export interface AutoTagResult {
   title: string;
@@ -16,6 +81,17 @@ export interface AutoTagResult {
   mood_tags: string[];
   story_intent_tags: string[];
   modern_aesthetic_tags: string[];
+  story_context_tags: string[];
+  discarded_tags: string[];
+  vibe_summary: string;
+  confidence_level: ConfidenceLevel;
+  confidence_reason: string;
+  gpt_confidence: number;
+  source_confidence: number;
+  final_confidence: number;
+  needs_review: boolean;
+  evidence_sources: string[];
+  tagging_version: string;
   itunes_preview_url: string | null;
   artwork_url: string | null;
   apple_music_url: string | null;
@@ -33,25 +109,29 @@ interface ItunesTrack {
   trackViewUrl: string;
 }
 
-async function fetchItunesMeta(title: string, artist: string): Promise<ItunesTrack | null> {
+interface ItunesLookupResult {
+  track: ItunesTrack | null;
+  matchType: "exact" | "fallback" | "none";
+}
+
+async function fetchItunesMeta(title: string, artist: string): Promise<ItunesLookupResult> {
   const q = encodeURIComponent(`${title} ${artist}`);
   const url = `https://itunes.apple.com/search?term=${q}&media=music&entity=song&limit=5`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return null;
+    if (!res.ok) return { track: null, matchType: "none" };
     const data = await res.json();
     const results: ItunesTrack[] = data?.results ?? [];
-    return (
-      results.find(
-        (r) =>
-          r.trackName?.toLowerCase().includes(title.toLowerCase()) ||
-          r.artistName?.toLowerCase().includes(artist.toLowerCase())
-      ) ??
-      results[0] ??
-      null
+    const exact = results.find(
+      (r) =>
+        r.trackName?.toLowerCase().includes(title.toLowerCase()) ||
+        r.artistName?.toLowerCase().includes(artist.toLowerCase())
     );
+    if (exact) return { track: exact, matchType: "exact" };
+    if (results[0]) return { track: results[0], matchType: "fallback" };
+    return { track: null, matchType: "none" };
   } catch {
-    return null;
+    return { track: null, matchType: "none" };
   }
 }
 
@@ -103,15 +183,19 @@ Return ONLY valid JSON (no markdown) with this exact structure:
   },
   "genre_tags": ["1-3 specific genre strings for this exact song"],
   "aesthetic_tags": ["2-4 aesthetic words: dark, dreamy, raw, euphoric, nostalgic, etc."],
-  "mood_tags": ["2-4 mood words: melancholic, euphoric, chaotic, cozy, etc."],
-  "story_intent_tags": ["2-4 from this list only: post-breakup confidence, expensive sadness, soft revenge, she'll regret losing you, cold Russian melancholy, toxic but iconic, quiet luxury, main character walk, private story energy, clean girl morning, lonely but pretty, night-luxe, cinematic soft flex, modern romantic, not basic TikTok, Slavic sad girl, hot girl summer, dark feminine, cool girl car selfie, dark academia moment, healing era, confident comeback, bittersweet nostalgia, chaotic but cute"],
-  "modern_aesthetic_tags": ["1-3 aesthetic movement tags: quiet luxury, dark academia, Slavic underground, bedroom pop intimacy, etc."]
+  "mood_tags": ["2-4 tags, ONLY from this list: ${MOOD_TAGS.join(", ")}"],
+  "story_intent_tags": ["2-5 tags, ONLY from this list: ${STORY_INTENT_TAGS.join(", ")}"],
+  "modern_aesthetic_tags": ["2-5 tags, ONLY from this list: ${MODERN_AESTHETIC_TAGS.join(", ")}"],
+  "story_context_tags": ["2-5 tags, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}"],
+  "vibe_summary": "1-2 short sentences in natural language describing this song's feeling/story",
+  "confidence_level": "one of: known_track, known_artist_only, metadata_inference, uncertain — how well do you actually know THIS SPECIFIC SONG, not just the artist's general style",
+  "confidence_reason": "one short sentence justifying the confidence_level"
 }
 
-Be precise. Every value matters for song matching quality.`;
+Be precise. Every value matters for song matching quality. Never invent tags outside the given lists — pick the closest canonical option instead.`;
 }
 
-export function parseGptTagResponse(raw: string): {
+export interface ParsedTagResponse {
   language: string;
   popularity_tier: number;
   emotional_vector: EmotionalVector;
@@ -120,16 +204,30 @@ export function parseGptTagResponse(raw: string): {
   mood_tags: string[];
   story_intent_tags: string[];
   modern_aesthetic_tags: string[];
-} {
-  const fallback = {
+  story_context_tags: string[];
+  discarded_tags: string[];
+  vibe_summary: string;
+  confidence_level: ConfidenceLevel;
+  confidence_reason: string;
+}
+
+const VALID_CONFIDENCE_LEVELS = new Set<string>(["known_track", "known_artist_only", "metadata_inference", "uncertain"]);
+
+export function parseGptTagResponse(raw: string): ParsedTagResponse {
+  const fallback: ParsedTagResponse = {
     language: "Unknown",
     popularity_tier: 3,
     emotional_vector: { ...ZERO_VECTOR },
-    genre_tags: [] as string[],
-    aesthetic_tags: [] as string[],
-    mood_tags: [] as string[],
-    story_intent_tags: [] as string[],
-    modern_aesthetic_tags: [] as string[],
+    genre_tags: [],
+    aesthetic_tags: [],
+    mood_tags: [],
+    story_intent_tags: [],
+    modern_aesthetic_tags: [],
+    story_context_tags: [],
+    discarded_tags: [],
+    vibe_summary: "",
+    confidence_level: "uncertain",
+    confidence_reason: "",
   };
 
   try {
@@ -153,22 +251,41 @@ export function parseGptTagResponse(raw: string): {
       acoustic: Number(ev.acoustic ?? 0),
     };
 
+    const proposedMood = Array.isArray(parsed.mood_tags) ? parsed.mood_tags.filter(Boolean) : [];
+    const proposedStoryIntent = Array.isArray(parsed.story_intent_tags) ? parsed.story_intent_tags.filter(Boolean) : [];
+    const proposedModernAesthetic = Array.isArray(parsed.modern_aesthetic_tags) ? parsed.modern_aesthetic_tags.filter(Boolean) : [];
+    const proposedStoryContext = Array.isArray(parsed.story_context_tags) ? parsed.story_context_tags.filter(Boolean) : [];
+
+    const moodSplit = splitByCanonical(proposedMood, MOOD_TAGS_SET);
+    const storyIntentSplit = splitByCanonical(proposedStoryIntent, STORY_INTENT_TAGS_SET);
+    const modernAestheticSplit = splitByCanonical(proposedModernAesthetic, MODERN_AESTHETIC_TAGS_SET);
+    const storyContextSplit = splitByCanonical(proposedStoryContext, STORY_CONTEXT_TAGS_SET);
+
+    const confidenceLevelRaw = typeof parsed.confidence_level === "string" ? parsed.confidence_level : "uncertain";
+    const confidence_level: ConfidenceLevel = VALID_CONFIDENCE_LEVELS.has(confidenceLevelRaw)
+      ? (confidenceLevelRaw as ConfidenceLevel)
+      : "uncertain";
+
     return {
       language: typeof parsed.language === "string" ? parsed.language : "Unknown",
       popularity_tier:
         typeof parsed.popularity_tier === "number" ? Math.round(parsed.popularity_tier) : 3,
       emotional_vector,
       genre_tags: Array.isArray(parsed.genre_tags) ? parsed.genre_tags.filter(Boolean) : [],
-      aesthetic_tags: Array.isArray(parsed.aesthetic_tags)
-        ? parsed.aesthetic_tags.filter(Boolean)
-        : [],
-      mood_tags: Array.isArray(parsed.mood_tags) ? parsed.mood_tags.filter(Boolean) : [],
-      story_intent_tags: Array.isArray(parsed.story_intent_tags)
-        ? parsed.story_intent_tags.filter(Boolean)
-        : [],
-      modern_aesthetic_tags: Array.isArray(parsed.modern_aesthetic_tags)
-        ? parsed.modern_aesthetic_tags.filter(Boolean)
-        : [],
+      aesthetic_tags: Array.isArray(parsed.aesthetic_tags) ? parsed.aesthetic_tags.filter(Boolean) : [],
+      mood_tags: moodSplit.accepted,
+      story_intent_tags: storyIntentSplit.accepted,
+      modern_aesthetic_tags: modernAestheticSplit.accepted,
+      story_context_tags: storyContextSplit.accepted,
+      discarded_tags: [
+        ...moodSplit.rejected,
+        ...storyIntentSplit.rejected,
+        ...modernAestheticSplit.rejected,
+        ...storyContextSplit.rejected,
+      ],
+      vibe_summary: typeof parsed.vibe_summary === "string" ? parsed.vibe_summary : "",
+      confidence_level,
+      confidence_reason: typeof parsed.confidence_reason === "string" ? parsed.confidence_reason : "",
     };
   } catch {
     return fallback;
@@ -176,10 +293,11 @@ export function parseGptTagResponse(raw: string): {
 }
 
 export async function autoTagSong(title: string, artist: string): Promise<AutoTagResult> {
-  const [itunesMeta, lastfmTags] = await Promise.all([
+  const [itunesLookup, lastfmTags] = await Promise.all([
     fetchItunesMeta(title, artist),
     fetchLastfmTags(title, artist),
   ]);
+  const itunesMeta = itunesLookup.track;
 
   const prompt = buildGptTagPrompt(title, artist, lastfmTags);
   let rawGpt = "";
@@ -187,7 +305,7 @@ export async function autoTagSong(title: string, artist: string): Promise<AutoTa
     const res = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 800,
+      max_tokens: 900,
       temperature: 0,
     });
     rawGpt = res.choices[0].message.content ?? "";
@@ -197,14 +315,30 @@ export async function autoTagSong(title: string, artist: string): Promise<AutoTa
 
   const gptData = parseGptTagResponse(rawGpt);
 
+  const durationSeconds = itunesMeta?.trackTimeMillis
+    ? Math.round(itunesMeta.trackTimeMillis / 1000)
+    : null;
+  const year = itunesMeta?.releaseDate ? new Date(itunesMeta.releaseDate).getFullYear() : null;
+
+  // Reserved seam — always null today, does not affect source_confidence.
+  const lyricsProvider = new NullLyricsProvider();
+  await lyricsProvider.fetchLyrics(title, artist);
+
+  const { score: source_confidence, evidenceSources: evidence_sources } = computeSourceConfidence(
+    itunesLookup.matchType,
+    lastfmTags,
+    durationSeconds,
+    year
+  );
+  const gpt_confidence = mapConfidenceLevel(gptData.confidence_level);
+  const final_confidence = Math.min(gpt_confidence, source_confidence);
+
   return {
     title: itunesMeta?.trackName ?? title,
     artist: itunesMeta?.artistName ?? artist,
     album: itunesMeta?.collectionName ?? null,
-    year: itunesMeta?.releaseDate ? new Date(itunesMeta.releaseDate).getFullYear() : null,
-    duration_seconds: itunesMeta?.trackTimeMillis
-      ? Math.round(itunesMeta.trackTimeMillis / 1000)
-      : null,
+    year,
+    duration_seconds: durationSeconds,
     language: gptData.language,
     popularity_tier: gptData.popularity_tier,
     emotional_vector: gptData.emotional_vector,
@@ -213,6 +347,17 @@ export async function autoTagSong(title: string, artist: string): Promise<AutoTa
     mood_tags: gptData.mood_tags,
     story_intent_tags: gptData.story_intent_tags,
     modern_aesthetic_tags: gptData.modern_aesthetic_tags,
+    story_context_tags: gptData.story_context_tags,
+    discarded_tags: gptData.discarded_tags,
+    vibe_summary: gptData.vibe_summary,
+    confidence_level: gptData.confidence_level,
+    confidence_reason: gptData.confidence_reason,
+    gpt_confidence,
+    source_confidence,
+    final_confidence,
+    needs_review: final_confidence < 0.6,
+    evidence_sources,
+    tagging_version: "v1",
     itunes_preview_url: itunesMeta?.previewUrl ?? null,
     artwork_url: itunesMeta?.artworkUrl100?.replace("100x100bb", "400x400bb") ?? null,
     apple_music_url: itunesMeta?.trackViewUrl ?? null,
