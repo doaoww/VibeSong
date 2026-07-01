@@ -295,7 +295,9 @@ Also log which candidates were removed by the Rules Layer and why (`language_mis
 
 ## Layer 5: Adaptive Onboarding
 
-Goal: enough signal for a good first recommendation in 30–60 seconds.
+**Core product principle:** this onboarding does not try to determine generic music taste. It tries to determine *story-posting* taste — "What would this person actually put under this photo in a story?" Every step below is designed around that question, not around "what music do you like to listen to."
+
+Goal: enough signal for a good first recommendation in 30–60 seconds, with two optional deeper steps available for users who want better accuracy before their first upload.
 
 ### Stage Labels (no fake percentages)
 
@@ -303,39 +305,64 @@ Goal: enough signal for a good first recommendation in 30–60 seconds.
 |-------|------|------------------------|
 | Cold start | New user, no data | Relies on language + artist seed |
 | Usable | After Step 2 (artists named) | Artist-graph seeding helps |
-| Personalized | After 8–12 swipes | Taste vector formed |
+| Personalized | After Step 4 (story songs) and/or Step 5 (swipes) | Taste vector formed |
 | Highly personalized | After 3+ photo sessions with feedback | Full profile active |
 
 ### Onboarding Flow
 
-**Step 1 — Languages (10 seconds)**
+**Step 1 — Languages + Openness (required, ~10 seconds)**
 ```
-What do you listen to?
+Which languages do you actually post/listen to in your stories?
 [Русский] [English] [Korean] [Spanish] [Arabic] [French] [Turkish] [Uzbek] [Hindi] [Japanese]
 
 How open are you to other languages?
 ○ Only what I selected
 ○ Mostly mine, sometimes others
-○ Open to everything
+○ Open to anything if the vibe fits
 ```
 
-Required before swipes. Without this, swipe signals are misinterpreted.
+Mandatory before anything else — language strongly affects recommendations, and without it every later signal (swipes, story songs) is misinterpreted (see the "root cause" analysis this layer originally fixed: a user who only listens to Russian shown 10 English tracks looks like someone who "hates dream pop," when really they just don't listen to English).
 
-**Step 2 — Favorite Artists (15 seconds)**
+**Step 2 — Favorite Artists (strongly encouraged, skippable, ~15 seconds)**
 ```
 Name 2–3 artists you love
 [ search... ]  → autocomplete via Last.fm
 
 [Макс Корж ×]  [Земфира ×]  + add
-
-→ Skip for now
 ```
 
-These names immediately seed the swipe pool: Last.fm finds similar artists → system finds their songs in catalog → swipes show those songs. Not random tracks.
+These names immediately seed the swipe pool: Last.fm finds similar artists → system finds their songs in catalog → Step 5 swipes show those songs, not random tracks.
 
-**Step 3 — 8–12 Filtered Swipes**
+**Immediately after this step, show Quick Start:**
+```
+[ Skip to upload → ]        [ Keep improving my matches → ]
+```
+Taking Quick Start jumps straight to photo upload. Recommendations from Steps 1–2 alone are usable but not fully personalized; the feedback loop (see below) keeps improving the profile from real usage afterward. After the user's first recommendation, the app can invite them back: "Improve my recommendations" → Step 4 and/or Step 5.
 
-Only songs matching selected language(s). The question is not "do you like this song?" but:
+**Step 3 — Avoid List (optional)**
+```
+Anything you want to avoid?
+[EDM] [Rap] [Mainstream pop] [Sad acoustic] [Too dramatic] [Too niche] ...
+```
+
+No language chips here — languages are already fully handled in Step 1; repeating them here would just duplicate that control. Selections are stored as:
+- `avoided_story_tags` — entries drawn from the canonical `story_intent_tags` list (e.g. "too dramatic" maps to specific tags in that list), applied in the Rules Layer as permanent anti-tags alongside the one-time `anti_tags` parsed from a requested vibe.
+- `genre_scores` — genre-shaped avoids (EDM, rap, mainstream pop) are written as negative entries in the same `genre_scores` jsonb already used for positive genre affinity, reusing `genreOverlapScore()` unchanged (it already sums arbitrary signed weights).
+
+**Step 4 — Recently Posted Story Songs (optional, high-signal)**
+```
+Which songs have you recently posted?
+
+Add up to 3 songs you've recently used in your Instagram or TikTok stories.
+
+[ search... ]  → autocomplete against the catalog, freeform text if not found
+```
+
+This is deliberately not framed as "favorite songs" — it asks specifically what the user has *actually posted in a story*, because VibeSong is about story-posting taste, not general listening taste. Each entered song is resolved through the existing `autoTagSong()` pipeline (same iTunes + Last.fm + GPT-4o tagging used by the admin catalog tools) and inserted into the catalog like any other song — a side benefit is the catalog organically grows from what real users actually post. The resulting `emotional_vector`, `genre_tags`, and `story_intent_tags` are folded into the taste profile with a stronger weight than a single swipe or artist pick, since the user deliberately chose these songs for this exact use case. Resolved ids are stored in `favorite_story_songs`.
+
+**Step 5 — Filtered Swipes (optional accuracy boost, 8–12 cards)**
+
+Cards are filtered by selected language(s), and biased toward liked artists and any Step 4 songs' neighborhood, not random catalog picks. The question on every card:
 
 ```
 Would you post this with your story?
@@ -343,13 +370,9 @@ Would you post this with your story?
 ♥ Yes          ✕ Nope
 ```
 
-This framing trains the model on the actual task — music for Stories, not music in general.
+Not "do you like this song?" — this framing trains the model on the actual task (music for Stories) rather than generic music preference. Swipe answers update `emotional_vector`, `genre_scores`, and `story_tag_scores`. After all cards are swiped: option to swipe 8 more for higher accuracy.
 
-After all cards are swiped: progress screen with option to swipe 8 more for higher accuracy.
-
-**Quick Start Path (alternative)**
-
-"Skip and try now" button after Step 1. User goes directly to photo upload. After first recommendation, the app offers: "Help us understand your taste → Swipe 8 songs". Some users will take this path; the feedback loop still builds their profile over time.
+This step never blocks the user from reaching their first photo upload — Quick Start after Step 2 already provides a usable (if less personalized) path, and Steps 3–5 remain reachable afterward via "Improve my recommendations."
 
 ---
 
@@ -413,12 +436,12 @@ user_taste (
   languages           text[] not null default '{}',
   language_openness   text default 'flexible',   -- strict | flexible | open
   discovery_style     text default 'balanced',   -- niche | balanced | popular-ok
-  dislikes            text[] not null default '{}',
   
   -- Emotional taste vector (same 10 dimensions as songs)
   emotional_vector    vector(10),
   
-  -- Genre preferences (-1.0 to 1.0)
+  -- Genre preferences (-1.0 to 1.0) — positive from liked artists/swipes,
+  -- negative from the avoid-list step (e.g. EDM, rap, mainstream pop)
   genre_scores        jsonb default '{}',
   
   -- Artist preferences
@@ -428,6 +451,16 @@ user_taste (
   
   -- Story intent affinity (which story tags this user saves most)
   story_tag_scores    jsonb default '{}',
+  
+  -- Permanent avoid-list from onboarding Step 3, drawn from the canonical
+  -- story_intent_tags list. Applied in the Rules Layer alongside the
+  -- one-time anti_tags parsed from a requested vibe (see Layer 3).
+  avoided_story_tags  text[] default '{}',
+  
+  -- Up to 3 songs the user says they've actually posted in a story
+  -- (onboarding Step 4), resolved via autoTagSong() into the catalog.
+  -- Treated as a stronger taste signal than a single swipe or artist pick.
+  favorite_story_songs uuid[] default '{}',
   
   -- Per-moment-type context vectors (already in codebase)
   context_vectors     jsonb default '{}',
@@ -471,7 +504,7 @@ Deezer API can be added later for BPM and energy metadata to supplement GPT-base
 | GPT picks song names | GPT analyzes photo only |
 | Songs validated after GPT picks them | Songs come from catalog only |
 | Single giant GPT prompt | Separate: photo analysis prompt + vibe parsing prompt |
-| TasteSetup form (5 steps) | Adaptive onboarding (language → artists → filtered swipes) |
+| TasteSetup form (genres → artists → aesthetic → dislikes → language last) | Adaptive onboarding (languages+openness → artists/Quick Start → avoid-list → story songs → filtered swipes) |
 | Binary save/skip | 4-tier feedback + reason picker |
 | No requested vibe input | Requested vibe as third input signal |
 | Simple string tags on songs | Emotional vector + story intent tags + modern aesthetic tags |
@@ -500,8 +533,8 @@ Do not build the entire system at once. Build a small but fully working vertical
 ### Phase 2 — Personalization
 
 9. Add requested vibe input to photo upload flow
-10. Update onboarding (language-first → artist seeding → filtered swipes)
-11. Update taste profile schema (add `languages`, `language_openness`, `story_tag_scores`, `blocked_songs`)
+10. Update `user_taste` schema: add `languages`, `language_openness`, `story_tag_scores`, `blocked_songs`, `avoided_story_tags`, `favorite_story_songs`
+11. Rebuild `TasteSetup` from scratch as the 5-step adaptive flow: languages+openness → favorite artists (+ Quick Start branch) → avoid-list → recently posted story songs (resolved via `autoTagSong()`) → filtered swipes
 12. Update feedback UI (4-tier rating + reason picker)
 13. Wire feedback into taste profile updates
 
