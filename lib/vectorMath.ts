@@ -1,9 +1,9 @@
 ﻿import type { EmotionalVector } from "./emotionalVector";
+import { VECTOR_KEYS as _VECTOR_KEYS } from "./emotionalVector";
 
-export const VECTOR_KEYS: Array<keyof EmotionalVector> = Array.from([
-  "dreamy", "nostalgia", "energy", "cinematic", "darkness",
-  "confidence", "intimacy", "danceability", "electronic", "acoustic",
-]) as Array<keyof EmotionalVector>;
+export { VECTOR_KEYS } from "./emotionalVector";
+
+const VECTOR_KEYS = _VECTOR_KEYS;
 
 export function vectorToArray(v: EmotionalVector): number[] {
   // VECTOR_KEYS is an outer-realm Array, so .map returns an outer-realm Array too.

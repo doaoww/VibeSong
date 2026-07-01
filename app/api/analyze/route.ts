@@ -279,18 +279,7 @@ export async function POST(req: NextRequest) {
     const momentType: MomentType = result.momentType ?? "unknown";
 
     // Build photoVectorArray for pgvector queries
-    const photoVectorArray = vectorToArray({
-      dreamy: (result.photoVector?.dreamy ?? 0) as number,
-      nostalgia: (result.photoVector?.nostalgia ?? 0) as number,
-      energy: (result.photoVector?.energy ?? 0) as number,
-      cinematic: (result.photoVector?.cinematic ?? 0) as number,
-      darkness: (result.photoVector?.darkness ?? 0) as number,
-      confidence: (result.photoVector?.confidence ?? 0) as number,
-      intimacy: (result.photoVector?.intimacy ?? 0) as number,
-      danceability: (result.photoVector?.danceability ?? 0) as number,
-      electronic: (result.photoVector?.electronic ?? 0) as number,
-      acoustic: (result.photoVector?.acoustic ?? 0) as number,
-    });
+    const photoVectorArray = vectorToArray(photoVector);
 
     // Blend the moment-specific context vector (if available) with the photo vector.
     // Now that allContextVectors was fetched upfront, we can look up the exact momentType

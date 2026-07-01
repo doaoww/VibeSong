@@ -1,3 +1,6 @@
+-- Legacy Auth.js schema, currently unused in main branch.
+-- Runtime auth uses native Supabase Auth via auth.users.
+-- Kept temporarily for migration/history safety.
 -- Auth.js Supabase adapter schema
 -- Source: https://authjs.dev/getting-started/adapters/supabase
 create extension if not exists "uuid-ossp";
@@ -85,7 +88,7 @@ GRANT ALL ON TABLE next_auth.verification_tokens TO service_role;
 -- App tables
 
 create table public.profiles (
-  user_id uuid primary key references next_auth.users(id) on delete cascade,
+  user_id uuid primary key references auth.users(id) on delete cascade,
   credits int not null default 3,
   migrated_local_data boolean not null default false,
   created_at timestamptz not null default now(),
@@ -93,7 +96,7 @@ create table public.profiles (
 );
 
 create table public.user_taste (
-  user_id uuid primary key references next_auth.users(id) on delete cascade,
+  user_id uuid primary key references auth.users(id) on delete cascade,
   genres text[] not null default '{}',
   favorite_artists text[] not null default '{}',
   default_mood text not null default '',
@@ -111,7 +114,7 @@ create table public.user_taste (
 
 create table public.track_feedback (
   id bigint generated always as identity primary key,
-  user_id uuid not null references next_auth.users(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
   action text not null check (action in ('saved', 'skipped')),
   title text not null,
   artist text not null,

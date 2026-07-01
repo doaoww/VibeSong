@@ -12,8 +12,13 @@ function isAdmin(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const songs = await listSongs();
-  return NextResponse.json({ songs });
+  try {
+    const songs = await listSongs();
+    return NextResponse.json({ songs });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

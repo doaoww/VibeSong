@@ -173,7 +173,7 @@ export default function AppUploadPage() {
           previewProvider: (s.itunes_preview_url ? "itunes" : undefined) as "itunes" | "youtube" | undefined,
           appleMusicUrl: s.apple_music_url || undefined,
           youtubeId: s.youtube_id || undefined,
-          sourceImage: useAppStore.getState().uploadedImageUrl || undefined,
+          sourceImage: uploadedImageUrl || undefined,
         }));
         setTracks(mappedTracks);
 

@@ -93,7 +93,7 @@ function discoveryScore(popularityTier: number, discoveryStyle: string): number 
 export function buildRecommendations(
   req: RecommendRequest,
   candidates: CatalogSong[]
-): RecommendResult[] {
+): { results: RecommendResult[]; debugLog: DebugEntry[] } {
   const debugLog: DebugEntry[] = [];
   const queryEnergy = req.queryVector[2]; // energy is index 2 in VECTOR_KEYS order
 
@@ -243,5 +243,5 @@ export function buildRecommendations(
 
   console.log("[recommend] debug log:", JSON.stringify(debugLog, null, 2));
 
-  return scored.sort((a, b) => b.scoreComponents.finalScore - a.scoreComponents.finalScore);
+  return { results: scored.sort((a, b) => b.scoreComponents.finalScore - a.scoreComponents.finalScore), debugLog };
 }

@@ -27,7 +27,7 @@ function loadTsModule(path, extraContext = {}) {
       vm.runInContext(vmOutput, vmCtx);
       return vmMod.exports;
     }
-    if (mod.includes("emotionalVector")) return { ZERO_VECTOR: { dreamy:0,nostalgia:0,energy:0,cinematic:0,darkness:0,confidence:0,intimacy:0,danceability:0,electronic:0,acoustic:0 } };
+    if (mod.includes("emotionalVector")) return { ZERO_VECTOR: { dreamy:0,nostalgia:0,energy:0,cinematic:0,darkness:0,confidence:0,intimacy:0,danceability:0,electronic:0,acoustic:0 }, VECTOR_KEYS: ["dreamy","nostalgia","energy","cinematic","darkness","confidence","intimacy","danceability","electronic","acoustic"] };
     if (mod.includes("db/songs")) return {};
     try { return require(mod); } catch { return {}; }
   };

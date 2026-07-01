@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       taste.discoveryStyle === "hidden-gems" ? "niche" : taste.discoveryStyle;
 
     // Score and rank
-    const recommendations = buildRecommendations(
+    const { results: recommendations, debugLog } = buildRecommendations(
       {
         queryVector,
         languages,
@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       songs: recommendations.slice(0, 12),
       totalCandidates: candidates.length,
+      debugLog,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

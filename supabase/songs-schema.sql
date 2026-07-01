@@ -1,9 +1,14 @@
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Enable pgvector extension in the "extensions" schema, not "public".
+-- Installing it in public exposes pgvector's internal functions (vector_in,
+-- vector_out, etc. — some with `internal`/`cstring` param types) to PostgREST's
+-- schema-cache introspection, which can fail the *entire* cache build with
+-- "Could not query the database for the schema cache" (PGRST002).
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS vector SCHEMA extensions;
 
 -- Songs catalog table
 CREATE TABLE IF NOT EXISTS public.songs (
-  id                    uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title                 text NOT NULL,
   artist                text NOT NULL,
   album                 text,
@@ -41,17 +46,17 @@ CREATE TABLE IF NOT EXISTS public.songs (
   updated_at            timestamptz NOT NULL DEFAULT now()
 );
 
--- IVFFlat index for cosine similarity search (pgvector)
--- lists = 10 is appropriate for catalogs up to ~1000 songs; increase to 100 at 10k+ songs
+-- HNSW index for cosine similarity search (pgvector)
+-- Works on empty tables; better recall than IVFFlat for small catalogs
 CREATE INDEX IF NOT EXISTS songs_emotional_vector_idx
   ON public.songs
-  USING ivfflat (emotional_vector vector_cosine_ops)
-  WITH (lists = 10);
+  USING hnsw (emotional_vector vector_cosine_ops);
 
 -- Enable RLS (admin API routes use service role key, so they bypass RLS)
 ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
 
 -- Allow anyone to read songs (needed for recommend API which uses anon key in some paths)
+DROP POLICY IF EXISTS "songs_read_all" ON public.songs;
 CREATE POLICY "songs_read_all" ON public.songs FOR SELECT USING (true);
 
 

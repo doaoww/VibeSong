@@ -1,4 +1,4 @@
-import { supabase } from "../supabase";
+import { supabaseCatalog as supabase } from "../supabaseCatalog";
 import type { AutoTagResult } from "../autoTag";
 import { vectorToArray } from "../vectorMath";
 
@@ -33,59 +33,62 @@ export interface SongPatch {
   modern_aesthetic_tags: string[];
 }
 
+// All write/read operations use RPC functions to bypass PostgREST's inability
+// to resolve the pgvector `vector` type in its schema cache.
+
 export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
   const vectorArray = vectorToArray(data.emotional_vector);
+  const vectorString = `[${vectorArray.join(",")}]`;
 
-  const { data: row, error } = await supabase
-    .from("songs")
-    .insert({
-      title: data.title,
-      artist: data.artist,
-      album: data.album,
-      year: data.year,
-      duration_seconds: data.duration_seconds,
-      language: data.language,
-      popularity_tier: data.popularity_tier,
-      emotional_vector: vectorArray,
-      energy: data.energy,
-      genre_tags: data.genre_tags,
-      aesthetic_tags: data.aesthetic_tags,
-      mood_tags: data.mood_tags,
-      story_intent_tags: data.story_intent_tags,
-      modern_aesthetic_tags: data.modern_aesthetic_tags,
-      itunes_preview_url: data.itunes_preview_url,
-      artwork_url: data.artwork_url,
-      apple_music_url: data.apple_music_url,
-      updated_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  const { data: id, error } = await supabase.rpc("create_song", {
+    p_title:                 data.title,
+    p_artist:                data.artist,
+    p_album:                 data.album ?? null,
+    p_year:                  data.year ?? null,
+    p_duration_seconds:      data.duration_seconds ?? null,
+    p_language:              data.language,
+    p_popularity_tier:       data.popularity_tier,
+    p_emotional_vector:      vectorString,
+    p_energy:                data.energy,
+    p_genre_tags:            data.genre_tags,
+    p_aesthetic_tags:        data.aesthetic_tags,
+    p_mood_tags:             data.mood_tags,
+    p_story_intent_tags:     data.story_intent_tags,
+    p_modern_aesthetic_tags: data.modern_aesthetic_tags,
+    p_itunes_preview_url:    data.itunes_preview_url ?? null,
+    p_artwork_url:           data.artwork_url ?? null,
+    p_apple_music_url:       data.apple_music_url ?? null,
+    p_youtube_id:            data.youtube_id ?? null,
+  });
 
   if (error) throw new Error(`insertSong failed: ${error.message}`);
-  return { id: row.id };
+  return { id: id as string };
 }
 
 export async function updateSong(id: string, patch: Partial<SongPatch>): Promise<void> {
-  const { error } = await supabase
-    .from("songs")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", id);
+  const { error } = await supabase.rpc("update_song", {
+    p_id:                    id,
+    p_language:              patch.language              ?? null,
+    p_popularity_tier:       patch.popularity_tier       ?? null,
+    p_genre_tags:            patch.genre_tags            ?? null,
+    p_aesthetic_tags:        patch.aesthetic_tags        ?? null,
+    p_mood_tags:             patch.mood_tags             ?? null,
+    p_story_intent_tags:     patch.story_intent_tags     ?? null,
+    p_modern_aesthetic_tags: patch.modern_aesthetic_tags ?? null,
+  });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }
 
 export async function deleteSong(id: string): Promise<void> {
-  const { error } = await supabase.from("songs").delete().eq("id", id);
+  const { error } = await supabase.rpc("delete_song", { p_id: id });
   if (error) throw new Error(`deleteSong failed: ${error.message}`);
 }
 
 export async function listSongs(limit = 200, offset = 0): Promise<CatalogSong[]> {
-  const { data, error } = await supabase
-    .from("songs")
-    .select(
-      "id,title,artist,language,energy,popularity_tier,genre_tags,aesthetic_tags,mood_tags,story_intent_tags,modern_aesthetic_tags,itunes_preview_url,artwork_url,apple_music_url,youtube_id,quality_score"
-    )
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  const { data, error } = await supabase.rpc("list_catalog", {
+    p_limit: limit,
+    p_offset: offset,
+  });
   if (error) throw new Error(`listSongs failed: ${error.message}`);
   return (data ?? []) as CatalogSong[];
 }
@@ -106,31 +109,9 @@ export async function recordFeedback(
   songId: string,
   action: "save" | "skip" | "perfect"
 ): Promise<void> {
-  const { data: song, error: fetchErr } = await supabase
-    .from("songs")
-    .select("save_count,skip_count,perfect_count")
-    .eq("id", songId)
-    .single();
-
-  if (fetchErr || !song) return;
-
-  const saveDelta    = action === "save" || action === "perfect" ? 1 : 0;
-  const skipDelta    = action === "skip" ? 1 : 0;
-  const perfectDelta = action === "perfect" ? 1 : 0;
-
-  const newSave    = song.save_count    + saveDelta;
-  const newSkip    = song.skip_count    + skipDelta;
-  const newPerfect = song.perfect_count + perfectDelta;
-  const total      = newSave + newSkip;
-  const quality_score = total === 0 ? 0.5 : newSave / total;
-
-  await supabase
-    .from("songs")
-    .update({
-      save_count: newSave,
-      skip_count: newSkip,
-      perfect_count: newPerfect,
-      quality_score,
-    })
-    .eq("id", songId);
+  const { error } = await supabase.rpc("record_song_feedback", {
+    p_song_id: songId,
+    p_action:  action,
+  });
+  if (error) throw new Error(`recordFeedback failed: ${error.message}`);
 }
