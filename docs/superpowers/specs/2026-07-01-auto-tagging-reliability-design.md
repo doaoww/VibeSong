@@ -11,9 +11,11 @@ This matters beyond data quality: an upcoming feature ("requested vibe" — user
 
 ## Goals
 
-- Constrain `story_intent_tags`, `modern_aesthetic_tags`, `mood_tags`, and a new `context_tags` category to closed, canonical vocabularies — GPT can only select from an approved list, never invent new values.
+- Constrain `story_intent_tags`, `modern_aesthetic_tags`, `mood_tags`, and a new `story_context_tags` category to closed, canonical vocabularies — GPT can only select from an approved list, never invent new values.
 - Track when GPT proposes tags outside the canonical list, instead of silently dropping them, so the taxonomy can be expanded deliberately later.
-- Compute a `final_confidence` score per song from two independent signals (GPT's self-report and deterministic evidence availability), and flag low-confidence songs for manual review (`needs_review`) without removing them from the catalog.
+- Compute a `final_confidence` score per song from two independent signals (a categorical GPT self-assessment mapped to a number, and deterministic evidence availability), and flag low-confidence songs for manual review (`needs_review`) without removing them from the catalog.
+- Record which prompt/taxonomy version tagged each song (`tagging_version`), so future prompt changes can be safely re-indexed against known-stale rows.
+- Capture a short natural-language `vibe_summary` per song alongside the structured tags, for richer semantic matching later.
 - Leave a clean seam for a future lyrics signal without integrating any lyrics provider now.
 - Let low-confidence songs still appear in recommendations (soft scoring penalty), while surfacing them clearly in `/admin` for manual triage.
 
@@ -30,20 +32,26 @@ This matters beyond data quality: an upcoming feature ("requested vibe" — user
 New columns on `public.songs`:
 
 ```sql
-context_tags        text[]  NOT NULL DEFAULT '{}',  -- scene/use-case: mirror selfie, sunset, night drive...
+story_context_tags   text[]  NOT NULL DEFAULT '{}',  -- scene/use-case: mirror selfie, sunset, night drive...
 discarded_tags       text[]  NOT NULL DEFAULT '{}',  -- tags GPT proposed but were outside the canonical list
-gpt_confidence        float,   -- GPT's self-reported confidence, 0.0-1.0
+confidence_level     text,    -- GPT's categorical self-assessment: known_track | known_artist_only | metadata_inference | uncertain
+confidence_reason    text,    -- GPT's short natural-language justification for confidence_level
+gpt_confidence        float,   -- confidence_level mapped to a number in code (see below) — not asked from GPT directly
 source_confidence     float,   -- deterministic score based on available evidence, 0.0-1.0
 final_confidence      float,   -- min(gpt_confidence, source_confidence)
 needs_review          boolean NOT NULL DEFAULT false,
-evidence_sources      text[]  NOT NULL DEFAULT '{}'  -- e.g. {"itunes_exact","lastfm_tags"}
+evidence_sources      text[]  NOT NULL DEFAULT '{}',  -- e.g. {"itunes_exact","lastfm_tags"}
+tagging_version       text    NOT NULL DEFAULT 'v1',  -- prompt/taxonomy version that produced these tags
+vibe_summary          text     -- 1-2 sentence natural-language description of the song's feeling/story
 ```
 
 `modern_aesthetic_tags` and `mood_tags` keep their existing columns; only their allowed values change (enforced in application code, not a DB constraint, so the taxonomy can be expanded without a migration).
 
 `aesthetic_tags` is unchanged and explicitly out of scope — see Non-Goals.
 
-The four canonical matching categories going forward are: **`story_intent_tags`, `modern_aesthetic_tags`, `mood_tags`, `context_tags`**. `aesthetic_tags` is not one of them.
+The four canonical matching categories going forward are: **`story_intent_tags`, `modern_aesthetic_tags`, `mood_tags`, `story_context_tags`**. `aesthetic_tags` is not one of them.
+
+`tagging_version` starts at `'v1'` for everything tagged under this design. Any future change to the canonical taxonomy or prompt structure bumps this string (e.g. `'v2'`), so songs can be filtered by version and selectively re-tagged rather than needing a blanket re-index.
 
 RPC functions in `supabase/songs-rpc.sql` (`create_song`, `update_song`, `list_catalog`) gain parameters/columns for all of the above new fields.
 
@@ -60,29 +68,44 @@ Exports four constants, each an array plus a derived `Set` for O(1) validation. 
 - `MOOD_TAGS` — union of the existing free-form examples with the new ones:
   `melancholic, euphoric, chaotic, cozy, nostalgic, dreamy`
 
-- `CONTEXT_TAGS` — new closed list:
+- `STORY_CONTEXT_TAGS` — new closed list:
   `mirror selfie, sunset, night drive, cafe, car selfie, gym, beach, city walk, party, outfit check`
 
 These lists are expected to grow over time (see "Discarded tags" below) — expanding an array is cheap; the design deliberately avoids ever needing to clean up inconsistent free-form data.
 
 ## Auto-Tag Pipeline (`lib/autoTag.ts`)
 
-**Prompt (`buildGptTagPrompt`)**: enumerates all four canonical lists explicitly and instructs GPT to pick 2-5 tags per category **only** from the given list. The prompt also asks for a `"confidence"` field (0.0-1.0): GPT's own estimate of how well it actually knows this specific song (not just the artist's general style).
+**Prompt (`buildGptTagPrompt`)**: enumerates all four canonical lists explicitly and instructs GPT to pick 2-5 tags per category **only** from the given list. It also asks for:
+- `"vibe_summary"`: 1-2 short sentences in natural language describing the song's feeling/story (e.g. "A slow-burn breakup anthem that turns quiet sadness into cold, glamorous confidence.") — richer semantic context that tags alone can't capture, for future requested-vibe matching.
+- `"confidence_level"`: one of `"known_track" | "known_artist_only" | "metadata_inference" | "uncertain"` — GPT's categorical self-assessment of how well it actually knows this specific song, not a raw number. A raw 0.0-1.0 self-rating from an LLM is poorly calibrated; a small closed set of categories is more stable and easier to reason about downstream.
+- `"confidence_reason"`: a short free-text justification (e.g. "Recognized this exact track and artist from training data" vs. "Not familiar with this song, inferred from artist's typical style").
+
+**Confidence mapping (in code, not from GPT)**:
+```
+known_track        → 0.9
+known_artist_only  → 0.6
+metadata_inference → 0.4
+uncertain          → 0.25
+```
+This mapped value is stored as `gpt_confidence`; the raw `confidence_level` and `confidence_reason` are stored as-is alongside it for auditability (so `/admin` can show *why* GPT rated itself the way it did, not just a number).
 
 **Response parsing (`parseGptTagResponse`)**:
 1. Parse JSON as today.
 2. For each of the four canonical fields, split GPT's proposed values into `accepted` (present in the canonical `Set`) and `rejected` (everything else).
 3. Rejected values across all four fields are concatenated into `discarded_tags` and stored on the song — not silently dropped. This creates a running record of what GPT "wanted" to say that the taxonomy doesn't currently support, which is exactly the signal needed to decide when to expand a canonical list. (Surfaced in `/admin`, see below.)
-4. Only `accepted` values are stored in `story_intent_tags` / `modern_aesthetic_tags` / `mood_tags` / `context_tags`.
+4. Only `accepted` values are stored in `story_intent_tags` / `modern_aesthetic_tags` / `mood_tags` / `story_context_tags`.
+5. `confidence_level` is validated against the four known values; an unrecognized value falls back to `"uncertain"`.
+6. Every song tagged by this pipeline is stamped with `tagging_version: "v1"`.
 
 **`computeSourceConfidence(itunesMeta, lastfmTags)`** — new deterministic function:
 - iTunes exact match found → `+0.4`; fallback to first search result → `+0.2`; nothing found → `+0`
 - Last.fm tags present → `+0.3`
 - `duration_seconds` and `year` both resolved → `+0.15`
-- lyrics available → `+0.15` (always `0` for now — see LyricsProvider below)
 - clamp to `[0, 1]`
 
-`evidence_sources` is populated with the labels for whichever of the above actually contributed (`itunes_exact`, `itunes_fallback`, `lastfm_tags`, `metadata_complete`, `lyrics` — the last never appears yet).
+Lyrics availability does **not** factor into `source_confidence` yet — `NullLyricsProvider` always returns `null` in this MVP, so including it would just be a permanent no-op. The formula is reserved to add a lyrics term once a real `LyricsProvider` exists (see below); until then it's absent from the calculation entirely, not present-but-always-zero.
+
+`evidence_sources` is populated with the labels for whichever of the above actually contributed (`itunes_exact`, `itunes_fallback`, `lastfm_tags`, `metadata_complete`).
 
 **Confidence combination**: `final_confidence = Math.min(gpt_confidence, source_confidence)`. `needs_review = final_confidence < 0.6`.
 
@@ -108,14 +131,16 @@ Songs with `needs_review = true` but `final_confidence >= 0.35` still appear in 
 
 ## Admin UI (`app/admin/page.tsx`, `/api/admin/songs`)
 
-- New column: a confidence badge (green ≥ 0.6, yellow 0.35–0.6, red < 0.35).
+- New column: a confidence badge (green ≥ 0.6, yellow 0.35–0.6, red < 0.35), with `confidence_level` and `confidence_reason` shown on hover/expand so an admin can see *why* GPT rated itself that way, not just the score.
 - New filter checkbox: "Show only needs review."
 - Review queue ordering: `needs_review = true` first, sorted by ascending `final_confidence`, then by descending `save_count + skip_count` (higher-traffic songs surface first since fixing their tags has more impact).
 - `discarded_tags` shown per-row (small muted text) so discarded-but-frequent values are visible for taxonomy-expansion decisions.
+- `vibe_summary` shown per-row so an admin can sanity-check the semantic description against the tags at a glance.
 
 ## Testing
 
-- Unit tests for `computeSourceConfidence` covering each evidence combination.
+- Unit tests for `computeSourceConfidence` covering each evidence combination (confirming lyrics is absent from the formula).
+- Unit tests for the `confidence_level` → `gpt_confidence` mapping, including the fallback to `"uncertain"` for an unrecognized value.
 - Unit tests for the accept/reject split in `parseGptTagResponse`, including the `discarded_tags` output.
 - Unit test for the new `needsReviewPenalty` / `confidence_too_low` rules in `lib/recommend.ts`, following the existing pattern in `tests/recommend.test.mjs`.
 
