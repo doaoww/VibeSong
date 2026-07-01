@@ -24,6 +24,7 @@ export interface ScoreComponents {
   languagePenalty: number;
   freshnessPenalty: number;
   mainstreamPenalty: number;
+  needsReviewPenalty: number;
   finalScore: number;
 }
 
@@ -110,6 +111,18 @@ export function buildRecommendations(
         artist: song.artist,
         rulesRemoved: true,
         removedReason: "no_emotional_vector",
+      });
+      continue;
+    }
+
+    // 0.5. Guard: confidence too low to trust these tags
+    if (song.final_confidence !== null && song.final_confidence !== undefined && song.final_confidence < 0.35) {
+      debugLog.push({
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        rulesRemoved: true,
+        removedReason: "confidence_too_low",
       });
       continue;
     }
@@ -212,11 +225,12 @@ export function buildRecommendations(
       song.popularity_tier > 3
         ? -10
         : 0;
+    const needsReviewPenalty = song.needs_review ? -12 : 0;
 
     const raw = photoFit + tasteFit + storyFit + noveltyFit + qualityBonus;
     const finalScore = Math.max(
       0,
-      Math.min(100, raw + languagePenalty + freshnessPenalty + mainstreamPenalty)
+      Math.min(100, raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty)
     );
 
     const components: ScoreComponents = {
@@ -228,6 +242,7 @@ export function buildRecommendations(
       languagePenalty,
       freshnessPenalty,
       mainstreamPenalty,
+      needsReviewPenalty,
       finalScore: Math.round(finalScore * 10) / 10,
     };
 
