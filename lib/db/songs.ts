@@ -15,6 +15,19 @@ export interface CatalogSong {
   mood_tags: string[];
   story_intent_tags: string[];
   modern_aesthetic_tags: string[];
+  story_context_tags: string[];
+  discarded_tags?: string[];
+  confidence_level?: string | null;
+  confidence_reason?: string | null;
+  gpt_confidence?: number | null;
+  source_confidence?: number | null;
+  final_confidence: number | null;
+  needs_review: boolean;
+  evidence_sources?: string[];
+  tagging_version?: string;
+  vibe_summary?: string | null;
+  save_count?: number;
+  skip_count?: number;
   itunes_preview_url: string | null;
   artwork_url: string | null;
   apple_music_url: string | null;
@@ -39,6 +52,7 @@ export interface SongPatch {
 export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
   const vectorArray = vectorToArray(data.emotional_vector);
   const vectorString = `[${vectorArray.join(",")}]`;
+  const youtubeId = (data as AutoTagResult & { youtube_id?: string | null }).youtube_id ?? null;
 
   const { data: id, error } = await supabase.rpc("create_song", {
     p_title:                 data.title,
@@ -58,7 +72,18 @@ export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
     p_itunes_preview_url:    data.itunes_preview_url ?? null,
     p_artwork_url:           data.artwork_url ?? null,
     p_apple_music_url:       data.apple_music_url ?? null,
-    p_youtube_id:            data.youtube_id ?? null,
+    p_youtube_id:            youtubeId,
+    p_story_context_tags:    data.story_context_tags,
+    p_discarded_tags:        data.discarded_tags,
+    p_confidence_level:      data.confidence_level,
+    p_confidence_reason:     data.confidence_reason,
+    p_gpt_confidence:        data.gpt_confidence,
+    p_source_confidence:     data.source_confidence,
+    p_final_confidence:      data.final_confidence,
+    p_needs_review:          data.needs_review,
+    p_evidence_sources:      data.evidence_sources,
+    p_tagging_version:       data.tagging_version,
+    p_vibe_summary:          data.vibe_summary,
   });
 
   if (error) throw new Error(`insertSong failed: ${error.message}`);
