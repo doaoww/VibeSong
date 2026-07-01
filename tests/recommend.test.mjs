@@ -84,7 +84,7 @@ test("strict language filter removes songs not in language list", () => {
     makeSong({ id: "1", language: "English" }),
     makeSong({ id: "2", language: "Russian" }),
   ];
-  const results = rec.buildRecommendations(makeRequest({ languages: ["English"], languageOpenness: "strict" }), candidates);
+  const { results } = rec.buildRecommendations(makeRequest({ languages: ["English"], languageOpenness: "strict" }), candidates);
   const ids = results.map((r) => r.id);
   assert.ok(ids.includes("1"), "English song should be kept");
   assert.ok(!ids.includes("2"), "Russian song should be removed with strict filter");
@@ -92,19 +92,19 @@ test("strict language filter removes songs not in language list", () => {
 
 test("blocked song is removed from results", () => {
   const candidates = [makeSong({ id: "blocked-id" })];
-  const results = rec.buildRecommendations(makeRequest({ blockedSongs: ["blocked-id"] }), candidates);
+  const { results } = rec.buildRecommendations(makeRequest({ blockedSongs: ["blocked-id"] }), candidates);
   assert.equal(results.length, 0);
 });
 
 test("blocked artist is removed from results", () => {
   const candidates = [makeSong({ id: "1", artist: "Bad Artist" })];
-  const results = rec.buildRecommendations(makeRequest({ blockedArtists: ["Bad Artist"] }), candidates);
+  const { results } = rec.buildRecommendations(makeRequest({ blockedArtists: ["Bad Artist"] }), candidates);
   assert.equal(results.length, 0);
 });
 
 test("freshness penalty applied to recently shown songs", () => {
   const song = makeSong({ id: "recent-id" });
-  const [result] = rec.buildRecommendations(makeRequest({ recentlyShownSongIds: ["recent-id"] }), [song]);
+  const { results: [result] } = rec.buildRecommendations(makeRequest({ recentlyShownSongIds: ["recent-id"] }), [song]);
   assert.ok(result.scoreComponents.freshnessPenalty === -20);
 });
 
@@ -112,7 +112,7 @@ test("story intent tag match boosts score", () => {
   const withTag = makeSong({ id: "a", story_intent_tags: ["main character walk"] });
   const withoutTag = makeSong({ id: "b", story_intent_tags: [] });
   const req = makeRequest({ storyIntentTags: ["main character walk"] });
-  const results = rec.buildRecommendations(req, [withTag, withoutTag]);
+  const { results } = rec.buildRecommendations(req, [withTag, withoutTag]);
   const a = results.find((r) => r.id === "a");
   const b = results.find((r) => r.id === "b");
   assert.ok(a.scoreComponents.storyFit > b.scoreComponents.storyFit);
@@ -122,7 +122,7 @@ test("story intent tag match boosts score", () => {
 test("energy compatibility filter removes songs with energy too far from query", () => {
   const calmQuery = makeRequest({ queryVector: [0.5, 0.5, 0.1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
   const aggressiveSong = makeSong({ energy: 0.9, emotional_vector: [0.5, 0.5, 0.9, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
-  const results = rec.buildRecommendations(calmQuery, [aggressiveSong]);
+  const { results } = rec.buildRecommendations(calmQuery, [aggressiveSong]);
   assert.equal(results.length, 0, "Song with energy 0.9 should be removed when query energy is 0.1");
 });
 
@@ -130,6 +130,6 @@ test("results are sorted by finalScore descending", () => {
   const high = makeSong({ id: "high", emotional_vector: [0.9, 0.9, 0.5, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9] });
   const low  = makeSong({ id: "low",  emotional_vector: [0.1, 0.1, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1] });
   const query = makeRequest({ queryVector: [0.9, 0.9, 0.5, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9] });
-  const results = rec.buildRecommendations(query, [low, high]);
+  const { results } = rec.buildRecommendations(query, [low, high]);
   assert.equal(results[0].id, "high");
 });
