@@ -39,7 +39,16 @@ async function resolveSongs(
     (s) => s.itunes_preview_url && !excludeSet.has(s.title.toLowerCase())
   );
 
-  const normalizedLangs = languages.map((l) => l.toLowerCase());
+  // "No preference"/"Global mix" are placeholder values the client sends
+  // when the user hasn't picked a language (SongSwipeOnboarding.tsx's
+  // default), not real language filters — treat them the same as an empty
+  // selection (lib/matching.ts's NO_LANGUAGE_PREFERENCE has the same
+  // convention). Without this, every song falls into `rest` instead of
+  // `preferred`, silently defeating the liked-artist bias below.
+  const NO_LANGUAGE_PREFERENCE = new Set(["no preference", "global mix"]);
+  const normalizedLangs = languages
+    .map((l) => l.toLowerCase())
+    .filter((l) => !NO_LANGUAGE_PREFERENCE.has(l));
   const matchesLanguage = (lang: string) =>
     normalizedLangs.length === 0 ||
     lang.toLowerCase() === "instrumental" ||
