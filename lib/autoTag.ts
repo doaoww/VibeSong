@@ -13,6 +13,7 @@ import {
   splitByCanonical,
 } from "./tagTaxonomy";
 import { NullLyricsProvider } from "./lyrics";
+import type { LyricsProvider } from "./lyrics";
 
 export type ConfidenceLevel = "known_track" | "known_artist_only" | "metadata_inference" | "uncertain";
 
@@ -219,6 +220,14 @@ export interface ParsedTagResponse {
 
 const VALID_CONFIDENCE_LEVELS = new Set<string>(["known_track", "known_artist_only", "metadata_inference", "uncertain"]);
 
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 export function parseGptTagResponse(raw: string): ParsedTagResponse {
   const fallback: ParsedTagResponse = {
     language: "Unknown",
@@ -257,10 +266,10 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
       acoustic: Number(ev.acoustic ?? 0),
     };
 
-    const proposedMood = Array.isArray(parsed.mood_tags) ? parsed.mood_tags.filter(Boolean) : [];
-    const proposedStoryIntent = Array.isArray(parsed.story_intent_tags) ? parsed.story_intent_tags.filter(Boolean) : [];
-    const proposedModernAesthetic = Array.isArray(parsed.modern_aesthetic_tags) ? parsed.modern_aesthetic_tags.filter(Boolean) : [];
-    const proposedStoryContext = Array.isArray(parsed.story_context_tags) ? parsed.story_context_tags.filter(Boolean) : [];
+    const proposedMood = normalizeStringArray(parsed.mood_tags);
+    const proposedStoryIntent = normalizeStringArray(parsed.story_intent_tags);
+    const proposedModernAesthetic = normalizeStringArray(parsed.modern_aesthetic_tags);
+    const proposedStoryContext = normalizeStringArray(parsed.story_context_tags);
 
     const moodSplit = splitByCanonical(proposedMood, MOOD_TAGS_SET);
     const storyIntentSplit = splitByCanonical(proposedStoryIntent, STORY_INTENT_TAGS_SET);
@@ -277,8 +286,8 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
       popularity_tier:
         typeof parsed.popularity_tier === "number" ? Math.round(parsed.popularity_tier) : 3,
       emotional_vector,
-      genre_tags: Array.isArray(parsed.genre_tags) ? parsed.genre_tags.filter(Boolean) : [],
-      aesthetic_tags: Array.isArray(parsed.aesthetic_tags) ? parsed.aesthetic_tags.filter(Boolean) : [],
+      genre_tags: normalizeStringArray(parsed.genre_tags),
+      aesthetic_tags: normalizeStringArray(parsed.aesthetic_tags),
       mood_tags: moodSplit.accepted,
       story_intent_tags: storyIntentSplit.accepted,
       modern_aesthetic_tags: modernAestheticSplit.accepted,
@@ -298,7 +307,11 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
   }
 }
 
-export async function autoTagSong(title: string, artist: string): Promise<AutoTagResult> {
+export async function autoTagSong(
+  title: string,
+  artist: string,
+  lyricsProvider: LyricsProvider = new NullLyricsProvider()
+): Promise<AutoTagResult> {
   const [itunesLookup, lastfmTags] = await Promise.all([
     fetchItunesMeta(title, artist),
     fetchLastfmTags(title, artist),
@@ -327,7 +340,6 @@ export async function autoTagSong(title: string, artist: string): Promise<AutoTa
   const year = itunesMeta?.releaseDate ? new Date(itunesMeta.releaseDate).getFullYear() : null;
 
   // Reserved seam — always null today, does not affect source_confidence.
-  const lyricsProvider = new NullLyricsProvider();
   await lyricsProvider.fetchLyrics(title, artist);
 
   const { score: source_confidence, evidenceSources: evidence_sources } = computeSourceConfidence(

@@ -175,6 +175,33 @@ test("parseGptTagResponse discards non-canonical tags into discarded_tags instea
   );
 });
 
+test("parseGptTagResponse ignores non-string tag values before canonical splitting and DB arrays", () => {
+  const { parseGptTagResponse } = autoTag;
+  const raw = JSON.stringify({
+    language: "English",
+    emotional_vector: {},
+    genre_tags: [" synthpop ", 42, true, { label: "nope" }, ""],
+    aesthetic_tags: [" glossy ", false, ["nested"], null],
+    mood_tags: ["dreamy", 99, { nope: true }],
+    story_intent_tags: ["healing era", false],
+    modern_aesthetic_tags: ["night luxe", { label: "bad" }],
+    story_context_tags: ["night drive", ["bad"]],
+    vibe_summary: "",
+    confidence_level: "uncertain",
+    confidence_reason: "",
+    popularity_tier: 3,
+  });
+
+  const result = parseGptTagResponse(raw);
+  assert.deepEqual([...result.genre_tags], ["synthpop"]);
+  assert.deepEqual([...result.aesthetic_tags], ["glossy"]);
+  assert.deepEqual([...result.mood_tags], ["dreamy"]);
+  assert.deepEqual([...result.story_intent_tags], ["healing era"]);
+  assert.deepEqual([...result.modern_aesthetic_tags], ["night luxe"]);
+  assert.deepEqual([...result.story_context_tags], ["night drive"]);
+  assert.deepEqual([...result.discarded_tags], []);
+});
+
 test("parseGptTagResponse falls back to 'uncertain' for an unrecognized confidence_level", () => {
   const { parseGptTagResponse } = autoTag;
   const raw = JSON.stringify({
@@ -357,4 +384,69 @@ test("autoTagSong treats artist-only iTunes hits as fallback evidence", async ()
   assert.equal(result.needs_review, true);
   assert.deepEqual([...result.evidence_sources], ["itunes_fallback", "metadata_complete"]);
   assert.equal(result.tagging_version, "v1");
+});
+
+test("autoTagSong uses a provided lyrics provider without changing source_confidence", async () => {
+  resetHarness();
+  delete process.env.LASTFM_API_KEY;
+  let lyricsCall = null;
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) {
+      return jsonResponse({
+        results: [
+          {
+            trackName: "Midnight City",
+            artistName: "M83",
+            collectionName: "Hurry Up, We're Dreaming",
+            releaseDate: "2011-07-16T12:00:00Z",
+            trackTimeMillis: 244000,
+            previewUrl: "https://example.com/m83-preview.m4a",
+            artworkUrl100: "https://example.com/m83-100x100bb.jpg",
+            trackViewUrl: "https://example.com/m83-apple-music",
+          },
+        ],
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 4,
+    emotional_vector: {
+      dreamy: 0.9,
+      nostalgia: 0.8,
+      energy: 0.6,
+      cinematic: 0.7,
+      darkness: 0.1,
+      confidence: 0.5,
+      intimacy: 0.2,
+      danceability: 0.5,
+      electronic: 0.8,
+      acoustic: 0.1,
+    },
+    genre_tags: ["synthpop"],
+    aesthetic_tags: ["shimmering"],
+    mood_tags: ["dreamy"],
+    story_intent_tags: ["main character energy"],
+    modern_aesthetic_tags: ["night luxe"],
+    story_context_tags: ["night drive"],
+    vibe_summary: "Big glowing nostalgia.",
+    confidence_level: "known_track",
+    confidence_reason: "Recognize the exact song.",
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const lyricsProvider = {
+    async fetchLyrics(title, artist) {
+      lyricsCall = { title, artist };
+      return "The city is my church.";
+    },
+  };
+
+  const result = await autoTagSong("Midnight City", "M83", lyricsProvider);
+
+  assert.deepEqual(lyricsCall, { title: "Midnight City", artist: "M83" });
+  assert.equal(result.source_confidence, 0.55);
+  assert.equal(result.final_confidence, 0.55);
 });

@@ -52,6 +52,27 @@ LANGUAGE sql SECURITY DEFINER AS $$
 $$;
 
 -- Insert a song (vector passed as text '[0.1,0.2,...]', cast to vector(10) in SQL)
+DROP FUNCTION IF EXISTS public.create_song(
+  text,
+  text,
+  text,
+  int,
+  int,
+  text,
+  int,
+  text,
+  float8,
+  text[],
+  text[],
+  text[],
+  text[],
+  text[],
+  text,
+  text,
+  text,
+  text
+);
+
 CREATE OR REPLACE FUNCTION public.create_song(
   p_title                 text,
   p_artist                text,
