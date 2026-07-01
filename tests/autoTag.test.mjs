@@ -8,6 +8,25 @@ import vm from "node:vm";
 const baseRequire = createRequire(import.meta.url);
 const ts = baseRequire("typescript");
 const moduleCache = new Map();
+const stubState = {
+  fetchImpl: (...args) => fetch(...args),
+  openaiContent: "",
+};
+
+function resetHarness() {
+  moduleCache.clear();
+  stubState.fetchImpl = (...args) => fetch(...args);
+  stubState.openaiContent = "";
+}
+
+function jsonResponse(data, ok = true) {
+  return {
+    ok,
+    async json() {
+      return data;
+    },
+  };
+}
 
 function resolveLocalModule(fromDir, specifier) {
   const resolved = resolve(fromDir, specifier);
@@ -45,7 +64,7 @@ function loadTsModule(path) {
         default: {
           chat: {
             completions: {
-              create: async () => ({ choices: [{ message: { content: "" } }] }),
+              create: async () => ({ choices: [{ message: { content: stubState.openaiContent } }] }),
             },
           },
         },
@@ -72,7 +91,7 @@ function loadTsModule(path) {
     URL,
     URLSearchParams,
     AbortSignal,
-    fetch,
+    fetch: (...args) => stubState.fetchImpl(...args),
     Array,
   });
   vm.runInContext(output, context, { filename: resolvedPath });
@@ -208,4 +227,134 @@ test("computeSourceConfidence combines evidence into a score and evidenceSources
   const fallbackOnly = computeSourceConfidence("fallback", [], null, null);
   assert.ok(Math.abs(fallbackOnly.score - 0.2) < 0.001);
   assert.deepEqual([...fallbackOnly.evidenceSources], ["itunes_fallback"]);
+});
+
+test("autoTagSong keeps exact evidence conservative and surfaces final review fields", async () => {
+  resetHarness();
+  process.env.LASTFM_API_KEY = "test-lastfm-key";
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) {
+      return jsonResponse({
+        results: [
+          {
+            trackName: "Blinding Lights",
+            artistName: "The Weeknd",
+            collectionName: "After Hours",
+            releaseDate: "2020-03-20T12:00:00Z",
+            trackTimeMillis: 200040,
+            previewUrl: "https://example.com/preview.m4a",
+            artworkUrl100: "https://example.com/100x100bb.jpg",
+            trackViewUrl: "https://example.com/apple-music",
+          },
+        ],
+      });
+    }
+
+    if (url.startsWith("https://ws.audioscrobbler.com/2.0/")) {
+      return jsonResponse({
+        toptags: {
+          tag: [{ name: "synthpop" }, { name: "pop" }],
+        },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 5,
+    emotional_vector: {
+      dreamy: 0.2,
+      nostalgia: 0.7,
+      energy: 0.8,
+      cinematic: 0.4,
+      darkness: 0.1,
+      confidence: 0.9,
+      intimacy: 0.2,
+      danceability: 0.9,
+      electronic: 0.8,
+      acoustic: 0.1,
+    },
+    genre_tags: ["synthpop"],
+    aesthetic_tags: ["neon"],
+    mood_tags: ["euphoric"],
+    story_intent_tags: ["main character energy"],
+    modern_aesthetic_tags: ["night luxe"],
+    story_context_tags: ["night drive"],
+    vibe_summary: "Big neon heartbreak.",
+    confidence_level: "known_artist_only",
+    confidence_reason: "Recognize the artist and likely the song.",
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const result = await autoTagSong("blinding lights", "the weeknd");
+
+  assert.equal(result.source_confidence, 0.85);
+  assert.equal(result.final_confidence, 0.6);
+  assert.equal(result.needs_review, false);
+  assert.deepEqual(
+    [...result.evidence_sources],
+    ["itunes_exact", "lastfm_tags", "metadata_complete"]
+  );
+  assert.equal(result.tagging_version, "v1");
+});
+
+test("autoTagSong treats artist-only iTunes hits as fallback evidence", async () => {
+  resetHarness();
+  delete process.env.LASTFM_API_KEY;
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) {
+      return jsonResponse({
+        results: [
+          {
+            trackName: "Save Your Tears",
+            artistName: "The Weeknd",
+            collectionName: "After Hours",
+            releaseDate: "2020-03-20T12:00:00Z",
+            trackTimeMillis: 215626,
+            previewUrl: "https://example.com/fallback-preview.m4a",
+            artworkUrl100: "https://example.com/fallback-100x100bb.jpg",
+            trackViewUrl: "https://example.com/fallback-apple-music",
+          },
+        ],
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 5,
+    emotional_vector: {
+      dreamy: 0.1,
+      nostalgia: 0.5,
+      energy: 0.7,
+      cinematic: 0.3,
+      darkness: 0.1,
+      confidence: 0.9,
+      intimacy: 0.2,
+      danceability: 0.7,
+      electronic: 0.7,
+      acoustic: 0.1,
+    },
+    genre_tags: ["pop"],
+    aesthetic_tags: ["glossy"],
+    mood_tags: ["confident"],
+    story_intent_tags: ["main character energy"],
+    modern_aesthetic_tags: ["night luxe"],
+    story_context_tags: ["city lights"],
+    vibe_summary: "Polished late-night pop.",
+    confidence_level: "known_track",
+    confidence_reason: "Recognize the exact song.",
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const result = await autoTagSong("Blinding Lights", "The Weeknd");
+
+  assert.equal(result.title, "Save Your Tears");
+  assert.equal(result.source_confidence, 0.35);
+  assert.equal(result.final_confidence, 0.35);
+  assert.equal(result.needs_review, true);
+  assert.deepEqual([...result.evidence_sources], ["itunes_fallback", "metadata_complete"]);
+  assert.equal(result.tagging_version, "v1");
 });

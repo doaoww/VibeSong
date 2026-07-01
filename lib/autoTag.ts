@@ -114,6 +114,10 @@ interface ItunesLookupResult {
   matchType: "exact" | "fallback" | "none";
 }
 
+function normalizeMatchValue(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 async function fetchItunesMeta(title: string, artist: string): Promise<ItunesLookupResult> {
   const q = encodeURIComponent(`${title} ${artist}`);
   const url = `https://itunes.apple.com/search?term=${q}&media=music&entity=song&limit=5`;
@@ -122,11 +126,13 @@ async function fetchItunesMeta(title: string, artist: string): Promise<ItunesLoo
     if (!res.ok) return { track: null, matchType: "none" };
     const data = await res.json();
     const results: ItunesTrack[] = data?.results ?? [];
-    const exact = results.find(
-      (r) =>
-        r.trackName?.toLowerCase().includes(title.toLowerCase()) ||
-        r.artistName?.toLowerCase().includes(artist.toLowerCase())
-    );
+    const normalizedTitle = normalizeMatchValue(title);
+    const normalizedArtist = normalizeMatchValue(artist);
+    const exact = results.find((r) => {
+      const returnedTitle = normalizeMatchValue(r.trackName ?? "");
+      const returnedArtist = normalizeMatchValue(r.artistName ?? "");
+      return returnedTitle === normalizedTitle && returnedArtist === normalizedArtist;
+    });
     if (exact) return { track: exact, matchType: "exact" };
     if (results[0]) return { track: results[0], matchType: "fallback" };
     return { track: null, matchType: "none" };
