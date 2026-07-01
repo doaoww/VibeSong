@@ -19,6 +19,7 @@ export interface AutoTagResult {
   itunes_preview_url: string | null;
   artwork_url: string | null;
   apple_music_url: string | null;
+  youtube_id: string | null;
   energy: number;
 }
 
@@ -216,6 +217,7 @@ export async function autoTagSong(title: string, artist: string): Promise<AutoTa
     itunes_preview_url: itunesMeta?.previewUrl ?? null,
     artwork_url: itunesMeta?.artworkUrl100?.replace("100x100bb", "400x400bb") ?? null,
     apple_music_url: itunesMeta?.trackViewUrl ?? null,
+    youtube_id: null,
     energy: gptData.emotional_vector.energy,
   };
 }

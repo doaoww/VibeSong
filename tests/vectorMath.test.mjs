@@ -13,7 +13,15 @@ function loadTsModule(path) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
   const cjsModule = { exports: {} };
-  const context = vm.createContext({ exports: cjsModule.exports, module: cjsModule, require, console, process, URLSearchParams, Array });
+  // `require` here is bound relative to tests/, but the transpiled source's
+  // relative imports (e.g. "./emotionalVector") are relative to the module's
+  // own directory (lib/) — resolve those explicitly instead of delegating
+  // to the plain `require`, which would look in the wrong directory.
+  const stubRequire = (mod) => {
+    if (mod.includes("emotionalVector")) return loadTsModule("lib/emotionalVector.ts");
+    return require(mod);
+  };
+  const context = vm.createContext({ exports: cjsModule.exports, module: cjsModule, require: stubRequire, console, process, URLSearchParams, Array });
   vm.runInContext(output, context, { filename: path });
   return cjsModule.exports;
 }
@@ -21,7 +29,10 @@ function loadTsModule(path) {
 const vm2 = loadTsModule("lib/vectorMath.ts");
 
 test("VECTOR_KEYS has 10 entries in correct order", () => {
-  assert.deepEqual(vm2.VECTOR_KEYS, [
+  // vm2.VECTOR_KEYS is an array from the vm context's own realm — wrap with
+  // Array.from() before comparing, same convention used in matching.test.mjs,
+  // so assert.deepEqual doesn't fail on cross-realm array identity.
+  assert.deepEqual(Array.from(vm2.VECTOR_KEYS), [
     "dreamy", "nostalgia", "energy", "cinematic", "darkness",
     "confidence", "intimacy", "danceability", "electronic", "acoustic",
   ]);
@@ -29,7 +40,7 @@ test("VECTOR_KEYS has 10 entries in correct order", () => {
 
 test("vectorToArray returns 10-element array in VECTOR_KEYS order", () => {
   const v = { dreamy: 0.1, nostalgia: 0.2, energy: 0.3, cinematic: 0.4, darkness: 0.5, confidence: 0.6, intimacy: 0.7, danceability: 0.8, electronic: 0.9, acoustic: 1.0 };
-  assert.deepEqual(vm2.vectorToArray(v), [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]);
+  assert.deepEqual(Array.from(vm2.vectorToArray(v)), [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]);
 });
 
 test("arrayToVector converts 10-element array back to object", () => {
