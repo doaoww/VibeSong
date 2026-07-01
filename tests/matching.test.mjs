@@ -160,7 +160,7 @@ test("applyLanguagePenalty is a no-op for 'No preference' and 'Global mix'", () 
 test("applyLanguagePenalty penalizes a track whose language doesn't match the preference", () => {
   const [track] = matching.applyLanguagePenalty(
     [{ title: "Song", artist: "Artist", reason: "fits", language: "English" }],
-    "Korean / K-Pop"
+    "Korean"
   );
 
   assert.equal(track.obviousnessPenalty, 22);
