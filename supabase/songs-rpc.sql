@@ -140,3 +140,21 @@ BEGIN
   WHERE id = p_song_id;
 END;
 $$;
+
+-- Lightweight text search for onboarding's "recently posted story songs" autocomplete.
+CREATE OR REPLACE FUNCTION public.search_catalog(
+  p_query text,
+  p_limit int DEFAULT 8
+)
+RETURNS TABLE (
+  id     uuid,
+  title  text,
+  artist text
+)
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT id, title, artist
+  FROM public.songs
+  WHERE title ILIKE '%' || p_query || '%' OR artist ILIKE '%' || p_query || '%'
+  ORDER BY popularity_tier DESC, created_at DESC
+  LIMIT p_limit;
+$$;
