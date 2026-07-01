@@ -19,6 +19,19 @@ RETURNS TABLE (
   mood_tags             text[],
   story_intent_tags     text[],
   modern_aesthetic_tags text[],
+  story_context_tags    text[],
+  discarded_tags        text[],
+  confidence_level      text,
+  confidence_reason     text,
+  gpt_confidence        float8,
+  source_confidence     float8,
+  final_confidence      float8,
+  needs_review          boolean,
+  evidence_sources      text[],
+  tagging_version       text,
+  vibe_summary          text,
+  save_count            int4,
+  skip_count            int4,
   itunes_preview_url    text,
   artwork_url           text,
   apple_music_url       text,
@@ -29,6 +42,9 @@ RETURNS TABLE (
 LANGUAGE sql SECURITY DEFINER AS $$
   SELECT id, title, artist, language, energy, popularity_tier,
     genre_tags, aesthetic_tags, mood_tags, story_intent_tags, modern_aesthetic_tags,
+    story_context_tags, discarded_tags, confidence_level, confidence_reason,
+    gpt_confidence, source_confidence, final_confidence, needs_review, evidence_sources,
+    tagging_version, vibe_summary, save_count, skip_count,
     itunes_preview_url, artwork_url, apple_music_url, youtube_id, quality_score, created_at
   FROM public.songs
   ORDER BY created_at DESC
@@ -37,24 +53,35 @@ $$;
 
 -- Insert a song (vector passed as text '[0.1,0.2,...]', cast to vector(10) in SQL)
 CREATE OR REPLACE FUNCTION public.create_song(
-  p_title                text,
-  p_artist               text,
-  p_album                text,
-  p_year                 int,
-  p_duration_seconds     int,
-  p_language             text,
-  p_popularity_tier      int,
-  p_emotional_vector     text,
-  p_energy               float8,
-  p_genre_tags           text[],
-  p_aesthetic_tags       text[],
-  p_mood_tags            text[],
-  p_story_intent_tags    text[],
+  p_title                 text,
+  p_artist                text,
+  p_album                 text,
+  p_year                  int,
+  p_duration_seconds      int,
+  p_language              text,
+  p_popularity_tier       int,
+  p_emotional_vector      text,
+  p_energy                float8,
+  p_genre_tags            text[],
+  p_aesthetic_tags        text[],
+  p_mood_tags             text[],
+  p_story_intent_tags     text[],
   p_modern_aesthetic_tags text[],
-  p_itunes_preview_url   text,
-  p_artwork_url          text,
-  p_apple_music_url      text,
-  p_youtube_id           text
+  p_itunes_preview_url    text,
+  p_artwork_url           text,
+  p_apple_music_url       text,
+  p_youtube_id            text,
+  p_story_context_tags    text[]  DEFAULT '{}',
+  p_discarded_tags        text[]  DEFAULT '{}',
+  p_confidence_level      text    DEFAULT NULL,
+  p_confidence_reason     text    DEFAULT NULL,
+  p_gpt_confidence        float8  DEFAULT NULL,
+  p_source_confidence     float8  DEFAULT NULL,
+  p_final_confidence      float8  DEFAULT NULL,
+  p_needs_review          boolean DEFAULT false,
+  p_evidence_sources      text[]  DEFAULT '{}',
+  p_tagging_version       text    DEFAULT 'v1',
+  p_vibe_summary          text    DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE sql SECURITY DEFINER AS $$
@@ -62,14 +89,19 @@ LANGUAGE sql SECURITY DEFINER AS $$
     title, artist, album, year, duration_seconds, language, popularity_tier,
     emotional_vector, energy, genre_tags, aesthetic_tags, mood_tags,
     story_intent_tags, modern_aesthetic_tags, itunes_preview_url, artwork_url,
-    apple_music_url, youtube_id, updated_at
+    apple_music_url, youtube_id,
+    story_context_tags, discarded_tags, confidence_level, confidence_reason,
+    gpt_confidence, source_confidence, final_confidence, needs_review,
+    evidence_sources, tagging_version, vibe_summary, updated_at
   ) VALUES (
     p_title, p_artist, p_album, p_year, p_duration_seconds, p_language, p_popularity_tier,
     p_emotional_vector::vector(10), p_energy,
     p_genre_tags, p_aesthetic_tags, p_mood_tags,
-    p_story_intent_tags, p_modern_aesthetic_tags,
-    p_itunes_preview_url, p_artwork_url, p_apple_music_url, p_youtube_id,
-    now()
+    p_story_intent_tags, p_modern_aesthetic_tags, p_itunes_preview_url, p_artwork_url,
+    p_apple_music_url, p_youtube_id,
+    p_story_context_tags, p_discarded_tags, p_confidence_level, p_confidence_reason,
+    p_gpt_confidence, p_source_confidence, p_final_confidence, p_needs_review,
+    p_evidence_sources, p_tagging_version, p_vibe_summary, now()
   ) RETURNING id;
 $$;
 

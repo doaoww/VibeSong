@@ -29,6 +29,19 @@ CREATE TABLE IF NOT EXISTS public.songs (
   mood_tags             text[] NOT NULL DEFAULT '{}',
   story_intent_tags     text[] NOT NULL DEFAULT '{}',
   modern_aesthetic_tags text[] NOT NULL DEFAULT '{}',
+  story_context_tags    text[] NOT NULL DEFAULT '{}',
+
+  -- Auto-tagging reliability metadata
+  discarded_tags        text[] NOT NULL DEFAULT '{}',
+  confidence_level      text,
+  confidence_reason     text,
+  gpt_confidence        float,
+  source_confidence     float,
+  final_confidence      float,
+  needs_review          boolean NOT NULL DEFAULT false,
+  evidence_sources      text[] NOT NULL DEFAULT '{}',
+  tagging_version       text NOT NULL DEFAULT 'v1',
+  vibe_summary          text,
 
   -- Playback URLs
   itunes_preview_url    text,
@@ -59,6 +72,19 @@ ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "songs_read_all" ON public.songs;
 CREATE POLICY "songs_read_all" ON public.songs FOR SELECT USING (true);
 
+-- Add new columns to the songs table (idempotent — safe to run on existing tables)
+ALTER TABLE public.songs
+  ADD COLUMN IF NOT EXISTS story_context_tags text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS discarded_tags     text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS confidence_level    text,
+  ADD COLUMN IF NOT EXISTS confidence_reason   text,
+  ADD COLUMN IF NOT EXISTS gpt_confidence      float,
+  ADD COLUMN IF NOT EXISTS source_confidence   float,
+  ADD COLUMN IF NOT EXISTS final_confidence    float,
+  ADD COLUMN IF NOT EXISTS needs_review        boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS evidence_sources    text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS tagging_version     text NOT NULL DEFAULT 'v1',
+  ADD COLUMN IF NOT EXISTS vibe_summary        text;
 
 -- RPC function for pgvector similarity search
 -- Returns top match_count songs sorted by cosine distance to query_vector
@@ -79,6 +105,9 @@ RETURNS TABLE (
   mood_tags             text[],
   story_intent_tags     text[],
   modern_aesthetic_tags text[],
+  story_context_tags    text[],
+  final_confidence      float,
+  needs_review          boolean,
   itunes_preview_url    text,
   artwork_url           text,
   apple_music_url       text,
@@ -103,6 +132,9 @@ BEGIN
     s.mood_tags,
     s.story_intent_tags,
     s.modern_aesthetic_tags,
+    s.story_context_tags,
+    s.final_confidence,
+    s.needs_review,
     s.itunes_preview_url,
     s.artwork_url,
     s.apple_music_url,
