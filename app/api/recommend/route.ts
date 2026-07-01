@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUser } from "../../../lib/supabase/server";
-import { getUserTaste } from "../../../lib/db/userTaste";
+import { getUserTaste, getEmotionalVector } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
 import { searchCatalog } from "../../../lib/db/songs";
@@ -8,7 +8,7 @@ import { blendQueryVector } from "../../../lib/vectorMath";
 import { buildRecommendations } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
 import type { EmotionalVector } from "../../../lib/emotionalVector";
-import { VECTOR_KEYS } from "../../../lib/emotionalVector";
+import { VECTOR_KEYS, ZERO_VECTOR } from "../../../lib/emotionalVector";
 
 export const runtime = "nodejs";
 
@@ -30,8 +30,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Load user taste profile — all with .catch() fallbacks
-    const [storedTaste, savedFeedback, skippedFeedback] = await Promise.all([
+    const [storedTaste, storedVector, savedFeedback, skippedFeedback] = await Promise.all([
       getUserTaste(user.id).catch(() => null),
+      getEmotionalVector(user.id).catch(() => null),
       getFeedback(user.id, "saved", 200).catch(() => []),
       getFeedback(user.id, "skipped", 200).catch(() => []),
     ]);
@@ -39,8 +40,10 @@ export async function POST(req: NextRequest) {
     const taste = normalizeTaste(storedTaste ?? null);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
-    // Build taste vector (cold start: all 0.5). Phase 2 will add real stored taste vector.
-    const tasteArr: number[] = VECTOR_KEYS.map(() => 0.5);
+    // Real stored taste vector (from onboarding artists/story-songs/swipes + feedback),
+    // falling back to neutral 0.5 for a cold-start user with no signal yet.
+    const tasteVector = storedVector ?? ZERO_VECTOR;
+    const tasteArr: number[] = VECTOR_KEYS.map((k) => (storedVector ? tasteVector[k] : 0.5));
 
     // Build optional vibe vector from boosts
     const hasVibe = Object.keys(vibeBoosts).length > 0 || storyIntentTags.length > 0;
@@ -58,13 +61,6 @@ export async function POST(req: NextRequest) {
     // pgvector similarity search — 50 candidates
     const candidates = await searchCatalog(queryVector, 50);
 
-    // Derive language list from taste profile
-    const rawLang = taste.languagePreference.toLowerCase();
-    const languages =
-      rawLang === "no preference" || rawLang === "global mix" ? [] : [taste.languagePreference];
-    const languageOpenness: "strict" | "flexible" | "open" =
-      languages.length === 0 ? "open" : "flexible";
-
     // Map hidden-gems to niche for scoring
     const discoveryStyle =
       taste.discoveryStyle === "hidden-gems" ? "niche" : taste.discoveryStyle;
@@ -73,19 +69,16 @@ export async function POST(req: NextRequest) {
     const { results: recommendations, debugLog } = buildRecommendations(
       {
         queryVector,
-        languages,
-        languageOpenness,
+        languages: taste.languages,
+        languageOpenness: taste.languageOpenness,
         discoveryStyle,
         blockedSongs: [],
         blockedArtists: aggregate.avoidArtists,
         recentlyShownSongIds: [],
-        genreScores: Object.fromEntries([
-          ...taste.genres.map((g) => [g, 0.8]),
-          ...taste.dislikes.map((d) => [d, -0.8]),
-        ]),
+        genreScores: taste.genreScores,
         likedArtists: taste.favoriteArtists,
         storyIntentTags,
-        antiTags,
+        antiTags: [...antiTags, ...taste.avoidedStoryTags],
       },
       candidates
     );
