@@ -29,6 +29,53 @@ export interface MatchSignals {
   energy_bounds: EnergyBounds;
 }
 
+/** Scales down (never to zero) how much a low-confidence photo reading can influence scoring. */
+export function confidenceFactor(photoConfidence: number): number {
+  return 0.5 + clamp01(photoConfidence) * 0.5;
+}
+
+/** Anti-tags are a hard filter - only trusted when GPT itself was reasonably confident. */
+export function gateAntiTags(antiTags: string[], photoConfidence: number): string[] {
+  return photoConfidence >= 0.4 ? antiTags : [];
+}
+
+/**
+ * Below confidence 0.6, blends GPT's energy_bounds toward the safe
+ * photoEnergy +/- 0.25 default, linearly reaching full trust at 0.6.
+ */
+export function gateEnergyBounds(
+  bounds: EnergyBounds,
+  photoEnergy: number,
+  photoConfidence: number
+): EnergyBounds {
+  if (photoConfidence >= 0.6) return bounds;
+  const t = Math.max(0, photoConfidence) / 0.6;
+  const safe = safeEnergyBounds(photoEnergy);
+  return {
+    min: bounds.min * t + safe.min * (1 - t),
+    max: bounds.max * t + safe.max * (1 - t),
+  };
+}
+
+/** Folds music_direction.genres/.avoid into a genreScores map, confidence-scaled. */
+export function mergeGenreScores(
+  base: Record<string, number>,
+  genres: string[],
+  avoid: string[],
+  photoConfidence: number
+): Record<string, number> {
+  const factor = confidenceFactor(photoConfidence);
+  const result = { ...base };
+  for (const genre of genres) result[genre] = (result[genre] ?? 0) + 0.6 * factor;
+  for (const genre of avoid) result[genre] = (result[genre] ?? 0) - 0.6 * factor;
+  return result;
+}
+
+/** Unions music_direction.references into the user's liked-artists list for this request only. */
+export function mergeLikedArtists(base: string[], references: string[]): string[] {
+  return Array.from(new Set([...base, ...references]));
+}
+
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
