@@ -190,13 +190,35 @@ $$;
 
 **"Reranking":** the merged four-pool candidate set flows into the existing Rules Layer and Scoring Layer unchanged in structure (Layer 4/5 below extend the formula, not the architecture). No new reranking mechanism or model is introduced — the enriched Scoring Layer *is* the rerank step.
 
+### Pool Debug Log
+
+To measure whether hybrid retrieval is actually helping (as opposed to the tag/taste pools mostly re-surfacing what the vector pool already found), `/api/recommend` logs one aggregate object per request, alongside the existing per-song `debugLog`:
+
+```json
+{
+  "vectorPoolCount": 25,
+  "storyPoolCount": 18,
+  "contextPoolCount": 12,
+  "tastePoolCount": 9,
+  "mergedCandidateCount": 47,
+  "removedByRulesCount": 6
+}
+```
+
+`vectorPoolCount`/`storyPoolCount`/`contextPoolCount`/`tastePoolCount` are each pool's raw row count *before* dedup (so overlap between pools is visible: `sum(pool counts) - mergedCandidateCount` = how much the pools actually agreed with each other — a low overlap number is the signal that hybrid retrieval is surfacing candidates the vector pool alone would have missed). `mergedCandidateCount` is the unique count after dedup, feeding the Rules Layer. `removedByRulesCount` is how many of those were dropped by Rules Layer filters (Layer 4) before scoring. This is computed in `app/api/recommend/route.ts` around the existing pool-merge and `buildRecommendations` calls — no new logging infrastructure, same `console.log` pattern already used for the per-song debug log.
+
 ---
 
 ## Layer 4: Rules Layer Changes
 
 Applied in the existing order, after pool merge/dedupe, before scoring. Two changes to `lib/recommend.ts`:
 
-1. **Energy compatibility** — replace the fixed `Math.abs(song.energy - queryEnergy) > 0.5` tolerance with a photo-aware tolerance: `Math.abs(song.energy - queryEnergy) > (energyBounds.max - energyBounds.min) / 2`. A photo GPT reads as having a narrow acceptable energy range (a still, quiet moment) filters more aggressively than one it reads as energy-ambiguous.
+1. **Energy compatibility** — replace the fixed `Math.abs(song.energy - queryEnergy) > 0.5` tolerance with a photo-aware tolerance, floored so an overly narrow GPT-provided `energy_bounds` can't over-filter:
+   ```
+   energyTolerance = max(0.2, (energyBounds.max - energyBounds.min) / 2)
+   remove if Math.abs(song.energy - queryEnergy) > energyTolerance
+   ```
+   A photo GPT reads as having a narrow acceptable energy range (a still, quiet moment) filters more aggressively than one it reads as energy-ambiguous, but never tighter than a `0.2` half-width — protects against a single bad GPT read (e.g. `{min: 0.2, max: 0.22}`) wiping out most of the candidate pool on the energy rule alone.
 2. **Anti-tags** — existing anti-tag filter (`req.antiTags`) now also receives `matchSignals.anti_tags` as a source, merged alongside the existing requested-vibe/onboarding-avoid sources, gated by the confidence threshold in Layer 1.
 
 Edge case: if a tag ends up in both `req.storyIntentTags` (positive scoring signal) and `req.antiTags` (hard filter) — shouldn't happen if GPT is internally consistent, but it's an LLM — the anti-tag hard filter takes precedence; the song is removed regardless of any positive tag overlap.
@@ -262,6 +284,7 @@ This requires forwarding `photoConfidence` from `/api/analyze`'s response (alrea
 - **`RecommendRequest` interface** (`lib/recommend.ts`): add `energyBounds: {min: number, max: number}`, `photoConfidence: number`.
 - **`/api/recommend` request body:** add `photoConfidence`, `sceneContextTags`, `storyIntentTags` (already exists, now also populated from the photo), `aestheticTags`, `moodTags`, `antiTags` (already exists, now also populated from the photo), `musicDirection: {genres, references, avoid}`, `energyBounds`. All optional/defaulted so a stale client doesn't break the route during rollout.
 - **`app/page.tsx`:** forward the new `matchSignals` block and `photoConfidence` from the `/api/analyze` response into the `/api/recommend` call.
+- **`/api/recommend` response:** add `poolStats` (see Pool Debug Log, Layer 3) alongside the existing `songs`, `totalCandidates`, `debugLog` fields.
 
 ---
 
