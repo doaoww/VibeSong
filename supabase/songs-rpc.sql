@@ -34,6 +34,8 @@ RETURNS TABLE (
   evidence_sources      text[],
   tagging_version       text,
   vibe_summary          text,
+  tag_source            text,
+  manual_reviewed_at    timestamptz,
   save_count            int4,
   skip_count            int4,
   itunes_preview_url    text,
@@ -48,7 +50,7 @@ LANGUAGE sql SECURITY DEFINER AS $$
     genre_tags, aesthetic_tags, mood_tags, story_intent_tags, modern_aesthetic_tags,
     story_context_tags, discarded_tags, confidence_level, confidence_reason,
     gpt_confidence, source_confidence, final_confidence, needs_review, evidence_sources,
-    tagging_version, vibe_summary, save_count, skip_count,
+    tagging_version, vibe_summary, tag_source, manual_reviewed_at, save_count, skip_count,
     itunes_preview_url, artwork_url, apple_music_url, youtube_id, quality_score, created_at
   FROM public.songs
   ORDER BY created_at DESC
@@ -130,29 +132,53 @@ LANGUAGE sql SECURITY DEFINER AS $$
   ) RETURNING id;
 $$;
 
--- Update song metadata
+-- Look up an existing song by title+artist (case-insensitive) so the admin
+-- API can reject duplicates before spending an OpenAI call on auto-tagging.
+CREATE OR REPLACE FUNCTION public.find_song_by_title_artist(
+  p_title  text,
+  p_artist text
+)
+RETURNS TABLE (id uuid, title text, artist text)
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT id, title, artist
+  FROM public.songs
+  WHERE lower(title) = lower(p_title) AND lower(artist) = lower(p_artist)
+  LIMIT 1;
+$$;
+
+-- Update song metadata. p_approve is an action flag (not a field mirror): when
+-- true, it atomically marks the song as human-reviewed, bypassing the
+-- confidence_too_low hard guard in lib/recommend.ts regardless of GPT confidence.
 CREATE OR REPLACE FUNCTION public.update_song(
-  p_id                   uuid,
-  p_language             text    DEFAULT NULL,
-  p_popularity_tier      int     DEFAULT NULL,
-  p_genre_tags           text[]  DEFAULT NULL,
-  p_aesthetic_tags       text[]  DEFAULT NULL,
-  p_mood_tags            text[]  DEFAULT NULL,
-  p_story_intent_tags    text[]  DEFAULT NULL,
-  p_modern_aesthetic_tags text[] DEFAULT NULL
+  p_id                    uuid,
+  p_language              text    DEFAULT NULL,
+  p_popularity_tier       int     DEFAULT NULL,
+  p_genre_tags            text[]  DEFAULT NULL,
+  p_aesthetic_tags        text[]  DEFAULT NULL,
+  p_mood_tags             text[]  DEFAULT NULL,
+  p_story_intent_tags     text[]  DEFAULT NULL,
+  p_modern_aesthetic_tags text[]  DEFAULT NULL,
+  p_story_context_tags    text[]  DEFAULT NULL,
+  p_vibe_summary          text    DEFAULT NULL,
+  p_approve               boolean DEFAULT false
 )
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
   UPDATE public.songs SET
-    language             = COALESCE(p_language,              language),
-    popularity_tier      = COALESCE(p_popularity_tier,       popularity_tier),
-    genre_tags           = COALESCE(p_genre_tags,            genre_tags),
-    aesthetic_tags       = COALESCE(p_aesthetic_tags,        aesthetic_tags),
-    mood_tags            = COALESCE(p_mood_tags,             mood_tags),
-    story_intent_tags    = COALESCE(p_story_intent_tags,     story_intent_tags),
-    modern_aesthetic_tags = COALESCE(p_modern_aesthetic_tags, modern_aesthetic_tags),
-    updated_at           = now()
+    language              = COALESCE(p_language,               language),
+    popularity_tier       = COALESCE(p_popularity_tier,        popularity_tier),
+    genre_tags             = COALESCE(p_genre_tags,             genre_tags),
+    aesthetic_tags         = COALESCE(p_aesthetic_tags,         aesthetic_tags),
+    mood_tags               = COALESCE(p_mood_tags,             mood_tags),
+    story_intent_tags       = COALESCE(p_story_intent_tags,     story_intent_tags),
+    modern_aesthetic_tags   = COALESCE(p_modern_aesthetic_tags, modern_aesthetic_tags),
+    story_context_tags      = COALESCE(p_story_context_tags,    story_context_tags),
+    vibe_summary            = COALESCE(p_vibe_summary,          vibe_summary),
+    needs_review            = CASE WHEN p_approve THEN false ELSE needs_review END,
+    tag_source              = CASE WHEN p_approve THEN 'auto_plus_manual' ELSE tag_source END,
+    manual_reviewed_at      = CASE WHEN p_approve THEN now() ELSE manual_reviewed_at END,
+    updated_at              = now()
   WHERE id = p_id;
 END;
 $$;

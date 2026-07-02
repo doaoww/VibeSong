@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autoTagSong } from "../../../../lib/autoTag";
-import { insertSong, listSongs } from "../../../../lib/db/songs";
+import { DuplicateSongError, findSongByTitleArtist, insertSong, listSongs } from "../../../../lib/db/songs";
 
 export const runtime = "nodejs";
 
@@ -30,10 +30,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const existing = await findSongByTitleArtist(title, artist);
+    if (existing) {
+      return NextResponse.json(
+        { error: `"${existing.title}" by "${existing.artist}" is already in the catalog`, existingId: existing.id },
+        { status: 409 }
+      );
+    }
+
     const tagged = await autoTagSong(title, artist);
     const { id } = await insertSong(tagged);
     return NextResponse.json({ id, song: tagged });
   } catch (err) {
+    if (err instanceof DuplicateSongError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

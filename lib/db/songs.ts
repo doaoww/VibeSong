@@ -26,6 +26,8 @@ export interface CatalogSong {
   evidence_sources?: string[];
   tagging_version?: string;
   vibe_summary?: string | null;
+  tag_source?: string;
+  manual_reviewed_at?: string | null;
   save_count?: number;
   skip_count?: number;
   itunes_preview_url: string | null;
@@ -46,10 +48,27 @@ export interface SongPatch {
   modern_aesthetic_tags: string[];
   story_context_tags?: string[];
   vibe_summary?: string;
+  /** Action flag, not a field mirror — see update_song's p_approve in songs-rpc.sql. */
+  approve?: boolean;
 }
 
 // All write/read operations use RPC functions to bypass PostgREST's inability
 // to resolve the pgvector `vector` type in its schema cache.
+
+export class DuplicateSongError extends Error {}
+
+export async function findSongByTitleArtist(
+  title: string,
+  artist: string
+): Promise<{ id: string; title: string; artist: string } | null> {
+  const { data, error } = await supabase.rpc("find_song_by_title_artist", {
+    p_title: title,
+    p_artist: artist,
+  });
+  if (error) throw new Error(`findSongByTitleArtist failed: ${error.message}`);
+  const rows = (data ?? []) as { id: string; title: string; artist: string }[];
+  return rows[0] ?? null;
+}
 
 export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
   const vectorArray = vectorToArray(data.emotional_vector);
@@ -88,7 +107,12 @@ export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
     p_vibe_summary:          data.vibe_summary,
   });
 
-  if (error) throw new Error(`insertSong failed: ${error.message}`);
+  if (error) {
+    if (error.code === "23505") {
+      throw new DuplicateSongError(`"${data.title}" by "${data.artist}" is already in the catalog`);
+    }
+    throw new Error(`insertSong failed: ${error.message}`);
+  }
   return { id: id as string };
 }
 
@@ -104,6 +128,7 @@ export async function updateSong(id: string, patch: Partial<SongPatch>): Promise
     p_modern_aesthetic_tags: patch.modern_aesthetic_tags ?? null,
     p_story_context_tags:    patch.story_context_tags    ?? null,
     p_vibe_summary:          patch.vibe_summary          ?? null,
+    p_approve:               patch.approve                ?? false,
   });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }

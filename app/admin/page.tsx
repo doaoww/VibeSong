@@ -17,6 +17,8 @@ interface Song {
   confidence_reason?: string | null;
   discarded_tags?: string[];
   vibe_summary?: string | null;
+  tag_source?: string;
+  manual_reviewed_at?: string | null;
   save_count?: number;
   skip_count?: number;
 }
@@ -48,6 +50,7 @@ export default function AdminPage() {
   const [status, setStatus] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editTags, setEditTags] = useState("");
+  const [editLanguage, setEditLanguage] = useState("");
   const [reviewOnly, setReviewOnly] = useState(false);
 
   const headers = { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET };
@@ -91,9 +94,18 @@ export default function AdminPage() {
     await fetch(`/api/admin/songs/${id}`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({ story_intent_tags: tags }),
+      body: JSON.stringify({ story_intent_tags: tags, language: editLanguage.trim() || undefined }),
     });
     setEditId(null);
+    await load();
+  };
+
+  const approveSong = async (id: string) => {
+    await fetch(`/api/admin/songs/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ approve: true }),
+    });
     await load();
   };
 
@@ -159,7 +171,18 @@ export default function AdminPage() {
             <tr key={s.id} style={{ borderBottom: "1px solid #1a1a1a" }}>
               <td style={{ padding: "6px 8px", color: "#fff" }}>{s.title}</td>
               <td style={{ padding: "6px 8px", color: "#aaa" }}>{s.artist}</td>
-              <td style={{ padding: "6px 8px", color: "#888" }}>{s.language}</td>
+              <td style={{ padding: "6px 8px" }}>
+                {editId === s.id ? (
+                  <input
+                    value={editLanguage}
+                    onChange={(e) => setEditLanguage(e.target.value)}
+                    placeholder={s.language}
+                    style={{ width: 90, padding: "4px 8px", background: "#1a1a1a", border: "1px solid #444", borderRadius: 4, color: "#fff", fontSize: 12 }}
+                  />
+                ) : (
+                  <span style={{ color: s.language === "Unknown" ? "#ef4444" : "#888" }}>{s.language}</span>
+                )}
+              </td>
               <td style={{ padding: "6px 8px", color: "#888" }}>{s.popularity_tier}</td>
               <td style={{ padding: "6px 8px" }}>
                 <span
@@ -169,6 +192,11 @@ export default function AdminPage() {
                   {s.final_confidence != null ? s.final_confidence.toFixed(2) : "-"}
                   {s.confidence_level ? ` (${s.confidence_level})` : ""}
                 </span>
+                {s.tag_source === "auto_plus_manual" && (
+                  <span style={{ marginLeft: 6, color: "#22c55e", fontSize: 10 }} title={s.manual_reviewed_at ?? ""}>
+                    ✓ reviewed
+                  </span>
+                )}
               </td>
               <td style={{ padding: "6px 8px" }}>
                 {editId === s.id ? (
@@ -202,11 +230,21 @@ export default function AdminPage() {
                   onClick={() => {
                     setEditId(s.id);
                     setEditTags(s.story_intent_tags?.join(", ") ?? "");
+                    setEditLanguage(s.language === "Unknown" ? "" : s.language);
                   }}
                   style={{ padding: "3px 8px", background: "#1a1a1a", color: "#888", border: "1px solid #333", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                 >
-                  Edit tags
+                  Edit
                 </button>
+                {s.tag_source !== "auto_plus_manual" && (
+                  <button
+                    onClick={() => approveSong(s.id)}
+                    title="Mark as human-reviewed — bypasses the low-confidence hard filter in recommendations"
+                    style={{ padding: "3px 8px", background: "#1a1a1a", color: "#22c55e", border: "1px solid #333", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                  >
+                    Approve
+                  </button>
+                )}
                 <button
                   onClick={() => remove(s.id)}
                   style={{ padding: "3px 8px", background: "#1a1a1a", color: "#ef4444", border: "1px solid #333", borderRadius: 4, cursor: "pointer", fontSize: 11 }}

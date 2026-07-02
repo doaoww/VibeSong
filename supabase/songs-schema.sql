@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS public.songs (
   tagging_version       text NOT NULL DEFAULT 'v1',
   vibe_summary          text,
 
+  -- Manual review workflow: distinguishes GPT-only tagging from
+  -- admin-reviewed/corrected tagging (see lib/recommend.ts confidence_too_low bypass)
+  tag_source            text NOT NULL DEFAULT 'auto',
+  manual_reviewed_at    timestamptz,
+
   -- Playback URLs
   itunes_preview_url    text,
   artwork_url           text,
@@ -65,6 +70,12 @@ CREATE INDEX IF NOT EXISTS songs_emotional_vector_idx
   ON public.songs
   USING hnsw (emotional_vector vector_cosine_ops);
 
+-- Prevent duplicate catalog entries (case-insensitive on title+artist).
+-- Run the cleanup query in Task-3-style docs BEFORE applying this on a table
+-- that already has duplicates, or the CREATE UNIQUE INDEX will fail.
+CREATE UNIQUE INDEX IF NOT EXISTS songs_title_artist_unique_idx
+  ON public.songs (lower(title), lower(artist));
+
 -- Enable RLS (admin API routes use service role key, so they bypass RLS)
 ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
 
@@ -84,7 +95,9 @@ ALTER TABLE public.songs
   ADD COLUMN IF NOT EXISTS needs_review        boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS evidence_sources    text[] NOT NULL DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS tagging_version     text NOT NULL DEFAULT 'v1',
-  ADD COLUMN IF NOT EXISTS vibe_summary        text;
+  ADD COLUMN IF NOT EXISTS vibe_summary        text,
+  ADD COLUMN IF NOT EXISTS tag_source          text NOT NULL DEFAULT 'auto',
+  ADD COLUMN IF NOT EXISTS manual_reviewed_at  timestamptz;
 
 -- RPC function for pgvector similarity search
 -- Returns top match_count songs sorted by cosine distance to query_vector
@@ -112,6 +125,7 @@ RETURNS TABLE (
   story_context_tags    text[],
   final_confidence      float,
   needs_review          boolean,
+  tag_source            text,
   itunes_preview_url    text,
   artwork_url           text,
   apple_music_url       text,
@@ -139,6 +153,7 @@ BEGIN
     s.story_context_tags,
     s.final_confidence,
     s.needs_review,
+    s.tag_source,
     s.itunes_preview_url,
     s.artwork_url,
     s.apple_music_url,

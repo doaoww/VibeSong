@@ -154,6 +154,27 @@ test("song with final_confidence null (not yet tagged by this pipeline) is not h
   assert.equal(results.length, 1);
 });
 
+test("manually reviewed song bypasses the confidence_too_low hard guard", () => {
+  const song = makeSong({ id: "reviewed", final_confidence: 0.1, tag_source: "auto_plus_manual" });
+  const { results } = rec.buildRecommendations(makeRequest(), [song]);
+  assert.equal(results.length, 1, "admin approval should outweigh a low GPT confidence score");
+});
+
+test("song with language Unknown is hard-removed even outside strict language mode", () => {
+  const song = makeSong({ id: "unknown-lang", language: "Unknown" });
+  const req = makeRequest({ languageOpenness: "open" });
+  const { results, debugLog } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 0);
+  const entry = debugLog.find((e) => e.id === "unknown-lang");
+  assert.equal(entry.removedReason, "language_unknown");
+});
+
+test("manual review does not bypass the language_unknown guard on its own", () => {
+  const song = makeSong({ id: "unknown-lang-reviewed", language: "Unknown", tag_source: "auto_plus_manual" });
+  const { results } = rec.buildRecommendations(makeRequest({ languageOpenness: "open" }), [song]);
+  assert.equal(results.length, 0, "approving tags does not fix an unset language");
+});
+
 test("needs_review song still appears but with a scoring penalty, not full hiding", () => {
   const flagged = makeSong({ id: "flagged", final_confidence: 0.5, needs_review: true });
   const clean = makeSong({ id: "clean", final_confidence: 0.9, needs_review: false });

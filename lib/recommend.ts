@@ -124,14 +124,36 @@ export function buildRecommendations(
       continue;
     }
 
-    // 0.5. Guard: confidence too low to trust these tags
-    if (song.final_confidence !== null && song.final_confidence !== undefined && song.final_confidence < 0.35) {
+    // 0.5. Guard: confidence too low to trust these tags — bypassed once an admin
+    // has manually reviewed/corrected the tags (tag_source set via the Approve
+    // action in /admin), since a human judgment call outweighs GPT's self-rating.
+    const manuallyReviewed = song.tag_source === "manual" || song.tag_source === "auto_plus_manual";
+    if (
+      !manuallyReviewed &&
+      song.final_confidence !== null &&
+      song.final_confidence !== undefined &&
+      song.final_confidence < 0.35
+    ) {
       debugLog.push({
         id: song.id,
         title: song.title,
         artist: song.artist,
         rulesRemoved: true,
         removedReason: "confidence_too_low",
+      });
+      continue;
+    }
+
+    // 0.6. Guard: language filtering is core to matching, so an unresolved
+    // language always blocks recommendation — never bypassed by manual tag
+    // review alone. Clears automatically once an admin sets a real language.
+    if (song.language === "Unknown") {
+      debugLog.push({
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        rulesRemoved: true,
+        removedReason: "language_unknown",
       });
       continue;
     }
