@@ -77,7 +77,13 @@ export async function POST(req: NextRequest) {
     const tasteVector = storedVector ?? ZERO_VECTOR;
     const tasteArr: number[] = VECTOR_KEYS.map((k) => (storedVector ? tasteVector[k] : 0.5));
 
-    const hasVibe = Object.keys(vibeBoosts).length > 0 || storyIntentTags.length > 0;
+    // Only an actual requested-vibe signal (vibeBoosts) should trigger the fixed
+    // 3-signal blend. storyIntentTags is now populated from the photo's own
+    // matchSignals on every request (Task 10) and must not be mistaken for a
+    // requested vibe — doing so silently disabled the confidence-aware 2-signal
+    // blend (Task 4) on every request, since an empty vibeBoosts degenerates the
+    // 3-signal formula to a fixed photo*0.75 + taste*0.25 regardless of confidence.
+    const hasVibe = Object.keys(vibeBoosts).length > 0;
     const vibeArr = hasVibe
       ? VECTOR_KEYS.map((k, i) => {
           const boost = vibeBoosts[k as keyof EmotionalVector] ?? 0;

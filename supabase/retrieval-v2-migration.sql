@@ -133,6 +133,17 @@ $$;
 -- Extend update_song so the backfill script (scripts/backfill-story-context-tags.mjs)
 -- can write story_context_tags/vibe_summary onto existing rows. Postgres requires
 -- dropping the old signature before adding parameters via CREATE OR REPLACE.
+--
+-- CAVEAT if re-running this against a database where another migration has
+-- ALSO added an update_song overload (e.g. one with an extra admin-approval
+-- parameter) without dropping this 10-param one first: re-applying this block
+-- only drops the *original* 8-param signature below, not that other overload,
+-- so both would coexist and any plain call naming a subset of these 10 params
+-- becomes ambiguous (Postgres PGRST203). scripts/backfill-story-context-tags.mjs
+-- already retries such a call with that other overload's extra parameter set to
+-- false as a defensive fallback — see that file's callUpdateSong() for the
+-- specific, current workaround. This migration does not attempt to know about
+-- or own that other overload's shape.
 DROP FUNCTION IF EXISTS public.update_song(uuid, text, int, text[], text[], text[], text[], text[]);
 
 CREATE OR REPLACE FUNCTION public.update_song(

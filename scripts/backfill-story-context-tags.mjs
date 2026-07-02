@@ -115,11 +115,28 @@ while (true) {
 const missing = all.filter((s) => (s.story_context_tags ?? []).length === 0);
 console.log(`${missing.length} of ${all.length} songs missing story_context_tags - backfilling...`);
 
+// This plan's own migration (supabase/retrieval-v2-migration.sql) defines
+// update_song with exactly the 10 params below. If a *different*, unrelated
+// migration has also added an update_song overload with extra parameters
+// (e.g. an admin-approval flag) without dropping this one first, Postgres
+// can no longer pick a unique candidate for a plain call (PGRST203) — every
+// parameter here has a default, so both overloads match. Retry with
+// p_approve: false (a safe no-op — it only affects review/approval metadata
+// on that other overload, never story_context_tags/vibe_summary) so this
+// script keeps working either way, without this file needing to know about
+// or duplicate schema it doesn't own.
+async function callUpdateSong(baseParams) {
+  const first = await supabase.rpc("update_song", baseParams);
+  if (!first.error) return first;
+  if (first.error.code !== "PGRST203" && first.error.code !== "PGRST202") return first;
+  return supabase.rpc("update_song", { ...baseParams, p_approve: false });
+}
+
 let done = 0;
 for (const song of missing) {
   try {
     const tagged = await autoTagSong(song.title, song.artist);
-    const { error } = await supabase.rpc("update_song", {
+    const { error } = await callUpdateSong({
       p_id:                    song.id,
       p_language:              song.language ?? null,
       p_popularity_tier:       song.popularity_tier ?? null,
@@ -130,7 +147,6 @@ for (const song of missing) {
       p_modern_aesthetic_tags: song.modern_aesthetic_tags ?? null,
       p_story_context_tags:    tagged.story_context_tags,
       p_vibe_summary:          tagged.vibe_summary,
-      p_approve:               false,
     });
     if (error) throw new Error(error.message);
     done++;
