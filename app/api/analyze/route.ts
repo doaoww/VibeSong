@@ -202,6 +202,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    console.log("[analyze] received image:", {
+      mimeType,
+      base64Length: image.length,
+      approxBytes: `${(image.length / 1024).toFixed(0)}KB`,
+    });
 
     // All DB calls wrapped with fallbacks — any single failure must not kill the analysis
     const [storedTasteVec, allContextVectors] = await Promise.all([
