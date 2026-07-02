@@ -76,6 +76,11 @@ function makeRequest(overrides = {}) {
     likedArtists: [],
     storyIntentTags: [],
     antiTags: [],
+    photoConfidence: 1.0,
+    sceneContextTags: [],
+    aestheticTags: [],
+    moodTags: [],
+    energyBounds: { min: 0, max: 1 },
     ...overrides,
   };
 }
@@ -159,4 +164,54 @@ test("needs_review song still appears but with a scoring penalty, not full hidin
   assert.equal(flaggedResult.scoreComponents.needsReviewPenalty, -12);
   const cleanResult = results.find((r) => r.id === "clean");
   assert.equal(cleanResult.scoreComponents.needsReviewPenalty, 0);
+});
+
+test("energy tolerance derives from energyBounds half-width, floored at 0.2", () => {
+  const req = makeRequest({ energyBounds: { min: 0.3, max: 0.5 } });
+  const song = makeSong({ energy: 0.65, emotional_vector: [0.5, 0.5, 0.65, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 1, "0.15 gap should survive the 0.2 floor even though bounds half-width is only 0.1");
+});
+
+test("energy tolerance widens with energyBounds beyond the 0.2 floor", () => {
+  const req = makeRequest({ energyBounds: { min: 0.1, max: 0.9 } });
+  const song = makeSong({ energy: 0.85, emotional_vector: [0.5, 0.5, 0.85, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 1);
+});
+
+test("contextFit rewards story_context_tags overlap with sceneContextTags", () => {
+  const withTag = makeSong({ id: "a", story_context_tags: ["night drive"] });
+  const withoutTag = makeSong({ id: "b", story_context_tags: [] });
+  const req = makeRequest({ sceneContextTags: ["night drive"] });
+  const { results } = rec.buildRecommendations(req, [withTag, withoutTag]);
+  const a = results.find((r) => r.id === "a");
+  const b = results.find((r) => r.id === "b");
+  assert.ok(a.scoreComponents.contextFit > b.scoreComponents.contextFit);
+  assert.ok(a.scoreComponents.finalScore > b.scoreComponents.finalScore);
+});
+
+test("vibeAestheticFit rewards combined modern_aesthetic_tags/mood_tags overlap", () => {
+  const withTags = makeSong({ id: "a", modern_aesthetic_tags: ["quiet luxury"], mood_tags: ["melancholic"] });
+  const withoutTags = makeSong({ id: "b", modern_aesthetic_tags: [], mood_tags: [] });
+  const req = makeRequest({ aestheticTags: ["quiet luxury"], moodTags: ["melancholic"] });
+  const { results } = rec.buildRecommendations(req, [withTags, withoutTags]);
+  const a = results.find((r) => r.id === "a");
+  const b = results.find((r) => r.id === "b");
+  assert.ok(a.scoreComponents.vibeAestheticFit > b.scoreComponents.vibeAestheticFit);
+});
+
+test("contextFit and vibeAestheticFit scale down with lower photoConfidence", () => {
+  const song = makeSong({ story_context_tags: ["night drive"], modern_aesthetic_tags: ["quiet luxury"] });
+  const highConf = rec.buildRecommendations(
+    makeRequest({ sceneContextTags: ["night drive"], aestheticTags: ["quiet luxury"], photoConfidence: 1.0 }),
+    [song]
+  ).results[0];
+  const lowConf = rec.buildRecommendations(
+    makeRequest({ sceneContextTags: ["night drive"], aestheticTags: ["quiet luxury"], photoConfidence: 0.0 }),
+    [{ ...song }]
+  ).results[0];
+  assert.ok(lowConf.scoreComponents.contextFit < highConf.scoreComponents.contextFit);
+  assert.ok(lowConf.scoreComponents.vibeAestheticFit < highConf.scoreComponents.vibeAestheticFit);
+  assert.ok(lowConf.scoreComponents.contextFit > 0);
 });

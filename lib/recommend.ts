@@ -11,14 +11,21 @@ export interface RecommendRequest {
   recentlyShownSongIds: string[];  // freshness — don't repeat last 5 sessions
   genreScores: Record<string, number>;
   likedArtists: string[];
-  storyIntentTags: string[];       // from requested vibe parsing
-  antiTags: string[];              // from requested vibe parsing
+  storyIntentTags: string[];       // from photo matchSignals + (future) requested vibe
+  antiTags: string[];              // from photo matchSignals (confidence-gated) + requested vibe + onboarding avoid-list
+  photoConfidence: number;         // gates contextFit/vibeAestheticFit/storyFit contributions
+  sceneContextTags: string[];      // from photo matchSignals.scene_context_tags
+  aestheticTags: string[];         // from photo matchSignals.modern_aesthetic_tags
+  moodTags: string[];              // from photo matchSignals.mood_tags
+  energyBounds: { min: number; max: number };
 }
 
 export interface ScoreComponents {
   photoFit: number;
   tasteFit: number;
   storyFit: number;
+  contextFit: number;
+  vibeAestheticFit: number;
   noveltyFit: number;
   qualityBonus: number;
   languagePenalty: number;
@@ -97,6 +104,8 @@ export function buildRecommendations(
 ): { results: RecommendResult[]; debugLog: DebugEntry[] } {
   const debugLog: DebugEntry[] = [];
   const queryEnergy = req.queryVector[2]; // energy is index 2 in VECTOR_KEYS order
+  const energyTolerance = Math.max(0.2, (req.energyBounds.max - req.energyBounds.min) / 2);
+  const confFactor = 0.5 + Math.max(0, Math.min(1, req.photoConfidence)) * 0.5;
 
   const scored: RecommendResult[] = [];
 
@@ -163,8 +172,9 @@ export function buildRecommendations(
       continue;
     }
 
-    // 4. Energy compatibility gap
-    if (Math.abs(song.energy - queryEnergy) > 0.5) {
+    // 4. Energy compatibility gap - tolerance derives from the photo's own
+    // energy_bounds, floored at 0.2 so an overly narrow GPT read can't over-filter.
+    if (Math.abs(song.energy - queryEnergy) > energyTolerance) {
       debugLog.push({
         id: song.id,
         title: song.title,
@@ -209,7 +219,17 @@ export function buildRecommendations(
     const storyTagMatches = req.storyIntentTags.filter((t) =>
       song.story_intent_tags.map((s) => s.toLowerCase()).includes(t.toLowerCase())
     ).length;
-    const storyFit = Math.min(3, storyTagMatches) * 7;
+    const storyFit = Math.min(3, storyTagMatches) * 7 * confFactor;
+
+    const contextTagMatches = song.story_context_tags.filter((t) =>
+      req.sceneContextTags.map((s) => s.toLowerCase()).includes(t.toLowerCase())
+    ).length;
+    const contextFit = Math.min(2, contextTagMatches) * 6 * confFactor;
+
+    const photoAestheticOrMood = [...req.aestheticTags, ...req.moodTags].map((t) => t.toLowerCase());
+    const songAestheticOrMood = [...song.modern_aesthetic_tags, ...song.mood_tags].map((t) => t.toLowerCase());
+    const aestheticOrMoodMatches = songAestheticOrMood.filter((t) => photoAestheticOrMood.includes(t)).length;
+    const vibeAestheticFit = Math.min(2, aestheticOrMoodMatches) * 5 * confFactor;
 
     const noveltyFit = discoveryScore(song.popularity_tier, req.discoveryStyle) * 10;
     const qualityBonus = song.quality_score * 5;
@@ -227,7 +247,7 @@ export function buildRecommendations(
         : 0;
     const needsReviewPenalty = song.needs_review ? -12 : 0;
 
-    const raw = photoFit + tasteFit + storyFit + noveltyFit + qualityBonus;
+    const raw = photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + noveltyFit + qualityBonus;
     const finalScore = Math.max(
       0,
       Math.min(100, raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty)
@@ -236,7 +256,9 @@ export function buildRecommendations(
     const components: ScoreComponents = {
       photoFit: Math.round(photoFit * 10) / 10,
       tasteFit: Math.round(tasteFit * 10) / 10,
-      storyFit,
+      storyFit: Math.round(storyFit * 10) / 10,
+      contextFit: Math.round(contextFit * 10) / 10,
+      vibeAestheticFit: Math.round(vibeAestheticFit * 10) / 10,
       noveltyFit: Math.round(noveltyFit * 10) / 10,
       qualityBonus: Math.round(qualityBonus * 10) / 10,
       languagePenalty,
