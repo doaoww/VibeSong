@@ -169,6 +169,21 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
     else audio.play().then(() => setIsPlaying(true)).catch(() => {});
   };
 
+  // Persist swipe feedback so it actually influences future recommendations
+  // (insertFeedback + upsertEmotionalVector server-side) — without this call
+  // saved/skipped songs only ever fed the local, in-memory dnaVector display.
+  const finish = useCallback(() => {
+    audioRef.current?.pause();
+    if (saved.length + skipped.length > 0) {
+      fetch("/api/seed-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saved, skipped }),
+      }).catch(() => {});
+    }
+    onComplete(true);
+  }, [saved, skipped, onComplete]);
+
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -250,14 +265,13 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
   if (phase === "dna") {
     if (!dnaVector) {
       // Fallback: dnaVector not ready yet, complete directly
-      audioRef.current?.pause();
-      onComplete(true);
+      finish();
       return null;
     }
     return (
       <MusicDNACard
         vector={dnaVector}
-        onContinue={() => { audioRef.current?.pause(); onComplete(true); }}
+        onContinue={finish}
       />
     );
   }
