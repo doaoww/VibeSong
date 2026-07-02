@@ -67,6 +67,8 @@ export const STORY_CONTEXT_TAGS = [
   "city walk",
   "party",
   "outfit check",
+  "travel",
+  "group photo",
 ] as const;
 
 export const STORY_INTENT_TAGS_SET: Set<string> = new Set(STORY_INTENT_TAGS);
@@ -88,4 +90,19 @@ export function splitByCanonical(proposed: string[], canonical: Set<string>): Ca
     else rejected.push(tag);
   }
   return { accepted, rejected };
+}
+
+export const ANTI_TAG_CANDIDATES_SET: Set<string> = new Set([
+  ...STORY_INTENT_TAGS,
+  ...MODERN_AESTHETIC_TAGS,
+  ...MOOD_TAGS,
+]);
+
+/** Cleans a proposed string array from GPT: keeps only non-empty trimmed strings. */
+export function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }

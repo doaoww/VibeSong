@@ -11,6 +11,7 @@ import {
   MOOD_TAGS_SET,
   STORY_CONTEXT_TAGS_SET,
   splitByCanonical,
+  normalizeStringArray,
 } from "./tagTaxonomy";
 import { NullLyricsProvider } from "./lyrics";
 import type { LyricsProvider } from "./lyrics";
@@ -220,14 +221,6 @@ export interface ParsedTagResponse {
 }
 
 const VALID_CONFIDENCE_LEVELS = new Set<string>(["known_track", "known_artist_only", "metadata_inference", "uncertain"]);
-
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
 
 export function parseGptTagResponse(raw: string): ParsedTagResponse {
   const fallback: ParsedTagResponse = {

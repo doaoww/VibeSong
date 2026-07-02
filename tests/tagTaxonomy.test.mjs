@@ -28,6 +28,29 @@ test("STORY_CONTEXT_TAGS covers the agreed scene/use-case list", () => {
   }
 });
 
+test("STORY_CONTEXT_TAGS includes the two new scene/use-case values", () => {
+  assert.equal(taxonomy.STORY_CONTEXT_TAGS.length, 12);
+  assert.ok(taxonomy.STORY_CONTEXT_TAGS_SET.has("travel"));
+  assert.ok(taxonomy.STORY_CONTEXT_TAGS_SET.has("group photo"));
+});
+
+test("normalizeStringArray trims, drops non-strings and empties", () => {
+  const result = taxonomy.normalizeStringArray(["  cozy ", "", 5, null, "dreamy"]);
+  assert.deepEqual(result, ["cozy", "dreamy"]);
+});
+
+test("normalizeStringArray returns [] for non-array input", () => {
+  assert.deepEqual(taxonomy.normalizeStringArray(null), []);
+  assert.deepEqual(taxonomy.normalizeStringArray("not an array"), []);
+});
+
+test("ANTI_TAG_CANDIDATES_SET unions story intent, aesthetic, and mood tags but excludes context tags", () => {
+  assert.ok(taxonomy.ANTI_TAG_CANDIDATES_SET.has("soft revenge"));
+  assert.ok(taxonomy.ANTI_TAG_CANDIDATES_SET.has("old money"));
+  assert.ok(taxonomy.ANTI_TAG_CANDIDATES_SET.has("euphoric"));
+  assert.ok(!taxonomy.ANTI_TAG_CANDIDATES_SET.has("night drive"));
+});
+
 test("splitByCanonical separates accepted and rejected tags", () => {
   const { accepted, rejected } = taxonomy.splitByCanonical(
     ["healing era", "made-up-tag", "soft revenge"],
