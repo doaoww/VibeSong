@@ -133,15 +133,24 @@ export default function AppUploadPage() {
         const vibeData = await analyzeRes.json();
         setVibeProfile(vibeData);
 
-        // Call recommendation engine with the photo vector
+        // Call recommendation engine with the photo vector + matchSignals
+        const matchSignals = vibeData.matchSignals ?? {};
+        const musicDirection = matchSignals.music_direction ?? { genres: [], references: [], avoid: [] };
         const recommendRes = await fetch("/api/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             photoVectorArray: vibeData.photoVectorArray,
+            photoConfidence: vibeData.photoConfidence,
             vibeBoosts: {},
-            storyIntentTags: [],
+            storyIntentTags: matchSignals.story_intent_tags ?? [],
             antiTags: [],
+            photoAntiTags: matchSignals.anti_tags ?? [],
+            sceneContextTags: matchSignals.scene_context_tags ?? [],
+            aestheticTags: matchSignals.modern_aesthetic_tags ?? [],
+            moodTags: matchSignals.mood_tags ?? [],
+            musicDirection,
+            energyBounds: matchSignals.energy_bounds,
           }),
         });
         if (!recommendRes.ok) {
