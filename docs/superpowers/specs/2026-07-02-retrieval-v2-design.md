@@ -138,15 +138,15 @@ Four independent retrieval sources, merged and deduped by `id` before Rules + Sc
 
 Pools 2 and 3 share one SQL function, called twice with different arguments populated (only intent/aesthetic/mood filled for Pool 2, only context filled for Pool 3) rather than two near-identical functions:
 
-Mirrors `match_songs`'s existing `RETURNS TABLE(...)` pattern exactly (not `RETURNS SETOF songs` — `lib/db/songs.ts` notes PostgREST can't resolve the `vector` column type through schema-cache introspection on the raw table, which is why every RPC declares an explicit typed column list instead) and its unprefixed parameter naming (`match_count`, not `p_match_count` — the `p_` prefix in this codebase is reserved for the CRUD-style RPCs like `create_song`):
+Mirrors `match_songs`'s existing `RETURNS TABLE(...)` pattern exactly (not `RETURNS SETOF songs` — `lib/db/songs.ts` notes PostgREST can't resolve the `vector` column type through schema-cache introspection on the raw table, which is why every RPC declares an explicit typed column list instead). Parameters are `p_`-prefixed — discovered during implementation that unprefixed `aesthetic_tags`/`mood_tags` parameters collide with this function's own `RETURNS TABLE` output columns of the same name, which PL/pgSQL rejects with error 42P13 ("parameter name ... used more than once"). `match_songs`'s own `query_vector`/`match_count` avoid this only because neither name matches one of its output columns:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.match_songs_by_tags(
-  context_tags   text[] DEFAULT '{}',
-  intent_tags    text[] DEFAULT '{}',
-  aesthetic_tags text[] DEFAULT '{}',
-  mood_tags      text[] DEFAULT '{}',
-  match_count    int DEFAULT 25
+  p_context_tags   text[] DEFAULT '{}',
+  p_intent_tags    text[] DEFAULT '{}',
+  p_aesthetic_tags text[] DEFAULT '{}',
+  p_mood_tags      text[] DEFAULT '{}',
+  p_match_count    int DEFAULT 25
 )
 RETURNS TABLE (
   id uuid, title text, artist text, language text, energy float,
@@ -169,13 +169,13 @@ BEGIN
   FROM public.songs s
   WHERE s.emotional_vector IS NOT NULL
     AND (
-      (cardinality(context_tags)   > 0 AND s.story_context_tags    && context_tags)
-      OR (cardinality(intent_tags)    > 0 AND s.story_intent_tags    && intent_tags)
-      OR (cardinality(aesthetic_tags) > 0 AND s.modern_aesthetic_tags && aesthetic_tags)
-      OR (cardinality(mood_tags)      > 0 AND s.mood_tags            && mood_tags)
+      (cardinality(p_context_tags)   > 0 AND s.story_context_tags    && p_context_tags)
+      OR (cardinality(p_intent_tags)    > 0 AND s.story_intent_tags    && p_intent_tags)
+      OR (cardinality(p_aesthetic_tags) > 0 AND s.modern_aesthetic_tags && p_aesthetic_tags)
+      OR (cardinality(p_mood_tags)      > 0 AND s.mood_tags            && p_mood_tags)
     )
   ORDER BY s.quality_score DESC, s.id
-  LIMIT match_count;
+  LIMIT p_match_count;
 END;
 $$;
 ```
@@ -184,11 +184,13 @@ Ranking inside this RPC is intentionally cheap (`quality_score desc`) — real r
 
 **Pool 4 — Taste Pool** (new): songs by a liked artist, a `music_direction.references` artist, or with positive genre overlap:
 
+Prefixed `p_` for consistency with `match_songs_by_tags` above (no actual name collision here, but keeping both new functions' parameter conventions identical avoids relying on which specific columns happen to collide today):
+
 ```sql
 CREATE OR REPLACE FUNCTION public.match_songs_by_taste(
-  artist_patterns  text[] DEFAULT '{}',  -- pre-wrapped with %...% wildcards by the app layer
-  positive_genres  text[] DEFAULT '{}',
-  match_count      int DEFAULT 20
+  p_artist_patterns  text[] DEFAULT '{}',  -- pre-wrapped with %...% wildcards by the app layer
+  p_positive_genres  text[] DEFAULT '{}',
+  p_match_count      int DEFAULT 20
 )
 RETURNS TABLE (
   id uuid, title text, artist text, language text, energy float,
@@ -211,11 +213,11 @@ BEGIN
   FROM public.songs s
   WHERE s.emotional_vector IS NOT NULL
     AND (
-      (cardinality(artist_patterns) > 0 AND s.artist ILIKE ANY (artist_patterns))
-      OR (cardinality(positive_genres) > 0 AND s.genre_tags && positive_genres)
+      (cardinality(p_artist_patterns) > 0 AND s.artist ILIKE ANY (p_artist_patterns))
+      OR (cardinality(p_positive_genres) > 0 AND s.genre_tags && p_positive_genres)
     )
   ORDER BY s.quality_score DESC, s.id
-  LIMIT match_count;
+  LIMIT p_match_count;
 END;
 $$;
 ```

@@ -14,7 +14,7 @@
 - No new columns on `songs` — reuse `story_context_tags`, `story_intent_tags`, `modern_aesthetic_tags`, `mood_tags`, `genre_tags` exactly as they exist.
 - `matchSignals` JSON fields are snake_case (matches the existing `autoTagSong()` catalog-tagging convention); `/api/recommend` request body fields are camelCase (matches that route's existing fields).
 - New Postgres RPCs must use explicit `RETURNS TABLE(...)` column lists, never `RETURNS SETOF songs` — PostgREST cannot resolve the pgvector `vector` column type through schema-cache introspection on the raw table (this is why `match_songs` already uses this pattern; see `lib/db/songs.ts`'s top comment).
-- New RPC parameter names are unprefixed (`match_count`, not `p_match_count`) to match `match_songs`'s existing convention — the `p_` prefix in this codebase is reserved for the CRUD-style RPCs (`create_song`, `update_song`, etc.).
+- New RPC parameter names for `match_songs_by_tags`/`match_songs_by_taste` are `p_`-prefixed (`p_match_count`, `p_context_tags`, etc.) — discovered during implementation that `match_songs_by_tags`'s `aesthetic_tags`/`mood_tags` parameters collide with its own `RETURNS TABLE` output columns of the same name, which PL/pgSQL rejects (42P13). The original plan called for unprefixed names matching `match_songs`'s convention; that convention only works there because `match_songs`'s parameters (`query_vector`, `match_count`) happen not to share a name with any of its output columns.
 - `music_direction.references` (and any Taste Pool artist match) must never bypass Rules + Scoring to become a recommendation directly — every candidate from every pool is scored identically.
 - Full source spec: `docs/superpowers/specs/2026-07-02-retrieval-v2-design.md`.
 
@@ -784,7 +784,7 @@ git commit -m "feat: extend photo-analysis prompt with matchSignals block"
 - Modify: `supabase/songs-rpc.sql` (documentation-in-place — see step 1 note)
 
 **Interfaces:**
-- Produces: RPCs `match_songs_by_tags(context_tags, intent_tags, aesthetic_tags, mood_tags, match_count)`, `match_songs_by_taste(artist_patterns, positive_genres, match_count)`, and an extended `update_song` accepting `p_story_context_tags`/`p_vibe_summary`. Task 7 (`lib/db/songs.ts`) and Task 12 (backfill) depend on these exact RPC names and parameter names.
+- Produces: RPCs `match_songs_by_tags(p_context_tags, p_intent_tags, p_aesthetic_tags, p_mood_tags, p_match_count)`, `match_songs_by_taste(p_artist_patterns, p_positive_genres, p_match_count)`, and an extended `update_song` accepting `p_story_context_tags`/`p_vibe_summary`. Task 7 (`lib/db/songs.ts`) and Task 12 (backfill) depend on these exact RPC names and parameter names. (All parameters are `p_`-prefixed, not just `update_song`'s — see the note in Step 1: two of `match_songs_by_tags`'s parameters collide with its own `RETURNS TABLE` column names otherwise, which PL/pgSQL rejects with error 42P13.)
 
 - [ ] **Step 1: Write `supabase/retrieval-v2-migration.sql`**
 
@@ -806,14 +806,18 @@ CREATE INDEX IF NOT EXISTS songs_artist_idx ON public.songs (artist);
 
 -- Story Tags Pool + Context/Scene Pool share this one function, called twice
 -- with different arguments populated (see lib/db/songs.ts::searchCatalogByTags).
+-- Parameters are prefixed p_ (unlike match_songs's query_vector/match_count)
+-- because two of them — aesthetic_tags, mood_tags — are also RETURNS TABLE
+-- column names, and PL/pgSQL rejects a parameter name reused as an output
+-- column name (42P13: "parameter name ... used more than once").
 DROP FUNCTION IF EXISTS public.match_songs_by_tags(text[], text[], text[], text[], int);
 
 CREATE OR REPLACE FUNCTION public.match_songs_by_tags(
-  context_tags   text[] DEFAULT '{}',
-  intent_tags    text[] DEFAULT '{}',
-  aesthetic_tags text[] DEFAULT '{}',
-  mood_tags      text[] DEFAULT '{}',
-  match_count    int DEFAULT 25
+  p_context_tags   text[] DEFAULT '{}',
+  p_intent_tags    text[] DEFAULT '{}',
+  p_aesthetic_tags text[] DEFAULT '{}',
+  p_mood_tags      text[] DEFAULT '{}',
+  p_match_count    int DEFAULT 25
 )
 RETURNS TABLE (
   id                    uuid,
@@ -851,24 +855,27 @@ BEGIN
   FROM public.songs s
   WHERE s.emotional_vector IS NOT NULL
     AND (
-      (cardinality(context_tags)   > 0 AND s.story_context_tags    && context_tags)
-      OR (cardinality(intent_tags)    > 0 AND s.story_intent_tags    && intent_tags)
-      OR (cardinality(aesthetic_tags) > 0 AND s.modern_aesthetic_tags && aesthetic_tags)
-      OR (cardinality(mood_tags)      > 0 AND s.mood_tags            && mood_tags)
+      (cardinality(p_context_tags)   > 0 AND s.story_context_tags    && p_context_tags)
+      OR (cardinality(p_intent_tags)    > 0 AND s.story_intent_tags    && p_intent_tags)
+      OR (cardinality(p_aesthetic_tags) > 0 AND s.modern_aesthetic_tags && p_aesthetic_tags)
+      OR (cardinality(p_mood_tags)      > 0 AND s.mood_tags            && p_mood_tags)
     )
   ORDER BY s.quality_score DESC, s.id
-  LIMIT match_count;
+  LIMIT p_match_count;
 END;
 $$;
 
 -- Taste Pool: liked artists, music_direction.references artists (pre-wrapped
--- with %...% by the app layer), or positive genre overlap.
+-- with %...% by the app layer), or positive genre overlap. Prefixed p_ to
+-- stay consistent with match_songs_by_tags above (no actual name collision
+-- here, but keeping both new functions' parameter conventions identical
+-- avoids relying on which specific columns happen to collide today).
 DROP FUNCTION IF EXISTS public.match_songs_by_taste(text[], text[], int);
 
 CREATE OR REPLACE FUNCTION public.match_songs_by_taste(
-  artist_patterns  text[] DEFAULT '{}',
-  positive_genres  text[] DEFAULT '{}',
-  match_count      int DEFAULT 20
+  p_artist_patterns  text[] DEFAULT '{}',
+  p_positive_genres  text[] DEFAULT '{}',
+  p_match_count      int DEFAULT 20
 )
 RETURNS TABLE (
   id                    uuid,
@@ -906,11 +913,11 @@ BEGIN
   FROM public.songs s
   WHERE s.emotional_vector IS NOT NULL
     AND (
-      (cardinality(artist_patterns) > 0 AND s.artist ILIKE ANY (artist_patterns))
-      OR (cardinality(positive_genres) > 0 AND s.genre_tags && positive_genres)
+      (cardinality(p_artist_patterns) > 0 AND s.artist ILIKE ANY (p_artist_patterns))
+      OR (cardinality(p_positive_genres) > 0 AND s.genre_tags && p_positive_genres)
     )
   ORDER BY s.quality_score DESC, s.id
-  LIMIT match_count;
+  LIMIT p_match_count;
 END;
 $$;
 
@@ -980,11 +987,11 @@ const supabase = createClient(env.SUPABASE_CATALOG_URL, env.SUPABASE_CATALOG_SER
 
 console.log("1. Calling match_songs_by_tags with a real context tag...");
 const { data: tagsData, error: tagsErr } = await supabase.rpc("match_songs_by_tags", {
-  context_tags: ["night drive"],
-  intent_tags: [],
-  aesthetic_tags: [],
-  mood_tags: [],
-  match_count: 5,
+  p_context_tags: ["night drive"],
+  p_intent_tags: [],
+  p_aesthetic_tags: [],
+  p_mood_tags: [],
+  p_match_count: 5,
 });
 if (tagsErr) {
   console.error("   FAIL:", tagsErr.message);
@@ -994,9 +1001,9 @@ console.log(`   OK — ${tagsData.length} rows returned`);
 
 console.log("2. Calling match_songs_by_taste with a genre filter...");
 const { data: tasteData, error: tasteErr } = await supabase.rpc("match_songs_by_taste", {
-  artist_patterns: [],
-  positive_genres: ["indie pop", "indie"],
-  match_count: 5,
+  p_artist_patterns: [],
+  p_positive_genres: ["indie pop", "indie"],
+  p_match_count: 5,
 });
 if (tasteErr) {
   console.error("   FAIL:", tasteErr.message);
@@ -1090,11 +1097,11 @@ test("searchCatalogByTags calls match_songs_by_tags with the given tag arrays an
   const result = await songsLib.searchCatalogByTags({ contextTags: ["night drive"] });
   assert.equal(captured.name, "match_songs_by_tags");
   assert.deepEqual(captured.args, {
-    context_tags: ["night drive"],
-    intent_tags: [],
-    aesthetic_tags: [],
-    mood_tags: [],
-    match_count: 25,
+    p_context_tags: ["night drive"],
+    p_intent_tags: [],
+    p_aesthetic_tags: [],
+    p_mood_tags: [],
+    p_match_count: 25,
   });
   assert.deepEqual(result, [{ id: "1" }]);
 });
@@ -1103,8 +1110,8 @@ test("searchCatalogByTags accepts a custom match count", async () => {
   let captured = null;
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: [], error: null }; };
   await songsLib.searchCatalogByTags({ intentTags: ["soft revenge"] }, 10);
-  assert.equal(captured.args.match_count, 10);
-  assert.deepEqual(captured.args.intent_tags, ["soft revenge"]);
+  assert.equal(captured.args.p_match_count, 10);
+  assert.deepEqual(captured.args.p_intent_tags, ["soft revenge"]);
 });
 
 test("searchCatalogByTags throws with a descriptive message on RPC error", async () => {
@@ -1117,7 +1124,7 @@ test("searchCatalogByTaste calls match_songs_by_taste with artist patterns and p
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: [{ id: "2" }], error: null }; };
   const result = await songsLib.searchCatalogByTaste({ artistPatterns: ["%The xx%"], positiveGenres: ["indie"] });
   assert.equal(captured.name, "match_songs_by_taste");
-  assert.deepEqual(captured.args, { artist_patterns: ["%The xx%"], positive_genres: ["indie"], match_count: 20 });
+  assert.deepEqual(captured.args, { p_artist_patterns: ["%The xx%"], p_positive_genres: ["indie"], p_match_count: 20 });
   assert.deepEqual(result, [{ id: "2" }]);
 });
 
@@ -1159,11 +1166,11 @@ export async function searchCatalogByTags(
   matchCount = 25
 ): Promise<CatalogSong[]> {
   const { data, error } = await supabase.rpc("match_songs_by_tags", {
-    context_tags: args.contextTags ?? [],
-    intent_tags: args.intentTags ?? [],
-    aesthetic_tags: args.aestheticTags ?? [],
-    mood_tags: args.moodTags ?? [],
-    match_count: matchCount,
+    p_context_tags: args.contextTags ?? [],
+    p_intent_tags: args.intentTags ?? [],
+    p_aesthetic_tags: args.aestheticTags ?? [],
+    p_mood_tags: args.moodTags ?? [],
+    p_match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalogByTags failed: ${error.message}`);
   return (data ?? []) as CatalogSong[];
@@ -1179,9 +1186,9 @@ export async function searchCatalogByTaste(
   matchCount = 20
 ): Promise<CatalogSong[]> {
   const { data, error } = await supabase.rpc("match_songs_by_taste", {
-    artist_patterns: args.artistPatterns ?? [],
-    positive_genres: args.positiveGenres ?? [],
-    match_count: matchCount,
+    p_artist_patterns: args.artistPatterns ?? [],
+    p_positive_genres: args.positiveGenres ?? [],
+    p_match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalogByTaste failed: ${error.message}`);
   return (data ?? []) as CatalogSong[];
