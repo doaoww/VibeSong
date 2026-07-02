@@ -7,7 +7,7 @@ import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import VibeTags from "../../components/VibeTags";
 import PricingModal from "../../components/PricingModal";
-import SongSwipeOnboarding, { SeedSong, OnboardingPrefs } from "../../components/SongSwipeOnboarding";
+import OnboardingFlow from "../../components/OnboardingFlow";
 import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
 import { useAppStore, ExifData, Track } from "../../store/useAppStore";
@@ -477,25 +477,12 @@ export default function AppUploadPage() {
         onAddCredits={handleCreditsAdded}
       />
       {effectiveShowOnboarding && (
-        <SongSwipeOnboarding
-          onComplete={(savedSeeds: SeedSong[], skippedSeeds: SeedSong[], prefs: OnboardingPrefs, completed: boolean) => {
+        <OnboardingFlow
+          onComplete={(completed: boolean) => {
             setShowOnboarding(false);
-            if (!completed) return; // skipped — show again next visit
+            if (!completed) return; // abandoned — show again next visit
             setCompletedThisSession(true); // prevent tasteComplete===false from re-showing
             localStorage.setItem("onboardingDone", "1");
-            setLikedSeedTracks(savedSeeds.map((s) => ({ title: s.title, artist: s.artist })));
-            setOnboardingPrefs(prefs);
-            const payload = { saved: savedSeeds, skipped: skippedSeeds, prefs };
-            localStorage.setItem("seedFeedback", JSON.stringify(payload));
-            if (user?.id) {
-              fetch("/api/seed-feedback", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-              })
-                .then(() => localStorage.removeItem("seedFeedback"))
-                .catch(() => {});
-            }
           }}
         />
       )}

@@ -12,39 +12,44 @@ export type MomentType =
   | "unknown";
 
 interface UserTasteRow {
-  genres: string[];
   favorite_artists: string[];
   default_mood: string;
   discovery_style: string;
-  dislikes: string[];
-  language_preference: string;
+  languages: string[];
+  language_openness: string;
   energy_preference: string;
   aesthetic_tags: string[];
+  genre_scores: Record<string, number> | null;
+  avoided_story_tags: string[];
+  favorite_story_songs: string[];
   setup_complete: boolean;
-  emotional_vector: Record<string, number> | null;
-  context_vectors: Record<string, Record<string, number>> | null;
 }
+
+const TASTE_COLUMNS =
+  "favorite_artists, default_mood, discovery_style, languages, language_openness, " +
+  "energy_preference, aesthetic_tags, genre_scores, avoided_story_tags, " +
+  "favorite_story_songs, setup_complete";
 
 export async function getUserTaste(userId: string): Promise<UserTaste | null> {
   const { data, error } = await supabase
     .from("user_taste")
-    .select(
-      "genres, favorite_artists, default_mood, discovery_style, dislikes, language_preference, energy_preference, aesthetic_tags, setup_complete"
-    )
+    .select(TASTE_COLUMNS)
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const row = data as UserTasteRow;
+  const row = data as unknown as UserTasteRow;
   return normalizeTaste({
-    genres: row.genres,
     favoriteArtists: row.favorite_artists,
     defaultMood: row.default_mood,
     discoveryStyle: row.discovery_style,
-    dislikes: row.dislikes,
-    languagePreference: row.language_preference,
+    languages: row.languages,
+    languageOpenness: row.language_openness,
     energyPreference: row.energy_preference,
     aestheticTags: row.aesthetic_tags ?? [],
+    genreScores: row.genre_scores ?? {},
+    avoidedStoryTags: row.avoided_story_tags ?? [],
+    favoriteStorySongs: row.favorite_story_songs ?? [],
     setupComplete: row.setup_complete,
   });
 }
@@ -53,14 +58,16 @@ export async function upsertUserTaste(userId: string, taste: UserTaste): Promise
   const normalized = normalizeTaste(taste);
   const { error } = await supabase.from("user_taste").upsert({
     user_id: userId,
-    genres: normalized.genres,
     favorite_artists: normalized.favoriteArtists,
     default_mood: normalized.defaultMood,
     discovery_style: normalized.discoveryStyle,
-    dislikes: normalized.dislikes,
-    language_preference: normalized.languagePreference,
+    languages: normalized.languages,
+    language_openness: normalized.languageOpenness,
     energy_preference: normalized.energyPreference,
     aesthetic_tags: normalized.aestheticTags,
+    genre_scores: normalized.genreScores,
+    avoided_story_tags: normalized.avoidedStoryTags,
+    favorite_story_songs: normalized.favoriteStorySongs,
     setup_complete: normalized.setupComplete,
     updated_at: new Date().toISOString(),
   });

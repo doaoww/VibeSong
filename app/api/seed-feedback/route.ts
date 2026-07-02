@@ -16,15 +16,9 @@ interface SeedSong {
   emotionalVector?: EmotionalVector;
 }
 
-interface OnboardingPrefs {
-  languagePreference?: string;
-  dislikes?: string[];
-}
-
 interface Body {
   saved?: SeedSong[];
   skipped?: SeedSong[];
-  prefs?: OnboardingPrefs;
 }
 
 export async function POST(req: NextRequest) {
@@ -36,7 +30,6 @@ export async function POST(req: NextRequest) {
   const body: Body = await req.json();
   const saved = Array.isArray(body.saved) ? body.saved : [];
   const skipped = Array.isArray(body.skipped) ? body.skipped : [];
-  const prefs = body.prefs ?? {};
 
   // Build emotional taste vector from swipes (falls back to genre inference if no explicit vectors)
   if (saved.length + skipped.length > 0) {
@@ -46,15 +39,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Save prefs + mark onboarding complete
+  // Mark onboarding complete. language/avoid-list preferences are persisted
+  // separately by OnboardingFlow's Steps 1-3 (via POST /api/taste) before the
+  // swipe step ever runs — this route no longer owns those fields (they were
+  // dropped from user_taste by the onboarding-v2 migration; writing them here
+  // would fail against the current schema and silently skip setup_complete).
   const { error: prefsError } = await supabase.from("user_taste").upsert({
     user_id: user.id,
-    language_preference: prefs.languagePreference ?? "No preference",
-    dislikes: prefs.dislikes ?? [],
     setup_complete: true,
     updated_at: new Date().toISOString(),
   });
-  if (prefsError) console.error("[seed-feedback] upsert prefs failed:", prefsError);
+  if (prefsError) console.error("[seed-feedback] upsert setup_complete failed:", prefsError);
 
   await Promise.allSettled([
     ...saved.map((track) =>

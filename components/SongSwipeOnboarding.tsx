@@ -14,44 +14,16 @@ export interface SeedSong {
   emotionalVector?: EmotionalVector;
 }
 
-export interface OnboardingPrefs {
-  languagePreference: string;
-  dislikes: string[];
-}
-
 interface Props {
-  onComplete: (saved: SeedSong[], skipped: SeedSong[], prefs: OnboardingPrefs, completed: boolean) => void;
+  languages: string[];
+  likedArtists: string[];
+  onComplete: (completed: boolean) => void;
 }
 
-const LANGUAGES = [
-  "No preference",
-  "English",
-  "Korean",
-  "Spanish / Latin",
-  "Russian",
-  "Uzbek",
-  "Arabic",
-  "French",
-  "Hindi",
-  "Japanese",
-];
+type Phase = "swipe" | "progress" | "dna";
 
-const DISLIKES_OPTIONS = [
-  "Explicit lyrics",
-  "Heavy metal / screamo",
-  "Very slow / sad songs",
-  "EDM / festival drops",
-  "Foreign language",
-  "Overplayed hits",
-  "Mumble rap",
-  "Generic pop ballads",
-];
-
-type Phase = "prefs" | "swipe" | "progress" | "dna";
-
-export default function SongSwipeOnboarding({ onComplete }: Props) {
-  const [phase, setPhase] = useState<Phase>("prefs");
-  const [prefs, setPrefs] = useState<OnboardingPrefs>({ languagePreference: "No preference", dislikes: [] });
+export default function SongSwipeOnboarding({ languages, likedArtists, onComplete }: Props) {
+  const [phase, setPhase] = useState<Phase>("swipe");
 
   const [songs, setSongs] = useState<SeedSong[]>([]);
   const [loading, setLoading] = useState(false);
@@ -80,6 +52,31 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     return () => { audio.pause(); audio.src = ""; audioRef.current = null; };
   }, []);
 
+  // Fetch the initial batch of songs as soon as the component mounts
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/seed-tracks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exclude: [], languages, likedArtists }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const loaded: SeedSong[] = Array.isArray(data) ? data : [];
+        if (loaded.length === 0) {
+          setDnaVector(buildTasteVector([], []));
+          setPhase("dna");
+        } else {
+          setSongs(loaded);
+        }
+      })
+      .catch(() => {
+        setDnaVector(buildTasteVector([], []));
+        setPhase("dna");
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currentSong = index < songs.length ? songs[index] : null;
 
@@ -113,7 +110,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
       const res = await fetch("/api/seed-tracks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ exclude, language: prefs.languagePreference }),
+        body: JSON.stringify({ exclude, languages, likedArtists }),
       });
       const data: SeedSong[] = await res.json();
       const fresh = Array.isArray(data) ? data : [];
@@ -128,7 +125,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [songs, prefs.languagePreference]);
+  }, [songs, languages, likedArtists]);
 
   const handleAction = useCallback(
     (action: "saved" | "skipped", song: SeedSong) => {
@@ -172,96 +169,20 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
     else audio.play().then(() => setIsPlaying(true)).catch(() => {});
   };
 
-  const toggleDislike = (item: string) => {
-    setPrefs((p) => ({
-      ...p,
-      dislikes: p.dislikes.includes(item)
-        ? p.dislikes.filter((d) => d !== item)
-        : [...p.dislikes, item],
-    }));
-  };
-
-  // ── Prefs screen ──────────────────────────────────────────────────────────
-  if (phase === "prefs") {
-    return (
-      <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto" style={{ height: '100dvh' }}>
-        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-1">Setup · 1 of 1</p>
-        <h1 className="text-white font-display font-extrabold text-2xl leading-tight mb-6">
-          Quick taste check
-        </h1>
-
-        {/* Language */}
-        <div className="mb-6">
-          <p className="text-white/60 text-sm font-semibold mb-3">What language do you prefer?</p>
-          <div className="flex flex-wrap gap-2">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang}
-                onClick={() => setPrefs((p) => ({ ...p, languagePreference: lang }))}
-                className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-                  prefs.languagePreference === lang
-                    ? "bg-hot-pink border-hot-pink text-white"
-                    : "border-white/15 text-white/50 hover:border-white/30"
-                }`}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Dislikes */}
-        <div className="mb-8">
-          <p className="text-white/60 text-sm font-semibold mb-1">Anything you can&apos;t stand? <span className="text-white/30 font-normal">(optional)</span></p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            {DISLIKES_OPTIONS.map((item) => (
-              <button
-                key={item}
-                onClick={() => toggleDislike(item)}
-                className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-                  prefs.dislikes.includes(item)
-                    ? "bg-white/10 border-white/40 text-white"
-                    : "border-white/15 text-white/50 hover:border-white/30"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          onClick={async () => {
-            setLoading(true);
-            setPhase("swipe");
-            try {
-              const res = await fetch("/api/seed-tracks", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ exclude: [], language: prefs.languagePreference }),
-              });
-              const data = await res.json();
-              const loaded: SeedSong[] = Array.isArray(data) ? data : [];
-              if (loaded.length === 0) {
-                setDnaVector(buildTasteVector([], []));
-                setPhase("dna");
-              } else {
-                setSongs(loaded);
-              }
-            } catch {
-              setDnaVector(buildTasteVector([], []));
-              setPhase("dna");
-            } finally {
-              setLoading(false);
-            }
-          }}
-          className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base glow-pink"
-        >
-          Start swiping →
-        </button>
-      </div>
-    );
-  }
+  // Persist swipe feedback so it actually influences future recommendations
+  // (insertFeedback + upsertEmotionalVector server-side) — without this call
+  // saved/skipped songs only ever fed the local, in-memory dnaVector display.
+  const finish = useCallback(() => {
+    audioRef.current?.pause();
+    if (saved.length + skipped.length > 0) {
+      fetch("/api/seed-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saved, skipped }),
+      }).catch(() => {});
+    }
+    onComplete(true);
+  }, [saved, skipped, onComplete]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -344,14 +265,13 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
   if (phase === "dna") {
     if (!dnaVector) {
       // Fallback: dnaVector not ready yet, complete directly
-      audioRef.current?.pause();
-      onComplete(saved, skipped, prefs, true);
+      finish();
       return null;
     }
     return (
       <MusicDNACard
         vector={dnaVector}
-        onContinue={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, true); }}
+        onContinue={finish}
       />
     );
   }
@@ -378,7 +298,7 @@ export default function SongSwipeOnboarding({ onComplete }: Props) {
           </span>
         </div>
         <button
-          onClick={() => { audioRef.current?.pause(); onComplete(saved, skipped, prefs, false); }}
+          onClick={() => { audioRef.current?.pause(); onComplete(false); }}
           className="text-white/40 text-xs font-semibold hover:text-white/70 transition-colors flex-shrink-0 px-3 py-2 -mr-1"
         >
           Skip
