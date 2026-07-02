@@ -3,6 +3,10 @@
 -- so all direct .from("songs") calls fail. These functions run in SQL directly.
 
 -- List songs (no vector column — PostgREST can serialize these types fine)
+-- DROP first: CREATE OR REPLACE cannot change the RETURNS TABLE column set
+-- (Postgres error 42P13), so this must be dropped before every signature change.
+DROP FUNCTION IF EXISTS public.list_catalog(int, int);
+
 CREATE OR REPLACE FUNCTION public.list_catalog(
   p_limit  int DEFAULT 200,
   p_offset int DEFAULT 0

@@ -88,6 +88,10 @@ ALTER TABLE public.songs
 
 -- RPC function for pgvector similarity search
 -- Returns top match_count songs sorted by cosine distance to query_vector
+-- DROP first: CREATE OR REPLACE cannot change the RETURNS TABLE column set
+-- (Postgres error 42P13), so this must be dropped before every signature change.
+DROP FUNCTION IF EXISTS public.match_songs(vector, integer);
+
 CREATE OR REPLACE FUNCTION public.match_songs(
   query_vector  vector(10),
   match_count   int DEFAULT 50
