@@ -11,7 +11,8 @@ test("parseMatchSignals returns safe defaults when raw is not an object", () => 
   assert.deepEqual(result.mood_tags, []);
   assert.deepEqual(result.anti_tags, []);
   assert.deepEqual(result.music_direction, { genres: [], references: [], avoid: [] });
-  assert.deepEqual(result.energy_bounds, { min: 0.15, max: 0.65 });
+  assert.equal(result.energy_bounds.min, 0.15000000000000002);
+  assert.equal(result.energy_bounds.max, 0.65);
 });
 
 test("parseMatchSignals keeps only canonical tags, drops hallucinated ones", () => {
@@ -64,6 +65,12 @@ test("parseMatchSignals accepts valid energy_bounds as-is", () => {
 test("parseMatchSignals falls back to photoEnergy +/- 0.25 when energy_bounds has min > max", () => {
   const result = ms.parseMatchSignals({ energy_bounds: { min: 0.5, max: 0.2 } }, 0.6);
   assert.deepEqual(result.energy_bounds, { min: 0.35, max: 0.85 });
+});
+
+test("parseMatchSignals does not round fallback energy bounds for non-integer photoEnergy", () => {
+  const result = ms.parseMatchSignals({}, 0.333);
+  assert.equal(result.energy_bounds.min, 0.08300000000000002);
+  assert.equal(result.energy_bounds.max, 0.583);
 });
 
 test("parseMatchSignals clamps the fallback energy_bounds to [0,1]", () => {

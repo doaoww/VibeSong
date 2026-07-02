@@ -33,12 +33,8 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 function safeEnergyBounds(photoEnergy: number): EnergyBounds {
-  return { min: round2(clamp01(photoEnergy - 0.25)), max: round2(clamp01(photoEnergy + 0.25)) };
+  return { min: clamp01(photoEnergy - 0.25), max: clamp01(photoEnergy + 0.25) };
 }
 
 function parseMusicDirection(raw: unknown): MusicDirection {
