@@ -1,6 +1,6 @@
 "use client";
 import { motion, useMotionValue, useTransform } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Track } from "../store/useAppStore";
 import YouTubePlayer from "./YouTubePlayer";
 import VibeTags from "./VibeTags";
@@ -14,6 +14,28 @@ interface SwipeCardProps {
   vibeImageUrl?: string;
   vibeCaption?: string;
   vibeTags?: string[];
+}
+
+// The card renders separate mobile/desktop layouts (Tailwind `lg:` breakpoint
+// toggles which is visually shown), but both stay mounted at once. Without
+// this, each layout got its own YouTubePlayer instance and both received the
+// same `visible` prop, so both independently autoplayed/paused the same
+// track — two <audio>/iframe elements racing each other, out of sync with
+// whichever one the user could actually see and control.
+// Server snapshot is `false` to match the server-rendered/pre-hydration
+// markup; corrects to the real viewport on the client immediately after.
+const desktopQuery = "(min-width: 1024px)";
+function subscribeToDesktopQuery(callback: () => void) {
+  const mq = window.matchMedia(desktopQuery);
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+function useIsDesktopViewport() {
+  return useSyncExternalStore(
+    subscribeToDesktopQuery,
+    () => window.matchMedia(desktopQuery).matches,
+    () => false
+  );
 }
 
 function MatchScore({ score }: { score: number }) {
@@ -47,6 +69,7 @@ export default function SwipeCard({
   vibeCaption,
   vibeTags,
 }: SwipeCardProps) {
+  const isDesktop = useIsDesktopViewport();
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-10, 10]);
   const cardOpacity = useTransform(x, [-250, -100, 0, 100, 250], [0, 1, 1, 1, 0]);
@@ -172,7 +195,7 @@ export default function SwipeCard({
               startSeconds={track.viralMomentSeconds ?? 0}
               previewUrl={track.previewUrl}
               previewProvider={track.previewProvider}
-              visible={isTop}
+              visible={isTop && !isDesktop}
               compact
             />
           )}
@@ -225,7 +248,7 @@ export default function SwipeCard({
               startSeconds={track.viralMomentSeconds ?? 0}
               previewUrl={track.previewUrl}
               previewProvider={track.previewProvider}
-              visible={isTop}
+              visible={isTop && isDesktop}
             />
           </div>
         )}

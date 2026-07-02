@@ -50,8 +50,12 @@ export default function YouTubePlayer({
     readyTimerRef.current = setTimeout(() => setPlayerReady(true), 900);
   }, []);
 
+  // Scoped to this instance's own iframe: an unscoped `message` listener would
+  // also react to postMessages from the sibling mobile/desktop YouTubePlayer's
+  // iframe (both are mounted at once), corrupting this instance's state.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
       try {
         const data =
           typeof event.data === "string" ? JSON.parse(event.data) : event.data;
@@ -67,22 +71,16 @@ export default function YouTubePlayer({
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  // Purely cosmetic progress bar — assumes a 30s preview length and stops
+  // ticking at 100%. It must never issue its own pause command: it has no
+  // real signal for how long the track actually is, so a YouTube fallback
+  // video (often minutes long) would get cut off after 30 seconds for no
+  // real reason. Actual stop/end is driven by real events (onEnded, or the
+  // user's own toggle) elsewhere.
   useEffect(() => {
     if (isPlaying) {
       intervalRef.current = setInterval(() => {
-        setProgress((current) => {
-          if (current >= 100) {
-            if (hasAudioPreview && audioRef.current) {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-            } else {
-              sendCommand("pauseVideo");
-            }
-            setIsPlaying(false);
-            return 0;
-          }
-          return current + 100 / 30;
-        });
+        setProgress((current) => (current >= 100 ? 100 : current + 100 / 30));
       }, 1000);
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -91,38 +89,52 @@ export default function YouTubePlayer({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPlaying, sendCommand, hasAudioPreview]);
+  }, [isPlaying]);
 
-  // Autoplay iTunes preview when card becomes top; pause when it leaves
+  // Autoplay iTunes preview when card becomes top; pause when it leaves.
+  // Also covers the YouTube-fallback path: without this, a playing YouTube
+  // iframe was never told to pause on swipe-away, so it kept playing under
+  // the next card.
   useEffect(() => {
     const wasVisible = prevVisibleRef.current;
     prevVisibleRef.current = visible;
 
-    if (!hasAudioPreview || !audioRef.current) return;
-
     if (visible && !wasVisible) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {}); // Browser may block autoplay silently
-      setIsPlaying(true);
+      // isPlaying isn't set here for the audio path — the element's own
+      // onPlay event (fired only once playback actually starts) is the
+      // source of truth, so a silently-blocked autoplay correctly leaves
+      // the button showing "Play" instead of lying about it.
+      if (hasAudioPreview && audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {}); // Browser may block autoplay silently
+      }
     } else if (!visible && wasVisible) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      // setIsPlaying(false) here is optimistic for the YouTube path (no
+      // reliable onPause equivalent for the bare-embed iframe — see the
+      // message-listener comment below) but redundant-and-harmless for the
+      // audio path, which will also get a real onPause event momentarily.
+      if (hasAudioPreview && audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } else if (hasYouTube) {
+        sendCommand("pauseVideo");
+      }
       setIsPlaying(false);
       setProgress(0);
     }
-  }, [visible, hasAudioPreview]);
+  }, [visible, hasAudioPreview, hasYouTube, sendCommand]);
 
   const handleToggle = () => {
     const next = !isPlaying;
 
+    // Audio path: no explicit setIsPlaying here either — the <audio>
+    // element's onPlay/onPause events below are authoritative.
     if (hasAudioPreview && audioRef.current) {
       if (next) {
-        audioRef.current.play().catch(() => setIsPlaying(false));
+        audioRef.current.play().catch(() => {});
       } else {
         audioRef.current.pause();
       }
-      setIsPlaying(next);
-      if (!next) setProgress(0);
       return;
     }
 
@@ -148,6 +160,8 @@ export default function YouTubePlayer({
       ref={audioRef}
       src={previewUrl}
       preload="auto"
+      onPlay={() => setIsPlaying(true)}
+      onPause={() => setIsPlaying(false)}
       onEnded={() => {
         setIsPlaying(false);
         setProgress(0);
