@@ -55,8 +55,9 @@ export async function POST(req: NextRequest) {
         })
       : null;
 
-    // Build final query vector
-    const queryVector = blendQueryVector(photoVectorArray, tasteArr, vibeArr, vibeBoosts);
+    // Build final query vector. Use 0.7 until Task 9 forwards real photoConfidence;
+    // this preserves the legacy 0.55/0.45 photo/taste split after Task 4's signature change.
+    const queryVector = blendQueryVector(photoVectorArray, tasteArr, vibeArr, vibeBoosts, 0.7);
 
     // pgvector similarity search — 50 candidates
     const candidates = await searchCatalog(queryVector, 50);

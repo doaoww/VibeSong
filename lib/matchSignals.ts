@@ -6,7 +6,7 @@ import {
   ANTI_TAG_CANDIDATES_SET,
   splitByCanonical,
   normalizeStringArray,
-} from "./tagTaxonomy.ts";
+} from "./tagTaxonomy";
 
 export interface MusicDirection {
   genres: string[];
