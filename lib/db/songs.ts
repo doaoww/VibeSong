@@ -44,6 +44,8 @@ export interface SongPatch {
   mood_tags: string[];
   story_intent_tags: string[];
   modern_aesthetic_tags: string[];
+  story_context_tags?: string[];
+  vibe_summary?: string;
 }
 
 // All write/read operations use RPC functions to bypass PostgREST's inability
@@ -100,6 +102,8 @@ export async function updateSong(id: string, patch: Partial<SongPatch>): Promise
     p_mood_tags:             patch.mood_tags             ?? null,
     p_story_intent_tags:     patch.story_intent_tags     ?? null,
     p_modern_aesthetic_tags: patch.modern_aesthetic_tags ?? null,
+    p_story_context_tags:    patch.story_context_tags    ?? null,
+    p_vibe_summary:          patch.vibe_summary          ?? null,
   });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }
@@ -127,6 +131,46 @@ export async function searchCatalog(
     match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalog failed: ${error.message}`);
+  return (data ?? []) as CatalogSong[];
+}
+
+export interface TagPoolArgs {
+  contextTags?: string[];
+  intentTags?: string[];
+  aestheticTags?: string[];
+  moodTags?: string[];
+}
+
+export async function searchCatalogByTags(
+  args: TagPoolArgs,
+  matchCount = 25
+): Promise<CatalogSong[]> {
+  const { data, error } = await supabase.rpc("match_songs_by_tags", {
+    p_context_tags: args.contextTags ?? [],
+    p_intent_tags: args.intentTags ?? [],
+    p_aesthetic_tags: args.aestheticTags ?? [],
+    p_mood_tags: args.moodTags ?? [],
+    p_match_count: matchCount,
+  });
+  if (error) throw new Error(`searchCatalogByTags failed: ${error.message}`);
+  return (data ?? []) as CatalogSong[];
+}
+
+export interface TastePoolArgs {
+  artistPatterns?: string[];
+  positiveGenres?: string[];
+}
+
+export async function searchCatalogByTaste(
+  args: TastePoolArgs,
+  matchCount = 20
+): Promise<CatalogSong[]> {
+  const { data, error } = await supabase.rpc("match_songs_by_taste", {
+    p_artist_patterns: args.artistPatterns ?? [],
+    p_positive_genres: args.positiveGenres ?? [],
+    p_match_count: matchCount,
+  });
+  if (error) throw new Error(`searchCatalogByTaste failed: ${error.message}`);
   return (data ?? []) as CatalogSong[];
 }
 
