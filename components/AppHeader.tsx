@@ -27,13 +27,7 @@ export default function AppHeader({
             href="/app"
             className="flex items-center gap-2 font-display text-base font-bold text-white lg:hidden"
           >
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-hot-pink">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>
-            </span>
+            <img src="/android-chrome-192x192.png" alt="" className="h-11 w-11 rounded-lg" />
             VibeSong<span className="text-hot-pink">AI</span>
           </a>
         )}

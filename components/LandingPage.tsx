@@ -97,13 +97,7 @@ function LandingNav() {
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold text-white">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-hot-pink">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg>
-          </span>
+          <img src="/android-chrome-192x192.png" alt="" className="h-11 w-11 rounded-lg" />
           VibeSong<span className="text-hot-pink">AI</span>
         </Link>
         <div className="hidden items-center gap-6 lg:gap-8 text-sm text-white/70 md:flex">
@@ -328,10 +322,10 @@ function HowItWorks() {
 
 function Examples() {
   const cards = [
-    { gradient: "from-[#5C1B2E] to-[#2A0710]", song: "Nights", artist: "Frank Ocean", match: "91%", tags: ["R&B", "Late Night"] },
-    { gradient: "from-[#0F3D8C] to-[#0A1A3A]", song: "Blinding Lights", artist: "The Weeknd", match: "88%", tags: ["Synthwave", "City"] },
-    { gradient: "from-[#D9A05B] to-[#7A4A1F]", song: "Happiness", artist: "Rex Orange County", match: "94%", tags: ["Indie", "Warm"] },
-    { gradient: "from-[#1E1E1E] to-[#000000]", song: "Kill Bill", artist: "SZA", match: "96%", tags: ["R&B", "Moody"] },
+    { image: "/landing/golden-hour.jpg", song: "Golden Hour", artist: "JVKE", match: "91%", tags: ["Pop", "Dreamy"] },
+    { image: "/landing/blinding-lights.jpg", song: "Blinding Lights", artist: "The Weeknd", match: "88%", tags: ["Synthwave", "City"] },
+    { image: "/landing/happiness.jpg", song: "Happiness", artist: "Rex Orange County", match: "94%", tags: ["Indie", "Warm"] },
+    { image: "/landing/kill-bill.jpg", song: "Kill Bill", artist: "SZA", match: "96%", tags: ["R&B", "Moody"] },
   ];
 
   return (
@@ -355,7 +349,12 @@ function Examples() {
               whileHover={{ y: -6 }}
               className="overflow-hidden rounded-2xl bg-white border border-black/5"
             >
-              <div className={`relative h-36 md:h-44 bg-gradient-to-br ${c.gradient}`}>
+              <div className="relative h-80 sm:h-64 md:h-80">
+                <img
+                  src={c.image}
+                  alt={`${c.song} by ${c.artist}`}
+                  className="h-full w-full object-cover object-top"
+                />
                 <div className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
                   {c.tags[0]}
                 </div>

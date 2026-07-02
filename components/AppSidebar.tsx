@@ -20,13 +20,7 @@ export default function AppSidebar() {
           href="/"
           className="flex items-center gap-2 font-display text-lg font-bold text-white"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-hot-pink">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white" aria-hidden>
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg>
-          </span>
+          <img src="/android-chrome-192x192.png" alt="" className="h-12 w-12 rounded-lg" />
           VibeSong<span className="text-hot-pink">AI</span>
         </Link>
       </div>
