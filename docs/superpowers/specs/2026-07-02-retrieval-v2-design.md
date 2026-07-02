@@ -1,7 +1,7 @@
 # VibeSong Retrieval v2 — Photo Meaning → Song Catalog Bridge
 
 **Date:** 2026-07-02
-**Status:** Draft — pending user review of this file before implementation planning
+**Status:** Approved — ready for implementation planning
 
 ---
 
@@ -138,26 +138,45 @@ Four independent retrieval sources, merged and deduped by `id` before Rules + Sc
 
 Pools 2 and 3 share one SQL function, called twice with different arguments populated (only intent/aesthetic/mood filled for Pool 2, only context filled for Pool 3) rather than two near-identical functions:
 
+Mirrors `match_songs`'s existing `RETURNS TABLE(...)` pattern exactly (not `RETURNS SETOF songs` — `lib/db/songs.ts` notes PostgREST can't resolve the `vector` column type through schema-cache introspection on the raw table, which is why every RPC declares an explicit typed column list instead) and its unprefixed parameter naming (`match_count`, not `p_match_count` — the `p_` prefix in this codebase is reserved for the CRUD-style RPCs like `create_song`):
+
 ```sql
-create or replace function match_songs_by_tags(
-  p_context_tags   text[] default '{}',
-  p_intent_tags    text[] default '{}',
-  p_aesthetic_tags text[] default '{}',
-  p_mood_tags      text[] default '{}',
-  p_match_count    int default 25
-) returns setof songs
-language sql stable as $$
-  select *
-  from songs
-  where emotional_vector is not null
-    and (
-      (cardinality(p_context_tags)   > 0 and story_context_tags   && p_context_tags)
-      or (cardinality(p_intent_tags)    > 0 and story_intent_tags    && p_intent_tags)
-      or (cardinality(p_aesthetic_tags) > 0 and modern_aesthetic_tags && p_aesthetic_tags)
-      or (cardinality(p_mood_tags)      > 0 and mood_tags            && p_mood_tags)
+CREATE OR REPLACE FUNCTION public.match_songs_by_tags(
+  context_tags   text[] DEFAULT '{}',
+  intent_tags    text[] DEFAULT '{}',
+  aesthetic_tags text[] DEFAULT '{}',
+  mood_tags      text[] DEFAULT '{}',
+  match_count    int DEFAULT 25
+)
+RETURNS TABLE (
+  id uuid, title text, artist text, language text, energy float,
+  popularity_tier int, emotional_vector vector(10), genre_tags text[],
+  aesthetic_tags text[], mood_tags text[], story_intent_tags text[],
+  modern_aesthetic_tags text[], story_context_tags text[],
+  final_confidence float, needs_review boolean, itunes_preview_url text,
+  artwork_url text, apple_music_url text, youtube_id text,
+  quality_score float, distance float
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    s.id, s.title, s.artist, s.language, s.energy, s.popularity_tier,
+    s.emotional_vector, s.genre_tags, s.aesthetic_tags, s.mood_tags,
+    s.story_intent_tags, s.modern_aesthetic_tags, s.story_context_tags,
+    s.final_confidence, s.needs_review, s.itunes_preview_url, s.artwork_url,
+    s.apple_music_url, s.youtube_id, s.quality_score, NULL::float AS distance
+  FROM public.songs s
+  WHERE s.emotional_vector IS NOT NULL
+    AND (
+      (cardinality(context_tags)   > 0 AND s.story_context_tags    && context_tags)
+      OR (cardinality(intent_tags)    > 0 AND s.story_intent_tags    && intent_tags)
+      OR (cardinality(aesthetic_tags) > 0 AND s.modern_aesthetic_tags && aesthetic_tags)
+      OR (cardinality(mood_tags)      > 0 AND s.mood_tags            && mood_tags)
     )
-  order by quality_score desc, id
-  limit p_match_count;
+  ORDER BY s.quality_score DESC, s.id
+  LIMIT match_count;
+END;
 $$;
 ```
 
@@ -166,21 +185,38 @@ Ranking inside this RPC is intentionally cheap (`quality_score desc`) — real r
 **Pool 4 — Taste Pool** (new): songs by a liked artist, a `music_direction.references` artist, or with positive genre overlap:
 
 ```sql
-create or replace function match_songs_by_taste(
-  p_artist_patterns  text[] default '{}',  -- pre-wrapped with %...% wildcards by the app layer
-  p_positive_genres  text[] default '{}',
-  p_match_count      int default 20
-) returns setof songs
-language sql stable as $$
-  select *
-  from songs
-  where emotional_vector is not null
-    and (
-      (cardinality(p_artist_patterns) > 0 and artist ilike any (p_artist_patterns))
-      or (cardinality(p_positive_genres) > 0 and genre_tags && p_positive_genres)
+CREATE OR REPLACE FUNCTION public.match_songs_by_taste(
+  artist_patterns  text[] DEFAULT '{}',  -- pre-wrapped with %...% wildcards by the app layer
+  positive_genres  text[] DEFAULT '{}',
+  match_count      int DEFAULT 20
+)
+RETURNS TABLE (
+  id uuid, title text, artist text, language text, energy float,
+  popularity_tier int, emotional_vector vector(10), genre_tags text[],
+  aesthetic_tags text[], mood_tags text[], story_intent_tags text[],
+  modern_aesthetic_tags text[], story_context_tags text[],
+  final_confidence float, needs_review boolean, itunes_preview_url text,
+  artwork_url text, apple_music_url text, youtube_id text,
+  quality_score float, distance float
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    s.id, s.title, s.artist, s.language, s.energy, s.popularity_tier,
+    s.emotional_vector, s.genre_tags, s.aesthetic_tags, s.mood_tags,
+    s.story_intent_tags, s.modern_aesthetic_tags, s.story_context_tags,
+    s.final_confidence, s.needs_review, s.itunes_preview_url, s.artwork_url,
+    s.apple_music_url, s.youtube_id, s.quality_score, NULL::float AS distance
+  FROM public.songs s
+  WHERE s.emotional_vector IS NOT NULL
+    AND (
+      (cardinality(artist_patterns) > 0 AND s.artist ILIKE ANY (artist_patterns))
+      OR (cardinality(positive_genres) > 0 AND s.genre_tags && positive_genres)
     )
-  order by quality_score desc, id
-  limit p_match_count;
+  ORDER BY s.quality_score DESC, s.id
+  LIMIT match_count;
+END;
 $$;
 ```
 
