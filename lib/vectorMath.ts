@@ -29,17 +29,24 @@ export function applyVibeCap(photoDim: number, vibeBoost: number): number {
 /**
  * Build the final query vector from photo + taste + optional vibe signals.
  * boosts: partial map of dimension name → boost value from vibe parsing.
- * If vibeVec is null, uses 2-signal blend. With vibeVec, uses 3-signal blend
- * and applies per-dimension caps from boosts.
+ * If vibeVec is null, uses a confidence-weighted 2-signal blend (photoWeight
+ * ranges 0.2-0.7 as photoConfidence goes 0-1, mirroring blendVectors in
+ * lib/emotionalVector.ts so the query vector and the persisted taste profile
+ * use the same trust-the-photo-more-when-confident principle).
+ * With vibeVec, uses the fixed 3-signal blend (photoConfidence unused there —
+ * the requested-vibe feature is not yet live).
  */
 export function blendQueryVector(
   photoArr: number[],
   tasteArr: number[],
   vibeArr: number[] | null,
-  boosts: Partial<Record<keyof EmotionalVector, number>>
+  boosts: Partial<Record<keyof EmotionalVector, number>>,
+  photoConfidence: number
 ): number[] {
   if (!vibeArr) {
-    return photoArr.map((p, i) => p * 0.55 + tasteArr[i] * 0.45);
+    const photoWeight = 0.2 + Math.max(0, Math.min(1, photoConfidence)) * 0.5;
+    const tasteWeight = 1 - photoWeight;
+    return photoArr.map((p, i) => p * photoWeight + tasteArr[i] * tasteWeight);
   }
   return photoArr.map((p, i) => {
     const key = VECTOR_KEYS[i];
