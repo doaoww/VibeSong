@@ -12,6 +12,13 @@ import {
   upsertContextVector,
   type MomentType,
 } from "../../../lib/db/userTaste";
+import {
+  STORY_CONTEXT_TAGS,
+  STORY_INTENT_TAGS,
+  MODERN_AESTHETIC_TAGS,
+  MOOD_TAGS,
+} from "../../../lib/tagTaxonomy";
+import { parseMatchSignals } from "../../../lib/matchSignals";
 import { vectorToArray } from "../../../lib/vectorMath";
 import type { ExifData } from "../../../store/useAppStore";
 
@@ -80,13 +87,27 @@ Return ONLY valid JSON, no markdown:
     "dreamy": 0.0, "nostalgia": 0.0, "energy": 0.0, "cinematic": 0.0,
     "darkness": 0.0, "confidence": 0.0, "intimacy": 0.0,
     "danceability": 0.0, "electronic": 0.0, "acoustic": 0.0
+  },
+  "matchSignals": {
+    "scene_context_tags": ["1-3 tags, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}"],
+    "story_intent_tags": ["1-3 tags, ONLY from this list: ${STORY_INTENT_TAGS.join(", ")}"],
+    "modern_aesthetic_tags": ["0-3 tags, ONLY from this list: ${MODERN_AESTHETIC_TAGS.join(", ")}"],
+    "mood_tags": ["1-2 tags, ONLY from this list: ${MOOD_TAGS.join(", ")}"],
+    "anti_tags": ["0-4 tags this photo's vibe clearly CONTRADICTS, drawn from the story_intent_tags/modern_aesthetic_tags/mood_tags lists above — e.g. a quiet reflective photo should list euphoric/party-coded tags here"],
+    "music_direction": {
+      "genres": ["1-3 genre/style strings, e.g. slavic indie, moody r&b"],
+      "references": ["0-3 real artist names whose music matches this photo's vibe — these are search hints only, never final song picks"],
+      "avoid": ["0-3 genre/style strings that would NOT fit"]
+    },
+    "energy_bounds": { "min": 0.0, "max": 0.0 }
   }
 }
 NUMBER RULES:
 - energy, valence, brightness, intensity, vibeMetrics fields: floats 0.0–1.0
 - photoConfidence: float 0.0–1.0
 - photoVector fields: all floats 0.0–1.0
-- vibeTags: exactly 3`;
+- vibeTags: exactly 3
+- energy_bounds: floats 0.0-1.0 describing how tightly a fitting song's energy should match this specific photo. Narrow (e.g. min 0.15 / max 0.30) for a still, unambiguous moment; wider (e.g. min 0.2 / max 0.55) if the photo's energy is more open to interpretation.`;
 
 function buildPrompt(exifBlock: string): string {
   return BASE_SYSTEM_PROMPT + exifBlock;
@@ -129,7 +150,6 @@ function buildExifBlock(exif: ExifData | null): string {
   if (!parts.length) return "";
   return `\n\nPHOTO METADATA (EXIF — use as additional context):\n${parts.join("\n")}`;
 }
-
 
 const REFUSAL_PATTERNS = [
   /^i'?m sorry/i,
@@ -277,6 +297,7 @@ export async function POST(req: NextRequest) {
         ? Math.max(0, Math.min(1, result.photoConfidence))
         : 0.5;
     const momentType: MomentType = result.momentType ?? "unknown";
+    const matchSignals = parseMatchSignals(result.matchSignals, photoVector.energy);
 
     // Build photoVectorArray for pgvector queries
     const photoVectorArray = vectorToArray(photoVector);
@@ -291,7 +312,7 @@ export async function POST(req: NextRequest) {
 
     upsertContextVector(user.id, momentType, combined).catch(() => {});
 
-    return NextResponse.json({ ...result, photoVectorArray });
+    return NextResponse.json({ ...result, photoVectorArray, photoConfidence, matchSignals });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/api/analyze error:", message);
