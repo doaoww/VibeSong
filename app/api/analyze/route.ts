@@ -318,8 +318,14 @@ export async function POST(req: NextRequest) {
     const musicBrief = parseMusicSupervisorBrief(result.musicBrief);
     const whyThisPhotoNeedsMusic =
       typeof result.whyThisPhotoNeedsMusic === "string" ? result.whyThisPhotoNeedsMusic.trim().slice(0, 300) : "";
-    const briefText = buildBriefText(musicBrief);
-    const photoBriefEmbedding = briefText ? await embedText(briefText) : [];
+    const hasMusicBrief = result.musicBrief && typeof result.musicBrief === "object";
+    const briefText = hasMusicBrief ? buildBriefText(musicBrief) : "";
+    const photoBriefEmbedding = briefText
+      ? await embedText(briefText).catch((embedErr) => {
+          console.error("[analyze] embedText failed:", embedErr);
+          return [];
+        })
+      : [];
 
     // Build photoVectorArray for pgvector queries
     const photoVectorArray = vectorToArray(photoVector);
