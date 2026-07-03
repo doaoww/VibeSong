@@ -151,6 +151,7 @@ export default function AppUploadPage() {
             moodTags: matchSignals.mood_tags ?? [],
             musicDirection,
             energyBounds: matchSignals.energy_bounds,
+            photoBriefEmbedding: vibeData.photoBriefEmbedding ?? null,
           }),
         });
         if (!recommendRes.ok) {
