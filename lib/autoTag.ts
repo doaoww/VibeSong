@@ -15,6 +15,8 @@ import {
 } from "./tagTaxonomy";
 import { NullLyricsProvider } from "./lyrics";
 import type { LyricsProvider } from "./lyrics";
+import { parseMusicSupervisorBrief, buildBriefText } from "./musicSupervisorBrief";
+import { embedText } from "./embeddings";
 
 export type ConfidenceLevel = "known_track" | "known_artist_only" | "metadata_inference" | "uncertain";
 
@@ -86,6 +88,8 @@ export interface AutoTagResult {
   story_context_tags: string[];
   discarded_tags: string[];
   vibe_summary: string;
+  music_supervisor_summary: string;
+  brief_embedding: number[];
   confidence_level: ConfidenceLevel;
   confidence_reason: string;
   gpt_confidence: number;
@@ -197,6 +201,14 @@ Return ONLY valid JSON (no markdown) with this exact structure:
   "modern_aesthetic_tags": ["2-5 tags, ONLY from this list: ${MODERN_AESTHETIC_TAGS.join(", ")}"],
   "story_context_tags": ["2-5 tags, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}"],
   "vibe_summary": "1-2 short sentences in natural language describing this song's feeling/story",
+  "musicSupervisorBrief": {
+    "narrative": "1-2 sentences: what this song is about, the story or feeling it carries",
+    "emotionalSubtext": "1 sentence: what's underneath the surface mood, if anything — irony, contrast, restraint",
+    "restraint": "understated | balanced | expressive",
+    "context": "1 sentence: what kind of moment or photo a music supervisor would reach for this song for",
+    "direction": "1-2 sentences: what this song emotionally delivers — energy character, sonic space",
+    "avoid": "0-1 sentence, optional: what this song should NOT be paired with — leave empty string if nothing is worth flagging"
+  },
   "confidence_level": "one of: known_track, known_artist_only, metadata_inference, uncertain — how well do you actually know THIS SPECIFIC SONG, not just the artist's general style",
   "confidence_reason": "one short sentence justifying the confidence_level"
 }
@@ -216,6 +228,7 @@ export interface ParsedTagResponse {
   story_context_tags: string[];
   discarded_tags: string[];
   vibe_summary: string;
+  music_supervisor_summary: string;
   confidence_level: ConfidenceLevel;
   confidence_reason: string;
 }
@@ -235,6 +248,7 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
     story_context_tags: [],
     discarded_tags: [],
     vibe_summary: "",
+    music_supervisor_summary: "",
     confidence_level: "uncertain",
     confidence_reason: "",
   };
@@ -293,6 +307,7 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
         ...storyContextSplit.rejected,
       ],
       vibe_summary: typeof parsed.vibe_summary === "string" ? parsed.vibe_summary : "",
+      music_supervisor_summary: buildBriefText(parseMusicSupervisorBrief(parsed.musicSupervisorBrief)),
       confidence_level,
       confidence_reason: typeof parsed.confidence_reason === "string" ? parsed.confidence_reason : "",
     };
@@ -316,7 +331,7 @@ export async function autoTagSong(
   let rawGpt = "";
   try {
     const res = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 900,
       temperature: 0,
@@ -327,6 +342,10 @@ export async function autoTagSong(
   }
 
   const gptData = parseGptTagResponse(rawGpt);
+
+  const briefEmbedding = gptData.music_supervisor_summary
+    ? await embedText(gptData.music_supervisor_summary)
+    : [];
 
   const durationSeconds = itunesMeta?.trackTimeMillis
     ? Math.round(itunesMeta.trackTimeMillis / 1000)
@@ -362,6 +381,8 @@ export async function autoTagSong(
     story_context_tags: gptData.story_context_tags,
     discarded_tags: gptData.discarded_tags,
     vibe_summary: gptData.vibe_summary,
+    music_supervisor_summary: gptData.music_supervisor_summary,
+    brief_embedding: briefEmbedding,
     confidence_level: gptData.confidence_level,
     confidence_reason: gptData.confidence_reason,
     gpt_confidence,

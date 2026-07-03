@@ -11,12 +11,14 @@ const moduleCache = new Map();
 const stubState = {
   fetchImpl: (...args) => fetch(...args),
   openaiContent: "",
+  embedding: undefined,
 };
 
 function resetHarness() {
   moduleCache.clear();
   stubState.fetchImpl = (...args) => fetch(...args);
   stubState.openaiContent = "";
+  stubState.embedding = undefined;
 }
 
 function jsonResponse(data, ok = true) {
@@ -66,6 +68,9 @@ function loadTsModule(path) {
             completions: {
               create: async () => ({ choices: [{ message: { content: stubState.openaiContent } }] }),
             },
+          },
+          embeddings: {
+            create: async () => ({ data: [{ embedding: stubState.embedding ?? [0.11, 0.22, 0.33] }] }),
           },
         },
       };
@@ -449,4 +454,78 @@ test("autoTagSong uses a provided lyrics provider without changing source_confid
   assert.deepEqual(lyricsCall, { title: "Midnight City", artist: "M83" });
   assert.equal(result.source_confidence, 0.55);
   assert.equal(result.final_confidence, 0.55);
+});
+
+test("buildGptTagPrompt includes musicSupervisorBrief instructions", () => {
+  const { buildGptTagPrompt } = autoTag;
+  const prompt = buildGptTagPrompt("Song", "Artist", []);
+  assert.ok(prompt.includes("musicSupervisorBrief"));
+  assert.ok(prompt.includes("narrative"));
+  assert.ok(prompt.includes("emotionalSubtext"));
+  assert.ok(prompt.includes("restraint"));
+});
+
+test("parseGptTagResponse derives music_supervisor_summary from musicSupervisorBrief via buildBriefText, excluding avoid", () => {
+  const { parseGptTagResponse } = autoTag;
+  const raw = JSON.stringify({
+    musicSupervisorBrief: {
+      narrative: "A late-night synth ballad about missing someone.",
+      emotionalSubtext: "sincere, no irony.",
+      restraint: "expressive",
+      context: "reach for this after a long, quiet drive.",
+      direction: "wide, cinematic, lets the vocal carry the weight.",
+      avoid: "nothing upbeat or ironic",
+    },
+  });
+  const result = parseGptTagResponse(raw);
+  assert.ok(result.music_supervisor_summary.includes("A late-night synth ballad"));
+  assert.ok(result.music_supervisor_summary.includes("Restraint: expressive."));
+  assert.ok(!result.music_supervisor_summary.includes("upbeat"), "avoid text must not leak into the stored summary");
+});
+
+test("parseGptTagResponse defaults music_supervisor_summary to empty text when musicSupervisorBrief is missing", () => {
+  const { parseGptTagResponse } = autoTag;
+  const result = parseGptTagResponse(JSON.stringify({ language: "English" }));
+  assert.equal(result.music_supervisor_summary, "Restraint: balanced.");
+});
+
+test("autoTagSong attaches brief_embedding computed from music_supervisor_summary", async () => {
+  resetHarness();
+  delete process.env.LASTFM_API_KEY;
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) return jsonResponse({ results: [] });
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.embedding = [0.9, 0.8, 0.7];
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 3,
+    emotional_vector: {
+      dreamy: 0.5, nostalgia: 0.5, energy: 0.5, cinematic: 0.5, darkness: 0.5,
+      confidence: 0.5, intimacy: 0.5, danceability: 0.5, electronic: 0.5, acoustic: 0.5,
+    },
+    genre_tags: ["indie"],
+    aesthetic_tags: ["dreamy"],
+    mood_tags: ["nostalgic"],
+    story_intent_tags: ["healing era"],
+    modern_aesthetic_tags: ["quiet luxury"],
+    story_context_tags: ["night drive"],
+    vibe_summary: "A quiet night song.",
+    confidence_level: "uncertain",
+    confidence_reason: "Not a widely known track.",
+    musicSupervisorBrief: {
+      narrative: "A song about driving alone at night.",
+      emotionalSubtext: "none, literal.",
+      restraint: "understated",
+      context: "late-night, solo drives.",
+      direction: "steady, warm, unhurried.",
+      avoid: "",
+    },
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const result = await autoTagSong("Some Song", "Some Artist");
+
+  assert.ok(result.music_supervisor_summary.includes("A song about driving alone at night."));
+  assert.deepEqual(result.brief_embedding, [0.9, 0.8, 0.7]);
 });
