@@ -3,7 +3,7 @@ import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getUserTaste, getEmotionalVector } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
-import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, type CatalogSong } from "../../../lib/db/songs";
+import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, type CatalogSong } from "../../../lib/db/songs";
 import { blendQueryVector } from "../../../lib/vectorMath";
 import { buildRecommendations } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
     const photoAntiTags: string[] = body.photoAntiTags ?? [];
     const musicDirection: { genres: string[]; references: string[]; avoid: string[] } =
       body.musicDirection ?? { genres: [], references: [], avoid: [] };
+    const briefPoolEnabled = process.env.ENABLE_BRIEF_POOL === "true";
+    const photoBriefEmbeddingRaw: number[] | null = Array.isArray(body.photoBriefEmbedding) ? body.photoBriefEmbedding : null;
+    const photoBriefEmbedding = briefPoolEnabled ? photoBriefEmbeddingRaw : null;
 
     if (!photoVectorArray || photoVectorArray.length !== 10) {
       return NextResponse.json({ error: "photoVectorArray (10 numbers) required" }, { status: 400 });
@@ -109,15 +112,16 @@ export async function POST(req: NextRequest) {
       .filter(([, score]) => score > 0.3)
       .map(([genre]) => genre);
 
-    const [vectorPool, storyPool, contextPool, tastePool] = await Promise.all([
+    const [vectorPool, storyPool, contextPool, tastePool, briefPool] = await Promise.all([
       searchCatalog(queryVector, 25),
       searchCatalogByTags({ intentTags: storyIntentTags, aestheticTags, moodTags }, 25),
       searchCatalogByTags({ contextTags: sceneContextTags }, 20),
       searchCatalogByTaste({ artistPatterns, positiveGenres }, 20),
+      photoBriefEmbedding ? searchCatalogByBrief(photoBriefEmbedding, 25) : Promise.resolve([] as CatalogSong[]),
     ]);
 
     const poolMap = new Map<string, CatalogSong>();
-    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool]) {
+    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool]) {
       if (!poolMap.has(song.id)) poolMap.set(song.id, song);
     }
     const candidates = Array.from(poolMap.values());
@@ -142,6 +146,7 @@ export async function POST(req: NextRequest) {
         aestheticTags,
         moodTags,
         energyBounds,
+        photoBriefEmbedding,
       },
       candidates
     );
@@ -151,6 +156,8 @@ export async function POST(req: NextRequest) {
       storyPoolCount: storyPool.length,
       contextPoolCount: contextPool.length,
       tastePoolCount: tastePool.length,
+      briefPoolCount: briefPool.length,
+      briefPoolEnabled,
       mergedCandidateCount: candidates.length,
       removedByRulesCount: debugLog.filter((e) => e.rulesRemoved).length,
     };
