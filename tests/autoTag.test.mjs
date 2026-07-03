@@ -12,6 +12,7 @@ const stubState = {
   fetchImpl: (...args) => fetch(...args),
   openaiContent: "",
   embedding: undefined,
+  embeddingError: null,
 };
 
 function resetHarness() {
@@ -19,6 +20,7 @@ function resetHarness() {
   stubState.fetchImpl = (...args) => fetch(...args);
   stubState.openaiContent = "";
   stubState.embedding = undefined;
+  stubState.embeddingError = null;
 }
 
 function jsonResponse(data, ok = true) {
@@ -70,7 +72,10 @@ function loadTsModule(path) {
             },
           },
           embeddings: {
-            create: async () => ({ data: [{ embedding: stubState.embedding ?? [0.11, 0.22, 0.33] }] }),
+            create: async () => {
+              if (stubState.embeddingError) throw stubState.embeddingError;
+              return { data: [{ embedding: stubState.embedding ?? [0.11, 0.22, 0.33] }] };
+            },
           },
         },
       };
@@ -528,4 +533,55 @@ test("autoTagSong attaches brief_embedding computed from music_supervisor_summar
 
   assert.ok(result.music_supervisor_summary.includes("A song about driving alone at night."));
   assert.deepEqual(result.brief_embedding, [0.9, 0.8, 0.7]);
+});
+
+test("autoTagSong degrades to an empty brief_embedding when embedding generation fails", async () => {
+  resetHarness();
+  delete process.env.LASTFM_API_KEY;
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) return jsonResponse({ results: [] });
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.embeddingError = new Error("embedding outage");
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 3,
+    emotional_vector: {
+      dreamy: 0.5, nostalgia: 0.5, energy: 0.5, cinematic: 0.5, darkness: 0.5,
+      confidence: 0.5, intimacy: 0.5, danceability: 0.5, electronic: 0.5, acoustic: 0.5,
+    },
+    genre_tags: ["indie"],
+    aesthetic_tags: ["dreamy"],
+    mood_tags: ["nostalgic"],
+    story_intent_tags: ["healing era"],
+    modern_aesthetic_tags: ["quiet luxury"],
+    story_context_tags: ["night drive"],
+    vibe_summary: "A quiet night song.",
+    confidence_level: "uncertain",
+    confidence_reason: "Not a widely known track.",
+    musicSupervisorBrief: {
+      narrative: "A song about driving alone at night.",
+      emotionalSubtext: "none, literal.",
+      restraint: "understated",
+      context: "late-night, solo drives.",
+      direction: "steady, warm, unhurried.",
+      avoid: "",
+    },
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const originalConsoleError = console.error;
+  const loggedErrors = [];
+  console.error = (...args) => loggedErrors.push(args);
+  let result;
+  try {
+    result = await autoTagSong("Some Song", "Some Artist");
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.ok(result.music_supervisor_summary.includes("A song about driving alone at night."));
+  assert.equal(result.brief_embedding.length, 0);
+  assert.equal(loggedErrors.length, 1);
+  assert.equal(loggedErrors[0][0], "[autoTag] brief embedding failed:");
 });

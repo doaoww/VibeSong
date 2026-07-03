@@ -343,9 +343,14 @@ export async function autoTagSong(
 
   const gptData = parseGptTagResponse(rawGpt);
 
-  const briefEmbedding = gptData.music_supervisor_summary
-    ? await embedText(gptData.music_supervisor_summary)
-    : [];
+  let briefEmbedding: number[] = [];
+  if (gptData.music_supervisor_summary) {
+    try {
+      briefEmbedding = await embedText(gptData.music_supervisor_summary);
+    } catch (err) {
+      console.error("[autoTag] brief embedding failed:", err);
+    }
+  }
 
   const durationSeconds = itunesMeta?.trackTimeMillis
     ? Math.round(itunesMeta.trackTimeMillis / 1000)
