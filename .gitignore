@@ -42,3 +42,7 @@ next-env.d.ts
 
 # worktrees
 /.worktrees/
+
+# local tool state / test artifacts — not project source
+/.claude/
+/.playwright-mcp/
