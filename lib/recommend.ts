@@ -18,6 +18,7 @@ export interface RecommendRequest {
   aestheticTags: string[];         // from photo matchSignals.modern_aesthetic_tags
   moodTags: string[];              // from photo matchSignals.mood_tags
   energyBounds: { min: number; max: number };
+  photoBriefEmbedding: number[] | null;  // null when ENABLE_BRIEF_POOL is off or the photo has no brief text
 }
 
 export interface ScoreComponents {
@@ -28,6 +29,8 @@ export interface ScoreComponents {
   vibeAestheticFit: number;
   noveltyFit: number;
   qualityBonus: number;
+  briefFit: number;
+  briefSimilarity: number;
   languagePenalty: number;
   freshnessPenalty: number;
   mainstreamPenalty: number;
@@ -258,6 +261,11 @@ export function buildRecommendations(
     const aestheticOrMoodMatches = songAestheticOrMood.filter((t) => photoAestheticOrMood.includes(t)).length;
     const vibeAestheticFit = Math.min(2, aestheticOrMoodMatches) * 5 * confFactor;
 
+    const briefSimilarity =
+      req.photoBriefEmbedding && song.brief_embedding && song.brief_embedding.length
+        ? cosine(req.photoBriefEmbedding, song.brief_embedding)
+        : 0;
+    const briefFit = briefSimilarity * 20;
     const noveltyFit = discoveryScore(song.popularity_tier, req.discoveryStyle) * 10;
     const qualityBonus = song.quality_score * 5;
 
@@ -274,7 +282,7 @@ export function buildRecommendations(
         : 0;
     const needsReviewPenalty = song.needs_review ? -12 : 0;
 
-    const raw = photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + noveltyFit + qualityBonus;
+    const raw = photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + briefFit + noveltyFit + qualityBonus;
     const finalScore = Math.max(
       0,
       Math.min(100, raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty)
@@ -288,6 +296,8 @@ export function buildRecommendations(
       vibeAestheticFit: Math.round(vibeAestheticFit * 10) / 10,
       noveltyFit: Math.round(noveltyFit * 10) / 10,
       qualityBonus: Math.round(qualityBonus * 10) / 10,
+      briefFit: Math.round(briefFit * 10) / 10,
+      briefSimilarity: Math.round(briefSimilarity * 1000) / 1000,
       languagePenalty,
       freshnessPenalty,
       mainstreamPenalty,

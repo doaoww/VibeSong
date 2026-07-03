@@ -59,6 +59,7 @@ function makeSong(overrides = {}) {
     youtube_id: null,
     quality_score: 0.7,
     distance: 0.2,
+    brief_embedding: null,
     ...overrides,
   };
 }
@@ -81,6 +82,7 @@ function makeRequest(overrides = {}) {
     aestheticTags: [],
     moodTags: [],
     energyBounds: { min: 0, max: 1 },
+    photoBriefEmbedding: null,
     ...overrides,
   };
 }
@@ -242,4 +244,35 @@ test("contextFit and vibeAestheticFit scale down with lower photoConfidence", ()
   assert.ok(lowConf.scoreComponents.contextFit < highConf.scoreComponents.contextFit);
   assert.ok(lowConf.scoreComponents.vibeAestheticFit < highConf.scoreComponents.vibeAestheticFit);
   assert.ok(lowConf.scoreComponents.contextFit > 0);
+});
+
+test("briefFit is 0 when photoBriefEmbedding is null, even if the song has brief_embedding", () => {
+  const song = makeSong({ brief_embedding: [1, 0, 0] });
+  const req = makeRequest({ photoBriefEmbedding: null });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results[0].scoreComponents.briefFit, 0);
+  assert.equal(results[0].scoreComponents.briefSimilarity, 0);
+});
+
+test("briefFit is 0 when the song has no brief_embedding, even if photoBriefEmbedding is present", () => {
+  const song = makeSong({ brief_embedding: null });
+  const req = makeRequest({ photoBriefEmbedding: [1, 0, 0] });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results[0].scoreComponents.briefFit, 0);
+});
+
+test("briefFit rewards high cosine similarity between photoBriefEmbedding and song.brief_embedding, weighted at 20", () => {
+  const song = makeSong({ brief_embedding: [1, 0, 0] });
+  const req = makeRequest({ photoBriefEmbedding: [1, 0, 0] });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results[0].scoreComponents.briefSimilarity, 1);
+  assert.equal(results[0].scoreComponents.briefFit, 20);
+});
+
+test("briefFit scales down for a dissimilar brief embedding", () => {
+  const song = makeSong({ brief_embedding: [0, 1, 0] });
+  const req = makeRequest({ photoBriefEmbedding: [1, 0, 0] });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results[0].scoreComponents.briefSimilarity, 0);
+  assert.equal(results[0].scoreComponents.briefFit, 0);
 });
