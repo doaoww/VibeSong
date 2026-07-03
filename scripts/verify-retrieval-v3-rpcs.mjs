@@ -51,6 +51,31 @@ if (!anySong?.[0]) {
     process.exit(1);
   }
   console.log("   OK - update_song accepted the new parameters");
+
+  console.log("3. Confirming match_songs_by_brief actually returns brief_embedding...");
+  const { data: matchAfterUpdate, error: matchErr } = await supabase.rpc("match_songs_by_brief", {
+    p_brief_vector: fakeVector,
+    p_match_count: 50,
+  });
+  if (matchErr) {
+    console.error("   FAIL:", matchErr.message);
+    process.exit(1);
+  }
+  const updatedRow = matchAfterUpdate.find((r) => r.id === anySong[0].id);
+  if (!updatedRow) {
+    console.error("   FAIL: the song just updated with a real embedding didn't come back from match_songs_by_brief");
+    process.exit(1);
+  }
+  if (!Array.isArray(updatedRow.brief_embedding) || updatedRow.brief_embedding.length !== 1536) {
+    console.error(
+      "   FAIL: match_songs_by_brief did not return brief_embedding as a 1536-length array " +
+        "(this is the 2026-07-03 bug where the RPC computed distance from brief_embedding " +
+        "but never projected the column itself, silently keeping briefFit at 0 forever) - got:",
+      updatedRow.brief_embedding
+    );
+    process.exit(1);
+  }
+  console.log("   OK - brief_embedding round-trips through match_songs_by_brief correctly");
 }
 
 console.log("\nAll retrieval v3 RPCs verified.");

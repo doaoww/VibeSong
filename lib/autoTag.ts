@@ -343,6 +343,9 @@ export async function autoTagSong(
 
   const gptData = parseGptTagResponse(rawGpt);
 
+  // Intentionally not gated on ENABLE_BRIEF_POOL: every newly tagged song gets
+  // embedded so the catalog is ready the moment Phase 2 flips the flag on,
+  // instead of needing a separate backfill pass for songs added in between.
   let briefEmbedding: number[] = [];
   if (gptData.music_supervisor_summary) {
     try {

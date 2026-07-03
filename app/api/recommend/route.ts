@@ -60,7 +60,16 @@ export async function POST(req: NextRequest) {
     const musicDirection: { genres: string[]; references: string[]; avoid: string[] } =
       body.musicDirection ?? { genres: [], references: [], avoid: [] };
     const briefPoolEnabled = process.env.ENABLE_BRIEF_POOL === "true";
-    const photoBriefEmbeddingRaw: number[] | null = Array.isArray(body.photoBriefEmbedding) ? body.photoBriefEmbedding : null;
+    // Treat an empty array the same as missing: /api/analyze returns
+    // photoBriefEmbedding: [] whenever GPT omitted musicBrief or embedText
+    // failed, and [] is truthy in JS — without this check it would reach
+    // searchCatalogByBrief([], ...) and match_songs_by_brief's vector(1536)
+    // param, which errors on a zero-length array and 500s the whole request
+    // instead of degrading briefFit to 0 like every other missing-embedding case.
+    const photoBriefEmbeddingRaw: number[] | null =
+      Array.isArray(body.photoBriefEmbedding) && body.photoBriefEmbedding.length > 0
+        ? body.photoBriefEmbedding
+        : null;
     const photoBriefEmbedding = briefPoolEnabled ? photoBriefEmbeddingRaw : null;
 
     if (!photoVectorArray || photoVectorArray.length !== 10) {

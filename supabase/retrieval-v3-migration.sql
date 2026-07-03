@@ -6,7 +6,16 @@
 -- p_emotional_vector is already handled).
 --
 -- Apply this against the SUPABASE_CATALOG_URL project (not the main auth
--- project) via the Supabase SQL editor. Idempotent - safe to re-run.
+-- project) via the Supabase SQL editor. Idempotent - safe to re-run, including
+-- re-running the whole file again after the 2026-07-03 fix below (DROP+CREATE
+-- OR REPLACE on unchanged parameters is safe).
+--
+-- 2026-07-03 fix: match_songs_by_brief originally computed `distance` from
+-- s.brief_embedding but never returned brief_embedding itself in RETURNS
+-- TABLE/SELECT, so every candidate reaching the scoring layer had
+-- song.brief_embedding = undefined and briefFit was permanently 0 even with
+-- ENABLE_BRIEF_POOL=true. Found by the Phase 1 final whole-branch review.
+-- Now returns brief_embedding as a real output column.
 
 ALTER TABLE public.songs ADD COLUMN IF NOT EXISTS music_supervisor_summary text;
 ALTER TABLE public.songs ADD COLUMN IF NOT EXISTS brief_embedding vector(1536);
@@ -24,7 +33,7 @@ RETURNS TABLE (
   modern_aesthetic_tags text[], story_context_tags text[],
   final_confidence float, needs_review boolean, itunes_preview_url text,
   artwork_url text, apple_music_url text, youtube_id text,
-  quality_score float, distance float
+  quality_score float, brief_embedding vector(1536), distance float
 )
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -35,6 +44,7 @@ BEGIN
     s.story_intent_tags, s.modern_aesthetic_tags, s.story_context_tags,
     s.final_confidence, s.needs_review, s.itunes_preview_url, s.artwork_url,
     s.apple_music_url, s.youtube_id, s.quality_score,
+    s.brief_embedding,
     (s.brief_embedding <=> p_brief_vector) AS distance
   FROM public.songs s
   WHERE s.brief_embedding IS NOT NULL
