@@ -292,4 +292,40 @@ Five risks were raised before greenlighting implementation. Findings and, where 
 12. **Stage B:** backfill the remaining catalog, re-run the eval set against the full catalog, human review, decide whether to flip `ENABLE_BRIEF_POOL` in production.
 13. Only after a positive decision: weight tuning based on real comparison data — explicitly out of scope for Phase 1's implementation plan.
 
-**Explicitly deferred, not part of either phase:** `photoConfidence` recalibration, `STORY_CONTEXT_TAGS` vocabulary expansion, requested-vibe UI, Spotify, `lib/matching.ts` cleanup.
+**Explicitly deferred, not part of either phase:** `photoConfidence` recalibration, `STORY_CONTEXT_TAGS` vocabulary expansion, Spotify, `lib/matching.ts` cleanup, and requested-vibe UI — see Phase 3 below for why Phase 1/2 don't need to be redesigned when that ships.
+
+---
+
+## Phase 3 (Future — Compatibility Notes Only, Not Implemented Here)
+
+**Not built, not planned, not scheduled by this spec.** The product requirement is real (user should be able to optionally type/select a desired vibe — "make him regret losing me," "expensive but sad," "Russian indie, cold and romantic," "hot but not basic," "soft romantic, not too sad" — before matching), but implementing it is out of scope for this spec. This section exists solely to check Phase 1/2's design choices against it so nothing built now has to be unwound later.
+
+### Conceptual model
+
+```
+photo musicBrief (Layer 1)  +  requested vibe (text)  →  final recommendation brief  →  buildBriefText()  →  embed  →  Pool 5 / briefFit
+```
+
+The requested vibe is a **modifier on the brief, not a replacement for it** — same "guide, not override" principle the vector path already implements via `applyVibeCap` (`lib/vectorMath.ts`), now applied one layer up, to the text brief instead of the 10-dim vector. Worked example from the product requirement: a soft morning selfie + a requested vibe of "dark toxic revenge" should reconcile to something like "quiet confidence / soft revenge," not a literal aggressive-trap read that ignores what's actually in the photo. The reconciliation has to be anchored to the photo; the requested vibe reinterprets, it doesn't overwrite.
+
+### Why Phase 1/2, as spec'd, don't block this
+
+This is the actual point of this section — checking, not designing:
+
+- **`MusicSupervisorBrief` (Layer 1/2) is already the right merge target.** Because it's a typed, structured object rather than a raw string, a future reconciliation step can produce "photo brief adjusted by requested vibe" as another instance of the *same* type, then hand it to the *same*, unmodified `buildBriefText()`. No new concatenation logic needed.
+- **`storyIntentTags`, `antiTags` request-body channels already exist for exactly this.** `/api/recommend`'s `RecommendRequest` (v2) already carries these as merged-from-multiple-sources fields — the v2 implementation plan's own self-review notes flagged `req.storyIntentTags` as reserved for "(future) requested vibe" input, not just the photo. Parsing requested-vibe text into story-intent tags is new work; the channel it flows into is not.
+- **`mergeGenreScores`/`mergeLikedArtists` (`lib/matchSignals.ts`) already merge a second signal source into taste.** Today they merge `music_direction.genres/.avoid/.references` from the photo; a requested vibe's genre/artist hints ("Russian indie") would go through the identical merge functions, not new ones.
+- **`gateEnergyBounds` already takes bounds from one source and adjusts them.** A requested vibe's energy/intensity preference ("not too sad," implying a narrower or shifted range) would be one more input merged into the bounds *before* this existing gate runs — the gate itself doesn't change.
+- **`blendQueryVector`'s 3-signal path is already implemented**, just unwired (`vibeArr`/`boosts`, `lib/vectorMath.ts`) — the *numeric* half of "requested vibe modifies retrieval" already exists in code and has been sitting dormant behind `/api/recommend`'s `hasVibe = Object.keys(vibeBoosts).length > 0` always evaluating false, since no UI has ever populated `vibeBoosts`. Phase 3's job on the vector side is wiring a UI to it, not building it.
+- **`/api/recommend`'s `photoBriefEmbedding` field doesn't need renaming.** When Phase 3 ships, whatever calls `/api/recommend` just puts the *merged* embedding under that same field instead of the plain photo one — the field is already understood as "the brief embedding to use for retrieval," not "necessarily the unmodified photo's."
+
+### What's genuinely new when this gets built (not scoped, not estimated here)
+
+- A GPT reconciliation step producing an adjusted `MusicSupervisorBrief` from (photo's own brief + raw requested-vibe text), instructed to stay anchored to the photo and only reinterpret conflicting requests into a compatible register — the mechanism for this (one GPT call vs. rule-based text merging, where it lives in the request pipeline) is undesigned.
+- Parsing raw requested-vibe text into the existing structured channels above (closest-canonical-tag mapping for story intent, anti-tags, genre/artist hints, energy/intensity delta).
+- **Language hint handling is genuinely new surface area — no existing channel.** "Russian indie" implies a language preference; today `languages`/`languageOpenness` come only from onboarding taste. Whether a requested-vibe language hint should soft-nudge within the existing openness modes or needs a new mechanism entirely is an open question for that future spec, not resolved here.
+- Requested-vibe debug logging (raw text, parsed hints, before/after brief diff, before/after `briefSimilarity`) — same heavy-logging philosophy as Layers 5/6, extended to cover the new input.
+
+### One invariant this adds to Phase 1/2's scope now
+
+The photo-only `musicBrief` produced by Layer 1 must remain what it is today — a pure read of the photo, never mutated in place. A future vibe-reconciliation step produces a **separate** merged brief object; it does not overwrite the photo's own `MusicSupervisorBrief`. This costs nothing to guarantee now (Layer 1 already returns `musicBrief` as its own field) and keeps the pure photo signal available for comparison/debugging indefinitely, including after Phase 3 ships.
