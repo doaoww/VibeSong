@@ -26,6 +26,8 @@ export interface CatalogSong {
   evidence_sources?: string[];
   tagging_version?: string;
   vibe_summary?: string | null;
+  music_supervisor_summary?: string | null;
+  brief_embedding?: number[] | null;
   tag_source?: string;
   manual_reviewed_at?: string | null;
   save_count?: number;
@@ -48,6 +50,8 @@ export interface SongPatch {
   modern_aesthetic_tags: string[];
   story_context_tags?: string[];
   vibe_summary?: string;
+  music_supervisor_summary?: string;
+  brief_embedding?: number[];
   /** Action flag, not a field mirror — see update_song's p_approve in songs-rpc.sql. */
   approve?: boolean;
 }
@@ -74,6 +78,9 @@ export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
   const vectorArray = vectorToArray(data.emotional_vector);
   const vectorString = `[${vectorArray.join(",")}]`;
   const youtubeId = (data as AutoTagResult & { youtube_id?: string | null }).youtube_id ?? null;
+  const briefEmbeddingString = data.brief_embedding && data.brief_embedding.length
+    ? `[${data.brief_embedding.join(",")}]`
+    : null;
 
   const { data: id, error } = await supabase.rpc("create_song", {
     p_title:                 data.title,
@@ -105,6 +112,8 @@ export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
     p_evidence_sources:      data.evidence_sources,
     p_tagging_version:       data.tagging_version,
     p_vibe_summary:          data.vibe_summary,
+    p_music_supervisor_summary: data.music_supervisor_summary ?? null,
+    p_brief_embedding:          briefEmbeddingString,
   });
 
   if (error) {
@@ -117,6 +126,9 @@ export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
 }
 
 export async function updateSong(id: string, patch: Partial<SongPatch>): Promise<void> {
+  const briefEmbeddingString = patch.brief_embedding && patch.brief_embedding.length
+    ? `[${patch.brief_embedding.join(",")}]`
+    : null;
   const { error } = await supabase.rpc("update_song", {
     p_id:                    id,
     p_language:              patch.language              ?? null,
@@ -129,6 +141,8 @@ export async function updateSong(id: string, patch: Partial<SongPatch>): Promise
     p_story_context_tags:    patch.story_context_tags    ?? null,
     p_vibe_summary:          patch.vibe_summary          ?? null,
     p_approve:               patch.approve                ?? false,
+    p_music_supervisor_summary: patch.music_supervisor_summary ?? null,
+    p_brief_embedding:          briefEmbeddingString,
   });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }
@@ -196,6 +210,18 @@ export async function searchCatalogByTaste(
     p_match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalogByTaste failed: ${error.message}`);
+  return (data ?? []) as CatalogSong[];
+}
+
+export async function searchCatalogByBrief(
+  embedding: number[],
+  matchCount = 25
+): Promise<CatalogSong[]> {
+  const { data, error } = await supabase.rpc("match_songs_by_brief", {
+    p_brief_vector: embedding,
+    p_match_count: matchCount,
+  });
+  if (error) throw new Error(`searchCatalogByBrief failed: ${error.message}`);
   return (data ?? []) as CatalogSong[];
 }
 

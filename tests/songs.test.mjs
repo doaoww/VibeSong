@@ -82,3 +82,48 @@ test("updateSong forwards story_context_tags and vibe_summary to update_song", a
   assert.deepEqual(captured.args.p_story_context_tags, ["beach"]);
   assert.equal(captured.args.p_vibe_summary, "a sunny afternoon feeling");
 });
+
+test("searchCatalogByBrief calls match_songs_by_brief with the embedding and a default match count", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => {
+    captured = { name, args };
+    return { data: [{ id: "1" }], error: null };
+  };
+  const embedding = [0.1, 0.2, 0.3];
+  const result = await songsLib.searchCatalogByBrief(embedding);
+  assert.equal(captured.name, "match_songs_by_brief");
+  assert.deepEqual(plain(captured.args), { p_brief_vector: embedding, p_match_count: 25 });
+  assert.deepEqual(result, [{ id: "1" }]);
+});
+
+test("searchCatalogByBrief accepts a custom match count", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: [], error: null }; };
+  await songsLib.searchCatalogByBrief([0.1], 10);
+  assert.equal(captured.args.p_match_count, 10);
+});
+
+test("searchCatalogByBrief throws with a descriptive message on RPC error", async () => {
+  mockSupabase.rpc = async () => ({ data: null, error: { message: "boom" } });
+  await assert.rejects(() => songsLib.searchCatalogByBrief([0.1]), /searchCatalogByBrief failed: boom/);
+});
+
+test("updateSong forwards music_supervisor_summary and brief_embedding to update_song", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.updateSong("song-id", {
+    music_supervisor_summary: "a quiet, unhurried night song",
+    brief_embedding: [0.1, 0.2],
+  });
+  assert.equal(captured.name, "update_song");
+  assert.equal(captured.args.p_id, "song-id");
+  assert.equal(captured.args.p_music_supervisor_summary, "a quiet, unhurried night song");
+  assert.equal(captured.args.p_brief_embedding, "[0.1,0.2]");
+});
+
+test("updateSong passes null for brief_embedding when not provided", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.updateSong("song-id", { language: "English" });
+  assert.equal(captured.args.p_brief_embedding, null);
+});
