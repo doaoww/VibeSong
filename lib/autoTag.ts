@@ -403,3 +403,61 @@ export async function autoTagSong(
     energy: gptData.emotional_vector.energy,
   };
 }
+
+export function buildMusicSupervisorBriefPrompt(title: string, artist: string): string {
+  return `You are a music supervisor's assistant. For the song "${title}" by ${artist}, write a short structured brief on what this song is FOR emotionally — when another human would reach for it and why.
+
+Return ONLY valid JSON (no markdown) with this exact structure:
+{
+  "musicSupervisorBrief": {
+    "narrative": "1-2 sentences: what this song is about, the story or feeling it carries",
+    "emotionalSubtext": "1 sentence: what's underneath the surface mood, if anything — irony, contrast, restraint",
+    "restraint": "understated | balanced | expressive",
+    "context": "1 sentence: what kind of moment or photo a music supervisor would reach for this song for",
+    "direction": "1-2 sentences: what this song emotionally delivers — energy character, sonic space",
+    "avoid": "0-1 sentence, optional: what this song should NOT be paired with — leave empty string if nothing is worth flagging"
+  }
+}`;
+}
+
+export interface GeneratedMusicSupervisorBrief {
+  brief: ReturnType<typeof parseMusicSupervisorBrief>;
+  summary: string;
+  embedding: number[];
+}
+
+/** Narrow, backfill-only GPT call — see Task 5 of the v3 implementation plan for why this is separate from autoTagSong()'s full tagging call. */
+export async function generateMusicSupervisorBrief(title: string, artist: string): Promise<GeneratedMusicSupervisorBrief> {
+  const prompt = buildMusicSupervisorBriefPrompt(title, artist);
+  let raw = "";
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 400,
+      temperature: 0,
+    });
+    raw = res.choices[0].message.content ?? "";
+  } catch (err) {
+    console.error("[generateMusicSupervisorBrief] GPT failed:", err);
+  }
+
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  let parsedRaw: unknown = {};
+  try {
+    parsedRaw = firstBrace !== -1 && lastBrace > firstBrace ? JSON.parse(cleaned.slice(firstBrace, lastBrace + 1)) : {};
+  } catch {
+    parsedRaw = {};
+  }
+
+  const rawBrief = parsedRaw && typeof parsedRaw === "object"
+    ? (parsedRaw as Record<string, unknown>).musicSupervisorBrief
+    : undefined;
+  const hasUsableBrief = !!rawBrief && typeof rawBrief === "object";
+  const brief = parseMusicSupervisorBrief(rawBrief);
+  const summary = hasUsableBrief ? buildBriefText(brief) : "";
+  const embedding = summary ? await embedText(summary) : [];
+  return { brief, summary, embedding };
+}

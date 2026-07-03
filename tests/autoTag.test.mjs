@@ -585,3 +585,45 @@ test("autoTagSong degrades to an empty brief_embedding when embedding generation
   assert.equal(loggedErrors.length, 1);
   assert.equal(loggedErrors[0][0], "[autoTag] brief embedding failed:");
 });
+
+test("buildMusicSupervisorBriefPrompt includes title, artist, and the brief JSON schema", () => {
+  const { buildMusicSupervisorBriefPrompt } = autoTag;
+  const prompt = buildMusicSupervisorBriefPrompt("Хочешь?", "Земфира");
+  assert.ok(prompt.includes("Хочешь?"));
+  assert.ok(prompt.includes("Земфира"));
+  assert.ok(prompt.includes("musicSupervisorBrief"));
+  assert.ok(prompt.includes("narrative"));
+});
+
+test("generateMusicSupervisorBrief parses GPT's response and embeds the resulting summary", async () => {
+  resetHarness();
+  stubState.embedding = [0.4, 0.5, 0.6];
+  stubState.openaiContent = JSON.stringify({
+    musicSupervisorBrief: {
+      narrative: "A driving, defiant breakup anthem.",
+      emotionalSubtext: "none, literal.",
+      restraint: "expressive",
+      context: "post-breakup, walking away with your head up.",
+      direction: "big, propulsive, doesn't apologize.",
+      avoid: "nothing quiet or tentative",
+    },
+  });
+
+  const { generateMusicSupervisorBrief } = loadTsModule("lib/autoTag.ts");
+  const result = await generateMusicSupervisorBrief("Some Song", "Some Artist");
+
+  assert.equal(result.brief.restraint, "expressive");
+  assert.ok(result.summary.includes("A driving, defiant breakup anthem."));
+  assert.ok(!result.summary.includes("tentative"));
+  assert.deepEqual(result.embedding, [0.4, 0.5, 0.6]);
+});
+
+test("generateMusicSupervisorBrief returns an empty embedding when GPT returns nothing usable", async () => {
+  resetHarness();
+  stubState.openaiContent = "not valid json at all";
+
+  const { generateMusicSupervisorBrief } = loadTsModule("lib/autoTag.ts");
+  const result = await generateMusicSupervisorBrief("Some Song", "Some Artist");
+
+  assert.equal(result.embedding.length, 0);
+});
