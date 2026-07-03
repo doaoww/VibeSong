@@ -24,6 +24,20 @@ A photo's "does this song belong here" signal is fundamentally a language proble
 
 ## Layer 1: Photo Side — `musicBrief` in `/api/analyze`
 
+**Shared structure, not free prose.** Both sides of the brief (photo and song, Layer 2) are instances of one shared TS type, defined once and imported by both prompts — this is the strongest available guarantee that the two embedding spaces stay comparable (see the Risk Review below for why "similarly worded prompts" alone isn't enough).
+
+```ts
+// lib/musicSupervisorBrief.ts
+export interface MusicSupervisorBrief {
+  narrative: string;          // photo: what's happening / what story it tells. song: what the song is about.
+  emotionalSubtext: string;   // gap between surface mood and what's really going on — "none, literal" if there isn't one
+  restraint: "understated" | "balanced" | "expressive";
+  context: string;            // photo: how private/public, who it's implicitly for. song: what moment a supervisor reaches for this song for.
+  direction: string;          // photo: what the song needs to emotionally DO here. song: what this song emotionally delivers.
+  avoid: string;               // optional, "" if nothing worth flagging — see Risk Review §2 for why this is NOT embedded
+}
+```
+
 Added to the existing GPT-4o vision call's JSON schema in `app/api/analyze/route.ts`, alongside `matchSignals` (both stay — v3 doesn't remove v2's tags):
 
 ```json
@@ -31,40 +45,50 @@ Added to the existing GPT-4o vision call's JSON schema in `app/api/analyze/route
   "narrative": "1-2 sentences: what's happening, what story this photo is telling",
   "emotionalSubtext": "1 sentence: the gap between surface mood and what's actually going on underneath — or explicitly 'none, this is literal' when there isn't one",
   "restraint": "understated | balanced | expressive",
-  "intimacyAudience": "1 sentence: how private/public this reads, who it's implicitly for",
-  "musicDirection": "1-2 sentences, feeling-first not genre-first: what the song needs to emotionally DO for this photo"
-}
+  "context": "1 sentence: how private/public this reads, who it's implicitly for",
+  "direction": "1-2 sentences, feeling-first not genre-first: what the song needs to emotionally DO for this photo",
+  "avoid": "0-1 sentence, optional: what the music should NOT do for this photo — leave empty string if nothing is worth flagging"
+},
+"whyThisPhotoNeedsMusic": "1-2 sentences, debug-only: in plain language, why does this specific photo call for music at all, and what is GPT actually seeing? Not used in retrieval — purely so a human reviewing logs can sanity-check whether GPT understood the photo."
 ```
 
 Field rules:
-- `narrative`, `emotionalSubtext`, `intimacyAudience`, `musicDirection`: free text, no closed vocabulary. Server-side validation trims whitespace, coerces non-strings to `""`, and caps each field at 300 characters (defends against a pathological GPT response inflating embedding token cost — not a quality constraint, just a sanity ceiling well above any realistic 1-2 sentence output).
+- `narrative`, `emotionalSubtext`, `context`, `direction`, `avoid`: free text, no closed vocabulary. Server-side validation trims whitespace, coerces non-strings to `""`, and caps each field at 300 characters (defends against a pathological GPT response inflating embedding token cost — not a quality constraint, just a sanity ceiling well above any realistic 1-2 sentence output).
 - `restraint`: closed 3-value enum (`understated`/`balanced`/`expressive`), validated against a `Set`; invalid or missing values default to `"balanced"`. This is the one non-prose field — kept as a coarse, cheap, loggable signal for the evaluation phase, **not** as a retrieval filter or scoring input in this spec.
+- `whyThisPhotoNeedsMusic`: free text, same length cap, **lives outside `MusicSupervisorBrief` entirely** — a sibling field in the `/api/analyze` response, never passed to `buildBriefText()`, never embedded, never scored. Its only purpose is to show up in logs/debug tooling next to `musicBrief` so a human can eyeball whether GPT's structured answer actually reflects what it saw.
 
-New pure module `lib/musicBrief.ts` (mirrors `lib/matchSignals.ts`):
-- `parseMusicBrief(raw: unknown): MusicBrief` — validates/defaults the shape above.
-- `buildBriefText(brief: MusicBrief): string` — deterministic template, not GPT's job:
+New pure module `lib/musicSupervisorBrief.ts` (mirrors `lib/matchSignals.ts`, and — per the point above — is shared by both the photo and song sides rather than duplicated):
+- `parseMusicSupervisorBrief(raw: unknown): MusicSupervisorBrief` — validates/defaults the shape above. Used by both `/api/analyze` and `lib/autoTag.ts`.
+- `buildBriefText(brief: MusicSupervisorBrief): string` — one shared, deterministic template, not GPT's job, used identically by both sides:
+  ```ts
+  `${brief.narrative} ${brief.emotionalSubtext} Restraint: ${brief.restraint}. ${brief.context} ${brief.direction}`
   ```
-  `${narrative} ${emotionalSubtext} Restraint: ${restraint}. ${intimacyAudience} ${musicDirection}`
-  ```
-  This concatenated string is what actually gets embedded. Keeping the sub-fields separate (rather than asking GPT for one free-form paragraph) preserves per-field debuggability in logs while still producing one coherent text block for the embedding call.
+  Note `avoid` is deliberately **not** included here — see Risk Review §2. Keeping the sub-fields structured (rather than asking GPT for one free-form paragraph) preserves per-field debuggability in logs while still producing one coherent text block for the embedding call, and using literally the same function on both sides removes an entire class of "did the two prompts actually stay in sync" risk.
 
-`/api/analyze` calls a new `embedText()` helper (Layer 3) on `buildBriefText(musicBrief)` after parsing GPT's response, and returns `photoBriefEmbedding: number[]` (1536 floats) in the response body alongside the existing `matchSignals`/`photoVectorArray`/`photoConfidence`.
+`/api/analyze` calls the new `embedText()` helper (Layer 3) on `buildBriefText(musicBrief)` after parsing GPT's response, and returns `photoBriefEmbedding: number[]` (1536 floats), `musicBrief`, and `whyThisPhotoNeedsMusic` in the response body alongside the existing `matchSignals`/`photoVectorArray`/`photoConfidence`.
 
 ---
 
 ## Layer 2: Song Side — `music_supervisor_summary`
 
-Extends the existing single GPT-4o tagging call in `lib/autoTag.ts` (`buildGptTagPrompt`/`parseGptTagResponse`), not a new call:
+Extends the existing single GPT-4o tagging call in `lib/autoTag.ts` (`buildGptTagPrompt`/`parseGptTagResponse`), not a new call — GPT is asked for the **same structured `MusicSupervisorBrief` shape** defined in Layer 1, not a free-form paragraph:
 
 ```json
-"music_supervisor_summary": "2-4 sentences, written as a music supervisor's note on what this song is FOR emotionally — narrative fit, energy character, sonic space, when to reach for it and when not to"
+"musicSupervisorBrief": {
+  "narrative": "1-2 sentences: what this song is about, the story or feeling it carries",
+  "emotionalSubtext": "1 sentence: what's underneath the surface mood, if anything — irony, contrast, restraint",
+  "restraint": "understated | balanced | expressive",
+  "context": "1 sentence: what kind of moment or photo a music supervisor would reach for this song for",
+  "direction": "1-2 sentences: what this song emotionally delivers — energy character, sonic space",
+  "avoid": "0-1 sentence, optional: what this song should NOT be paired with — leave empty string if nothing is worth flagging"
+}
 ```
 
-**Deliberately mirrored instruction language with the photo-side prompt.** This is the one real technical risk in this design: embedding similarity is sensitive to the *register* of the text, not just its content — if the photo brief reads like clinical analyst notes and the song brief reads like Spotify editorial copy, `briefFit` will partly measure writing-style similarity instead of emotional-fit similarity. Both prompts are built from a shared instruction fragment ("write as a music supervisor briefing another human on why this [photo/song] calls for the kind of music it does") to keep the two embedding spaces comparable.
+`parseMusicSupervisorBrief()` and `buildBriefText()` (Layer 1, `lib/musicSupervisorBrief.ts`) are reused verbatim here — **this is the actual enforcement mechanism for embedding-space compatibility**, not prompt-wording discipline. Both prompts still need separately-written per-field instructions (a photo and a song are different objects — `direction` means "what the song should do" on one side and "what the song does" on the other, and that difference is real and necessary), but the object shape, the field set, and — critically — the concatenation code that turns the structured answer into embedding input are identical, so there is no code path where the two sides could silently drift into different formats.
 
-`music_supervisor_summary` is a **new column**, not a repurposing of the existing `vibe_summary` (a shorter display blurb already used by the admin UI and `update_song`'s `p_vibe_summary` — changing its meaning would be a silent behavior change elsewhere).
+`music_supervisor_summary` (the DB column) stores `buildBriefText(musicSupervisorBrief)` — the concatenated string, not the raw structured JSON. This keeps the schema to one text column plus the embedding, as originally scoped; the structured intermediate form exists only transiently during tagging, the same way it's transient (never persisted) on the photo side. It is a **new column**, not a repurposing of the existing `vibe_summary` (a shorter display blurb already used by the admin UI and `update_song`'s `p_vibe_summary` — changing its meaning would be a silent behavior change elsewhere).
 
-`autoTagSong()` calls `embedText()` on the new summary and attaches `brief_embedding: number[]` to `AutoTagResult`, same as the photo side.
+`autoTagSong()` calls `embedText()` on `buildBriefText(musicSupervisorBrief)` and attaches `brief_embedding: number[]` to `AutoTagResult`, same as the photo side.
 
 ---
 
@@ -168,23 +192,37 @@ final_score = clamp(raw_score - penalties, 0, 100)      (unchanged)
 
 ## Layer 6: Evaluation Set — Gate for Enabling the Flag
 
-`ENABLE_BRIEF_POOL` only flips to `true` after this comparison, not automatically after deployment.
+`ENABLE_BRIEF_POOL` only flips to `true` after this comparison, not automatically after deployment. Two stages, deliberately separated so a fundamentally bad result is caught before the full catalog is embedded (see Risk Review §3).
 
-**Test set:** 10-20 real photos spanning: selfie, night car photo, beach/sunset, cafe, outfit check, group photo, dark/moody photo, romantic photo (1-2 photos per category). Stored as a fixed reference set so the comparison is repeatable.
+**Stage A — small pilot, before full catalog backfill:**
+- A curated **50-100 song subset** spanning varied genres/moods/languages (not the full ~600-900 catalog) gets `music_supervisor_summary`/`brief_embedding` backfilled first.
+- Run the 10-20-photo test set (below) against just that subset.
+- **Embedding-space compatibility check (Risk Review §1):** before trusting any `briefSimilarity` number, compute song-to-song and photo-to-photo self-similarity alongside photo-to-song cross-similarity for the pilot set. If cross-similarity is uniformly low/flat while both sides show normal internal spread, that's a register-mismatch signature (the two sides aren't actually living in a comparable semantic space) — a distinct failure mode from "embeddings just don't help," and one this spec's shared-type/shared-function design (Layer 1/2) is meant to prevent, but should be verified empirically, not assumed.
+- If the pilot looks broken (flat/uninformative `briefSimilarity`, or the compatibility check fails), stop here — fix the prompts/shared function before spending the cost and time on a full backfill.
+
+**Stage B — full test, only after Stage A looks healthy:**
+- Backfill the remaining catalog.
+- Re-run the same 10-20-photo test set against the full catalog.
+
+**Test set:** 10-20 real photos spanning: selfie, night car photo, beach/sunset, cafe, outfit check, group photo, dark/moody photo, romantic photo (1-2 photos per category). Stored as a fixed reference set so the comparison is repeatable across both stages.
 
 **Procedure, per photo:**
 1. Run through `/api/analyze` → `/api/recommend` with `ENABLE_BRIEF_POOL=false` (today's v2 behavior) — capture top 8 + full `debugLog`.
-2. Run the same photo with `ENABLE_BRIEF_POOL=true` — capture top 8 + full `debugLog` (including `briefFit`/`briefSimilarity` per song).
-3. Compare: did the top 8 change at all? Where they differ, does the v3 pick read as a better emotional fit than the v2 pick, or just different? Check the `briefSimilarity` distribution — is it meaningfully discriminating (spread across the candidate pool) or flat (near-identical for every song, which would mean the brief text isn't carrying enough distinguishing signal)?
-4. **Exit condition:** the flag is enabled in production only after a human (product owner) reviews the paired before/after output across the full set and judges the v3 results visibly better on at least a majority of the test photos — not a threshold on an automated metric. This mirrors `docs/BRD.md`'s own Phase 1 business goal ("validate that AI matching feels accurate and magical"), which is a qualitative bar by design, not the separate quantitative >70%-save-rate success metric.
+2. Run the same photo with `ENABLE_BRIEF_POOL=true` — capture top 8 + full `debugLog` (including `briefFit`/`briefSimilarity` per song), plus `whyThisPhotoNeedsMusic` for a quick sanity read on whether GPT understood the photo at all.
+3. Compare: did the top 8 change at all? Where they differ, does the v3 pick read as a better emotional fit than the v2 pick, or just different? Check the `briefSimilarity` distribution — is it meaningfully discriminating (spread across the candidate pool) or flat?
+4. **Exit condition:** the flag is enabled in production only after a human (product owner) reviews the paired before/after output across Stage B's full-catalog run and judges the v3 results visibly better on at least a majority of the test photos — not a threshold on an automated metric. This mirrors `docs/BRD.md`'s own Phase 1 business goal ("validate that AI matching feels accurate and magical"), which is a qualitative bar by design, not the separate quantitative >70%-save-rate success metric.
 
 The exact mechanics of running `/api/analyze`/`/api/recommend` outside the authenticated UI flow for repeatable evaluation (both routes currently require a signed-in Supabase user) are an implementation detail for the plan, not resolved here — likely a small `ADMIN_SECRET`-gated eval script that calls the underlying `buildRecommendations`/pool functions directly rather than through the HTTP routes' auth layer.
 
 ---
 
-## Catalog Backfill (Parallel, Non-Blocking)
+## Catalog Backfill — Two Stages, Not Parallel/Non-Blocking
 
-New script mirroring `scripts/backfill-story-context-tags.mjs`, but lighter-weight — it does **not** re-run full `autoTagSong()` (which would re-hit iTunes/Last.fm/GPT-tagging pointlessly for songs already tagged). A narrow `generateMusicSupervisorSummary(title, artist)` GPT call + `embedText()`, writing only `music_supervisor_summary`/`brief_embedding` via the extended `update_song`. Idempotent, same re-run-safe pattern as the existing backfill script — recomputes the "missing" set from live data each run.
+Unlike v2's tag backfill (which was genuinely parallel and non-blocking), v3's backfill is deliberately **sequenced** per Layer 6/Risk Review §3: a small pilot must look healthy before the full catalog cost is spent.
+
+One script, mirroring `scripts/backfill-story-context-tags.mjs`'s idempotent pattern but lighter-weight — it does **not** re-run full `autoTagSong()` (which would re-hit iTunes/Last.fm/GPT-tagging pointlessly for songs already tagged). A narrow `generateMusicSupervisorBrief(title, artist)` GPT call (reusing the Layer 2 structured prompt) + `buildBriefText()` + `embedText()`, writing `music_supervisor_summary`/`brief_embedding` via the extended `update_song`. The script accepts an optional song-id list so the same code path serves both:
+- **Stage A:** run against a curated 50-100 song subset.
+- **Stage B:** run with no list (defaults to "all songs missing `brief_embedding`"), same recompute-from-live-data idempotency as the existing tag backfill script.
 
 A song missing `brief_embedding` (mid-backfill, or a song added the moment before this ships) simply doesn't appear in Pool 5 and scores `briefFit = 0` — not an error, not a hard block. Fully consistent with how v2 already treats songs missing `story_context_tags`.
 
@@ -196,14 +234,32 @@ A song missing `brief_embedding` (mid-backfill, or a song added the moment befor
 
 ---
 
+## Risk Review (Pre-Implementation)
+
+Five risks were raised before greenlighting implementation. Findings and, where warranted, spec changes:
+
+**1. Embedding-space compatibility.** Real risk, and the original draft under-addressed it — "similarly worded prompts" is not an enforcement mechanism, it's a hope. **Changed:** Layer 1/2 now define one shared `MusicSupervisorBrief` TS type and one shared `buildBriefText()` function, imported by both `/api/analyze` and `lib/autoTag.ts`. The two sides can still differ in per-field GPT instructions (they have to — a photo and a song aren't the same object), but the object shape and the code that turns structured output into embedding input are identical, not merely similar. Layer 6 Stage A also adds an explicit empirical check (self-similarity vs. cross-similarity) before trusting the pilot's numbers, rather than assuming the shared-code fix is sufficient on its own.
+
+**2. Strict brief format.** Agreed and already the design's intent, but the song side hadn't actually been written that way — v1 of this spec had `musicBrief` structured on the photo side and a single free-text blob on the song side, which is exactly the inconsistency being flagged. **Changed:** both sides now use the same 6-field `MusicSupervisorBrief` shape, including the new `avoid` field. One nuance worth stating explicitly: `avoid` is captured and logged but **deliberately excluded from `buildBriefText()`'s embedded text** on both sides. Text embedding models are known to handle negation unreliably — concatenating "avoid: euphoric party energy" into the text that gets embedded risks pulling the vector *toward* euphoric/party songs, the opposite of intent, because the embedding doesn't reliably encode the "avoid" framing as negation. `avoid` stays available in logs/debug output and is a natural candidate for a proper hard-filter mechanism (mirroring v2's `anti_tags` pattern) in a later spec — not folded into the embedding blindly now.
+
+**3. Small experiment before full rollout.** Agreed, and the original Layer 6 only partially matched this — it had the 10-20 photo set but implicitly ran against the full backfilled catalog, meaning the full ~600-900-song backfill had to finish before any signal was visible. **Changed:** Layer 6 now splits into Stage A (50-100 curated songs, fast, cheap, catches a broken approach before the full backfill cost is spent) and Stage B (full catalog, only after Stage A looks healthy).
+
+**4. `briefFit` weight.** Design already holds, no change needed. `briefFit` (weight 20) cannot override user taste, language, or hard filters — not because of its weight, but structurally: the Rules Layer (language, blocks, energy, anti-tags) runs entirely *before* scoring, so a song a strict language filter removes never reaches `briefFit` in the first place. Within scoring, 20 is deliberately below `tasteFit` (30) and `storyFit` (21), and the flag defaults off until Layer 6 sign-off — both already in the spec.
+
+**5. Debug field.** Agreed, added as `whyThisPhotoNeedsMusic` (Layer 1) — free text, sibling to `musicBrief`, explicitly excluded from `buildBriefText()`/embedding/scoring. Its only job is letting a human reviewing logs sanity-check whether GPT's structured answer reflects what it actually saw in the photo.
+
+---
+
 ## Explicit Invariants
 
 1. `ENABLE_BRIEF_POOL` defaults OFF. Enabling it in production is a deliberate, manual action gated by the Layer 6 evaluation review — never automatic on deploy.
 2. When the flag is on, Pool 5 and `briefFit` only activate per-song when both the photo's and that song's embeddings are present — a song mid-backfill degrades to `briefFit = 0`, never an error.
 3. `briefFit`'s starting weight (20) is explicitly provisional. This spec does not attempt to justify a "correct" final weight — that is deferred to a follow-up after the evaluation set produces real comparison data.
 4. All four existing v2 pools, the Rules Layer, and all existing scoring components are structurally unchanged. v3 is additive-only — nothing from `docs/superpowers/specs/2026-07-02-retrieval-v2-design.md` is removed or altered.
-5. Photo-side and song-side brief prompts must stay written from the same shared "music supervisor" instruction fragment. A stylistic drift between the two would silently corrupt `briefFit` (it would still compute a number, just not a meaningful one) — this is a correctness requirement, not a style preference.
+5. Photo-side and song-side briefs are both instances of the same `MusicSupervisorBrief` type, built into embedding text by the same `buildBriefText()` function — code-level sharing, not prompt-wording discipline. A stylistic drift between the two would silently corrupt `briefFit` (it would still compute a number, just not a meaningful one); Layer 6 Stage A's self-similarity/cross-similarity check is the empirical backstop.
 6. `briefFit` is not scaled by `photoConfidence`/`confFactor`, unlike `contextFit`/`vibeAestheticFit`/`storyFit` — a deliberate exception, not an oversight (see Layer 5).
+7. `avoid` is captured on both sides but never passed to `buildBriefText()` / never embedded — text embeddings handle negation unreliably, so folding "avoid: X" into the embedded text risks attracting rather than repelling X. `avoid` is logged for the evaluation phase and reserved as a future hard-filter candidate, not a v3 retrieval input.
+8. `whyThisPhotoNeedsMusic` is debug-only: never passed to `buildBriefText()`, never embedded, never scored, never gates anything. Its only consumer is a human reading logs.
 
 ---
 
@@ -220,19 +276,20 @@ A song missing `brief_embedding` (mid-backfill, or a song added the moment befor
 ## Phasing
 
 **Phase 1 (this spec, single implementation unit) — flag stays OFF throughout:**
-1. `lib/musicBrief.ts` — parse/validate `musicBrief`, `buildBriefText()`.
+1. `lib/musicSupervisorBrief.ts` — shared `MusicSupervisorBrief` type, `parseMusicSupervisorBrief()`, `buildBriefText()`.
 2. `lib/embeddings.ts` — `embedText()` helper.
-3. Extend `/api/analyze` prompt + response with `musicBrief` + `photoBriefEmbedding`.
-4. Extend `autoTagSong()`/`buildGptTagPrompt` with `music_supervisor_summary`; attach `brief_embedding`.
+3. Extend `/api/analyze` prompt + response with `musicBrief`, `whyThisPhotoNeedsMusic`, `photoBriefEmbedding`.
+4. Extend `autoTagSong()`/`buildGptTagPrompt` with `musicSupervisorBrief` (structured, reusing the Layer 1 type); attach `brief_embedding`.
 5. Schema migration: two new columns, `match_songs_by_brief` RPC, extended `update_song`/`create_song`.
 6. `searchCatalogByBrief` in `lib/db/songs.ts`.
 7. Wire Pool 5 + `briefFit`/`briefSimilarity` into `/api/recommend`, gated end-to-end by `ENABLE_BRIEF_POOL` (default off).
 8. Forward `photoBriefEmbedding` through `app/app/page.tsx`.
-9. Catalog backfill script for `music_supervisor_summary`/`brief_embedding`.
+9. Backfill script for `music_supervisor_summary`/`brief_embedding`, runnable against either a curated subset or the full catalog (Layer 6 Stage A vs. B use the same script with a different input list).
 
 **Phase 2 (separate, after Phase 1 ships with flag off):**
-10. Build the evaluation set + comparison tooling (Layer 6).
-11. Run the before/after comparison, human review, decide whether to flip `ENABLE_BRIEF_POOL` in production.
-12. Only after a positive decision: weight tuning based on real comparison data — explicitly out of scope for Phase 1's implementation plan.
+10. Build the 10-20-photo evaluation set + comparison tooling (Layer 6).
+11. **Stage A:** backfill a 50-100 song curated subset, run the eval set against it, check the self-similarity/cross-similarity compatibility signal. If broken, fix Layer 1/2 and repeat before proceeding.
+12. **Stage B:** backfill the remaining catalog, re-run the eval set against the full catalog, human review, decide whether to flip `ENABLE_BRIEF_POOL` in production.
+13. Only after a positive decision: weight tuning based on real comparison data — explicitly out of scope for Phase 1's implementation plan.
 
 **Explicitly deferred, not part of either phase:** `photoConfidence` recalibration, `STORY_CONTEXT_TAGS` vocabulary expansion, requested-vibe UI, Spotify, `lib/matching.ts` cleanup.
