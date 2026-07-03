@@ -124,6 +124,13 @@ while (true) {
   if (data.length < 500) break;
 }
 
+// NOTE: list_catalog's RETURNS TABLE doesn't project music_supervisor_summary/
+// brief_embedding, so this default (no --ids) filter currently can't see prior
+// backfill progress and treats every song as missing on every run -- not
+// idempotent. Only the --ids= mode (used for the Phase-1 spot-check) is
+// unaffected. Fix before running this in default mode against the full
+// catalog: extend list_catalog to project (at minimum) a boolean
+// has_brief_embedding column, applied via a manual Supabase SQL migration.
 const missing = requestedIds
   ? all.filter((s) => requestedIds.includes(s.id))
   : all.filter((s) => !s.music_supervisor_summary || !s.brief_embedding);
