@@ -19,6 +19,8 @@ import {
   MOOD_TAGS,
 } from "../../../lib/tagTaxonomy";
 import { parseMatchSignals } from "../../../lib/matchSignals";
+import { parseMusicSupervisorBrief, buildBriefText } from "../../../lib/musicSupervisorBrief";
+import { embedText } from "../../../lib/embeddings";
 import { vectorToArray } from "../../../lib/vectorMath";
 import type { ExifData } from "../../../store/useAppStore";
 
@@ -100,7 +102,16 @@ Return ONLY valid JSON, no markdown:
       "avoid": ["0-3 genre/style strings that would NOT fit"]
     },
     "energy_bounds": { "min": 0.0, "max": 0.0 }
-  }
+  },
+  "musicBrief": {
+    "narrative": "1-2 sentences: what's happening, what story this photo is telling",
+    "emotionalSubtext": "1 sentence: the gap between surface mood and what's actually going on underneath — or explicitly 'none, this is literal' when there isn't one",
+    "restraint": "understated | balanced | expressive",
+    "context": "1 sentence: how private/public this reads, who it's implicitly for",
+    "direction": "1-2 sentences, feeling-first not genre-first: what the song needs to emotionally DO for this photo",
+    "avoid": "0-1 sentence, optional: what the music should NOT do for this photo — leave empty string if nothing is worth flagging"
+  },
+  "whyThisPhotoNeedsMusic": "1-2 sentences, debug-only: in plain language, why does this specific photo call for music at all, and what is GPT actually seeing? Not used in retrieval — purely so a human reviewing logs can sanity-check whether GPT understood the photo."
 }
 NUMBER RULES:
 - energy, valence, brightness, intensity, vibeMetrics fields: floats 0.0–1.0
@@ -304,6 +315,11 @@ export async function POST(req: NextRequest) {
         : 0.5;
     const momentType: MomentType = result.momentType ?? "unknown";
     const matchSignals = parseMatchSignals(result.matchSignals, photoVector.energy);
+    const musicBrief = parseMusicSupervisorBrief(result.musicBrief);
+    const whyThisPhotoNeedsMusic =
+      typeof result.whyThisPhotoNeedsMusic === "string" ? result.whyThisPhotoNeedsMusic.trim().slice(0, 300) : "";
+    const briefText = buildBriefText(musicBrief);
+    const photoBriefEmbedding = briefText ? await embedText(briefText) : [];
 
     // Build photoVectorArray for pgvector queries
     const photoVectorArray = vectorToArray(photoVector);
@@ -318,7 +334,15 @@ export async function POST(req: NextRequest) {
 
     upsertContextVector(user.id, momentType, combined).catch(() => {});
 
-    return NextResponse.json({ ...result, photoVectorArray, photoConfidence, matchSignals });
+    return NextResponse.json({
+      ...result,
+      photoVectorArray,
+      photoConfidence,
+      matchSignals,
+      musicBrief,
+      whyThisPhotoNeedsMusic,
+      photoBriefEmbedding,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/api/analyze error:", message);
