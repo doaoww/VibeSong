@@ -104,7 +104,12 @@ export function buildRecommendations(
 ): { results: RecommendResult[]; debugLog: DebugEntry[] } {
   const debugLog: DebugEntry[] = [];
   const queryEnergy = req.queryVector[2]; // energy is index 2 in VECTOR_KEYS order
-  const energyTolerance = Math.max(0.2, (req.energyBounds.max - req.energyBounds.min) / 2);
+  // Floored at 0.3, not 0.2: GPT's energy_bounds are consistently narrow in
+  // practice (half-width ~0.1-0.15 on typical photos), so a 0.2 floor made this
+  // tolerance collapse to a near-constant 0.2 on almost every request — tighter
+  // than the fixed 0.5 tolerance it replaced, over-filtering candidates instead
+  // of the intended photo-aware behavior.
+  const energyTolerance = Math.max(0.3, (req.energyBounds.max - req.energyBounds.min) / 2);
   const confFactor = 0.5 + Math.max(0, Math.min(1, req.photoConfidence)) * 0.5;
 
   const scored: RecommendResult[] = [];
@@ -195,7 +200,7 @@ export function buildRecommendations(
     }
 
     // 4. Energy compatibility gap - tolerance derives from the photo's own
-    // energy_bounds, floored at 0.2 so an overly narrow GPT read can't over-filter.
+    // energy_bounds, floored at 0.3 so an overly narrow GPT read can't over-filter.
     if (Math.abs(song.energy - queryEnergy) > energyTolerance) {
       debugLog.push({
         id: song.id,

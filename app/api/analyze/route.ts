@@ -82,14 +82,14 @@ Return ONLY valid JSON, no markdown:
   "vibeCaption": "string",
   "vibeTags": ["string", "string", "string"],
   "momentType": "reflective-solo|social|nature-escape|urban|romance|high-energy|unknown",
-  "photoConfidence": 0.85,
+  "photoConfidence": 0.0,
   "photoVector": {
     "dreamy": 0.0, "nostalgia": 0.0, "energy": 0.0, "cinematic": 0.0,
     "darkness": 0.0, "confidence": 0.0, "intimacy": 0.0,
     "danceability": 0.0, "electronic": 0.0, "acoustic": 0.0
   },
   "matchSignals": {
-    "scene_context_tags": ["1-3 tags, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}"],
+    "scene_context_tags": ["1-3 tags — pick the CLOSEST matching tag(s) even if the fit is imperfect, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}. Never invent a tag that is not in this list — if truly nothing fits, return an empty array instead."],
     "story_intent_tags": ["1-3 tags, ONLY from this list: ${STORY_INTENT_TAGS.join(", ")}"],
     "modern_aesthetic_tags": ["0-3 tags, ONLY from this list: ${MODERN_AESTHETIC_TAGS.join(", ")}"],
     "mood_tags": ["1-2 tags, ONLY from this list: ${MOOD_TAGS.join(", ")}"],
@@ -104,10 +104,11 @@ Return ONLY valid JSON, no markdown:
 }
 NUMBER RULES:
 - energy, valence, brightness, intensity, vibeMetrics fields: floats 0.0–1.0
-- photoConfidence: float 0.0–1.0
+- photoConfidence: float 0.0–1.0 — calibrate genuinely per photo, do not default to a fixed value. Use 0.2-0.4 for dark, blurry, cluttered, or ambiguous photos where the vibe read is a guess; 0.5-0.7 when some signals are mixed or unclear; 0.8-0.95 only for a photo whose mood is genuinely obvious and unambiguous. Most photos should NOT land at exactly 0.85-0.9 — vary this honestly.
 - photoVector fields: all floats 0.0–1.0
 - vibeTags: exactly 3
-- energy_bounds: floats 0.0-1.0 describing how tightly a fitting song's energy should match this specific photo. Narrow (e.g. min 0.15 / max 0.30) for a still, unambiguous moment; wider (e.g. min 0.2 / max 0.55) if the photo's energy is more open to interpretation.`;
+- energy_bounds: floats 0.0-1.0 describing how tightly a fitting song's energy should match this specific photo. Narrow (e.g. min 0.15 / max 0.30) for a still, unambiguous moment; wider (e.g. min 0.2 / max 0.55) if the photo's energy is more open to interpretation.
+- scene_context_tags: closed vocabulary is deliberately narrow — when a photo doesn't cleanly match any listed category (e.g. a landscape with no person, an object close-up), map it to the nearest listed category instead of inventing a new word, and prefer an empty array over a made-up tag.`;
 
 function buildPrompt(exifBlock: string): string {
   return BASE_SYSTEM_PROMPT + exifBlock;

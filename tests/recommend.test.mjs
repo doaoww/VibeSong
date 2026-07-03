@@ -187,14 +187,21 @@ test("needs_review song still appears but with a scoring penalty, not full hidin
   assert.equal(cleanResult.scoreComponents.needsReviewPenalty, 0);
 });
 
-test("energy tolerance derives from energyBounds half-width, floored at 0.2", () => {
-  const req = makeRequest({ energyBounds: { min: 0.3, max: 0.5 } });
-  const song = makeSong({ energy: 0.65, emotional_vector: [0.5, 0.5, 0.65, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
+test("energy tolerance derives from energyBounds half-width, floored at 0.3", () => {
+  const req = makeRequest({ energyBounds: { min: 0.3, max: 0.5 } }); // half-width 0.1, floored to 0.3
+  const song = makeSong({ energy: 0.75, emotional_vector: [0.5, 0.5, 0.75, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
   const { results } = rec.buildRecommendations(req, [song]);
-  assert.equal(results.length, 1, "0.15 gap should survive the 0.2 floor even though bounds half-width is only 0.1");
+  assert.equal(results.length, 1, "0.25 gap should survive the 0.3 floor even though bounds half-width is only 0.1");
 });
 
-test("energy tolerance widens with energyBounds beyond the 0.2 floor", () => {
+test("energy tolerance floor of 0.3 still rejects a gap beyond it", () => {
+  const req = makeRequest({ energyBounds: { min: 0.3, max: 0.5 } }); // half-width 0.1, floored to 0.3
+  const song = makeSong({ energy: 0.85, emotional_vector: [0.5, 0.5, 0.85, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 0, "0.35 gap exceeds the 0.3 floor and should be removed");
+});
+
+test("energy tolerance widens with energyBounds beyond the 0.3 floor", () => {
   const req = makeRequest({ energyBounds: { min: 0.1, max: 0.9 } });
   const song = makeSong({ energy: 0.85, emotional_vector: [0.5, 0.5, 0.85, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
   const { results } = rec.buildRecommendations(req, [song]);
