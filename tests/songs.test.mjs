@@ -43,7 +43,7 @@ test("searchCatalogByTags calls match_songs_by_tags with the given tag arrays an
     p_mood_tags: [],
     p_match_count: 25,
   });
-  assert.deepEqual(result, [{ id: "1" }]);
+  assert.deepEqual(plain(result), [{ id: "1", emotional_vector: null }]);
 });
 
 test("searchCatalogByTags accepts a custom match count", async () => {
@@ -65,7 +65,7 @@ test("searchCatalogByTaste calls match_songs_by_taste with artist patterns and p
   const result = await songsLib.searchCatalogByTaste({ artistPatterns: ["%The xx%"], positiveGenres: ["indie"] });
   assert.equal(captured.name, "match_songs_by_taste");
   assert.deepEqual(plain(captured.args), { p_artist_patterns: ["%The xx%"], p_positive_genres: ["indie"], p_match_count: 20 });
-  assert.deepEqual(result, [{ id: "2" }]);
+  assert.deepEqual(plain(result), [{ id: "2", emotional_vector: null }]);
 });
 
 test("searchCatalogByTaste throws with a descriptive message on RPC error", async () => {
@@ -93,7 +93,7 @@ test("searchCatalogByBrief calls match_songs_by_brief with the embedding and a d
   const result = await songsLib.searchCatalogByBrief(embedding);
   assert.equal(captured.name, "match_songs_by_brief");
   assert.deepEqual(plain(captured.args), { p_brief_vector: embedding, p_match_count: 25 });
-  assert.deepEqual(result, [{ id: "1" }]);
+  assert.deepEqual(plain(result), [{ id: "1", emotional_vector: null }]);
 });
 
 test("searchCatalogByBrief accepts a custom match count", async () => {
@@ -126,4 +126,68 @@ test("updateSong passes null for brief_embedding when not provided", async () =>
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
   await songsLib.updateSong("song-id", { language: "English" });
   assert.equal(captured.args.p_brief_embedding, null);
+});
+
+// PostgREST has no JSON mapping for pgvector's `vector` type - it returns
+// vector columns as their Postgres text output format ("[0.1,0.2,...]"), a
+// string, inside the JSON response. Every read path must parse that back
+// into a real number[] before it reaches cosine(), or the math silently
+// produces NaN. These tests lock in that parsing across every pool function.
+
+test("searchCatalog parses a string-form emotional_vector into a real number array", async () => {
+  mockSupabase.rpc = async () => ({
+    data: [{ id: "1", emotional_vector: "[0.4,0.6,0.3,0.5,0.2,0.4,0.5,0.3,0.1,0.7]" }],
+    error: null,
+  });
+  const [song] = await songsLib.searchCatalog([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+  assert.ok(Array.isArray(song.emotional_vector), "emotional_vector should be a real array, not a string");
+  assert.deepEqual(plain(song.emotional_vector), [0.4, 0.6, 0.3, 0.5, 0.2, 0.4, 0.5, 0.3, 0.1, 0.7]);
+});
+
+test("searchCatalog preserves a null emotional_vector instead of crashing", async () => {
+  mockSupabase.rpc = async () => ({ data: [{ id: "1", emotional_vector: null }], error: null });
+  const [song] = await songsLib.searchCatalog([0.5]);
+  assert.equal(song.emotional_vector, null);
+});
+
+test("searchCatalogByTags parses a string-form emotional_vector the same way", async () => {
+  mockSupabase.rpc = async () => ({
+    data: [{ id: "1", emotional_vector: "[1,0,0,0,0,0,0,0,0,0]" }],
+    error: null,
+  });
+  const [song] = await songsLib.searchCatalogByTags({ intentTags: ["healing era"] });
+  assert.deepEqual(plain(song.emotional_vector), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test("searchCatalogByTaste parses a string-form emotional_vector the same way", async () => {
+  mockSupabase.rpc = async () => ({
+    data: [{ id: "1", emotional_vector: "[1,0,0,0,0,0,0,0,0,0]" }],
+    error: null,
+  });
+  const [song] = await songsLib.searchCatalogByTaste({ positiveGenres: ["indie"] });
+  assert.deepEqual(plain(song.emotional_vector), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test("searchCatalogByBrief parses both string-form emotional_vector and brief_embedding", async () => {
+  mockSupabase.rpc = async () => ({
+    data: [{
+      id: "1",
+      emotional_vector: "[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]",
+      brief_embedding: "[0.1,0.2,0.3]",
+    }],
+    error: null,
+  });
+  const [song] = await songsLib.searchCatalogByBrief([0.1, 0.2, 0.3]);
+  assert.deepEqual(plain(song.emotional_vector), [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+  assert.ok(Array.isArray(song.brief_embedding), "brief_embedding should be a real array, not a string");
+  assert.deepEqual(plain(song.brief_embedding), [0.1, 0.2, 0.3]);
+});
+
+test("listSongs also parses emotional_vector (admin catalog listing hits the same bug)", async () => {
+  mockSupabase.rpc = async () => ({
+    data: [{ id: "1", emotional_vector: "[0.9,0.1,0,0,0,0,0,0,0,0]" }],
+    error: null,
+  });
+  const [song] = await songsLib.listSongs();
+  assert.deepEqual(plain(song.emotional_vector), [0.9, 0.1, 0, 0, 0, 0, 0, 0, 0, 0]);
 });

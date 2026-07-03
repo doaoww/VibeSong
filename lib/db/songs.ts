@@ -59,6 +59,37 @@ export interface SongPatch {
 // All write/read operations use RPC functions to bypass PostgREST's inability
 // to resolve the pgvector `vector` type in its schema cache.
 
+/**
+ * PostgREST has no native JSON mapping for the pgvector `vector` type, so it
+ * serializes it as its Postgres text output format ("[0.1,0.2,...]") inside
+ * the JSON response body — a string, not a JSON array. Every RPC returning
+ * emotional_vector/brief_embedding must run its rows through this before the
+ * values reach cosine() or anything else expecting number[]: an unparsed
+ * vector string silently produces NaN there (each character like "[" or "."
+ * coerces to NaN under numeric multiplication, and NaN propagates through
+ * the entire score sum without throwing).
+ */
+function parsePgVector(value: unknown): number[] | null {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) return value as number[];
+  if (typeof value !== "string" || value.length === 0) return null;
+  const inner = value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
+  if (!inner) return [];
+  return inner.split(",").map(Number);
+}
+
+function normalizeSong(row: CatalogSong): CatalogSong {
+  return {
+    ...row,
+    emotional_vector: parsePgVector(row.emotional_vector),
+    ...(row.brief_embedding !== undefined ? { brief_embedding: parsePgVector(row.brief_embedding) } : {}),
+  };
+}
+
+function normalizeSongs(rows: CatalogSong[]): CatalogSong[] {
+  return rows.map(normalizeSong);
+}
+
 export class DuplicateSongError extends Error {}
 
 export async function findSongByTitleArtist(
@@ -158,7 +189,7 @@ export async function listSongs(limit = 200, offset = 0): Promise<CatalogSong[]>
     p_offset: offset,
   });
   if (error) throw new Error(`listSongs failed: ${error.message}`);
-  return (data ?? []) as CatalogSong[];
+  return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
 export async function searchCatalog(
@@ -170,7 +201,7 @@ export async function searchCatalog(
     match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalog failed: ${error.message}`);
-  return (data ?? []) as CatalogSong[];
+  return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
 export interface TagPoolArgs {
@@ -192,7 +223,7 @@ export async function searchCatalogByTags(
     p_match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalogByTags failed: ${error.message}`);
-  return (data ?? []) as CatalogSong[];
+  return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
 export interface TastePoolArgs {
@@ -210,7 +241,7 @@ export async function searchCatalogByTaste(
     p_match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalogByTaste failed: ${error.message}`);
-  return (data ?? []) as CatalogSong[];
+  return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
 export async function searchCatalogByBrief(
@@ -222,7 +253,7 @@ export async function searchCatalogByBrief(
     p_match_count: matchCount,
   });
   if (error) throw new Error(`searchCatalogByBrief failed: ${error.message}`);
-  return (data ?? []) as CatalogSong[];
+  return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
 export async function recordFeedback(

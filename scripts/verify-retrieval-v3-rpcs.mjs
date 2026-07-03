@@ -66,16 +66,25 @@ if (!anySong?.[0]) {
     console.error("   FAIL: the song just updated with a real embedding didn't come back from match_songs_by_brief");
     process.exit(1);
   }
-  if (!Array.isArray(updatedRow.brief_embedding) || updatedRow.brief_embedding.length !== 1536) {
+  // PostgREST has no JSON mapping for pgvector's `vector` type, so this raw
+  // RPC call returns it as its Postgres text output format ("[0.1,0.2,...]"),
+  // a string - not a JS array. That's expected at this layer; lib/db/songs.ts's
+  // normalizeSong()/parsePgVector() is what turns it into a real number[]
+  // before it reaches cosine(). This check only confirms the RPC itself
+  // actually projects the column (the 2026-07-03 bug: it computed `distance`
+  // from brief_embedding but never returned the column itself).
+  const raw = updatedRow.brief_embedding;
+  const parsedLength = typeof raw === "string" ? raw.replace(/^\[|\]$/g, "").split(",").length : -1;
+  if (typeof raw !== "string" || parsedLength !== 1536) {
     console.error(
-      "   FAIL: match_songs_by_brief did not return brief_embedding as a 1536-length array " +
+      "   FAIL: match_songs_by_brief did not return brief_embedding as a 1536-value vector string " +
         "(this is the 2026-07-03 bug where the RPC computed distance from brief_embedding " +
         "but never projected the column itself, silently keeping briefFit at 0 forever) - got:",
-      updatedRow.brief_embedding
+      raw
     );
     process.exit(1);
   }
-  console.log("   OK - brief_embedding round-trips through match_songs_by_brief correctly");
+  console.log("   OK - brief_embedding round-trips through match_songs_by_brief correctly (raw pgvector text, 1536 values)");
 }
 
 console.log("\nAll retrieval v3 RPCs verified.");
