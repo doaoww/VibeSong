@@ -276,3 +276,89 @@ test("briefFit scales down for a dissimilar brief embedding", () => {
   assert.equal(results[0].scoreComponents.briefSimilarity, 0);
   assert.equal(results[0].scoreComponents.briefFit, 0);
 });
+
+test("flexible language penalty is strong enough to rank a matching-language song above an equally-strong mismatched one", () => {
+  const matched = makeSong({ id: "en", language: "English" });
+  const mismatched = makeSong({ id: "ru", language: "Russian" });
+  const req = makeRequest({ languages: ["English"], languageOpenness: "flexible" });
+  const { results } = rec.buildRecommendations(req, [matched, mismatched]);
+  assert.equal(results[0].id, "en", "explicitly preferred language should outrank an equally-strong mismatch");
+  assert.ok(
+    results[0].scoreComponents.finalScore > results[1].scoreComponents.finalScore,
+    "matched-language song should score strictly higher"
+  );
+});
+
+test("flexible language penalty outweighs a max-strength taste-fit boost, so an explicit language preference isn't drowned out", () => {
+  // mismatched song is a perfect taste match (liked artist + liked genre + aesthetic tag)
+  // but wrong language; matched song has none of those boosts but is the right language.
+  const mismatched = makeSong({
+    id: "ru",
+    language: "Russian",
+    artist: "Loved Artist",
+    genre_tags: ["pop"],
+    aesthetic_tags: ["dreamy"],
+  });
+  const matched = makeSong({ id: "en", language: "English", artist: "Nobody", genre_tags: [], aesthetic_tags: [] });
+  const req = makeRequest({
+    languages: ["English"],
+    languageOpenness: "flexible",
+    likedArtists: ["Loved Artist"],
+    genreScores: { pop: 1 },
+  });
+  const { results } = rec.buildRecommendations(req, [matched, mismatched]);
+  const en = results.find((r) => r.id === "en");
+  const ru = results.find((r) => r.id === "ru");
+  assert.ok(
+    en.scoreComponents.finalScore > ru.scoreComponents.finalScore,
+    "explicit language preference should outweigh a same-song-otherwise max tasteFit boost (max +30)"
+  );
+});
+
+test("no language penalty is applied when the user has no language preference set", () => {
+  const song = makeSong({ id: "ru", language: "Russian" });
+  const req = makeRequest({ languages: [], languageOpenness: "flexible" });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(
+    results[0].scoreComponents.languagePenalty,
+    0,
+    "empty languages means no preference was expressed, so nothing should be penalized"
+  );
+});
+
+test("mainstreamPenalty applies at reduced weight for balanced discoveryStyle", () => {
+  const mainstream = makeSong({ id: "m", popularity_tier: 5 });
+  const req = makeRequest({ discoveryStyle: "balanced" });
+  const { results } = rec.buildRecommendations(req, [mainstream]);
+  assert.ok(
+    results[0].scoreComponents.mainstreamPenalty < 0,
+    "balanced discovery should still mildly deprioritize highly mainstream tracks"
+  );
+  assert.ok(
+    results[0].scoreComponents.mainstreamPenalty > -10,
+    "balanced penalty should be lighter than the niche/hidden-gems penalty"
+  );
+});
+
+test("mainstreamPenalty does not apply for popular-ok discoveryStyle", () => {
+  const mainstream = makeSong({ id: "m", popularity_tier: 5 });
+  const req = makeRequest({ discoveryStyle: "popular-ok" });
+  const { results } = rec.buildRecommendations(req, [mainstream]);
+  assert.equal(results[0].scoreComponents.mainstreamPenalty, 0);
+});
+
+test("resolveRecentlyShownSongIds matches candidates against feedback by title+artist, case-insensitively", () => {
+  const candidates = [
+    { id: "1", title: "Anti-Hero", artist: "Taylor Swift" },
+    { id: "2", title: "Holostyak", artist: "Egor Kreed" },
+  ];
+  const feedback = [{ title: "anti-hero", artist: "taylor swift" }];
+  const ids = rec.resolveRecentlyShownSongIds(candidates, feedback);
+  assert.deepEqual(ids, ["1"]);
+});
+
+test("resolveRecentlyShownSongIds returns empty array when no feedback overlaps", () => {
+  const candidates = [{ id: "1", title: "Song A", artist: "Artist A" }];
+  const ids = rec.resolveRecentlyShownSongIds(candidates, []);
+  assert.deepEqual(ids, []);
+});

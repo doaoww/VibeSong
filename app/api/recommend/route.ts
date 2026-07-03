@@ -5,7 +5,7 @@ import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
 import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, type CatalogSong } from "../../../lib/db/songs";
 import { blendQueryVector } from "../../../lib/vectorMath";
-import { buildRecommendations } from "../../../lib/recommend";
+import { buildRecommendations, resolveRecentlyShownSongIds } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
 import {
   gateAntiTags,
@@ -137,6 +137,11 @@ export async function POST(req: NextRequest) {
 
     const discoveryStyle = taste.discoveryStyle === "hidden-gems" ? "niche" : taste.discoveryStyle;
 
+    // track_feedback doesn't store song id (see lib/db/trackFeedback.ts), so we
+    // match previously saved/skipped tracks back to this request's candidates by
+    // title+artist to stop repeatedly surfacing the same song across sessions.
+    const recentlyShownSongIds = resolveRecentlyShownSongIds(candidates, [...savedFeedback, ...skippedFeedback]);
+
     const { results: recommendations, debugLog } = buildRecommendations(
       {
         queryVector,
@@ -145,7 +150,7 @@ export async function POST(req: NextRequest) {
         discoveryStyle,
         blockedSongs: [],
         blockedArtists: aggregate.avoidArtists,
-        recentlyShownSongIds: [],
+        recentlyShownSongIds,
         genreScores: mergedGenreScores,
         likedArtists: mergedLikedArtists,
         storyIntentTags,

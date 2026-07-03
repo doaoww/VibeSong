@@ -101,6 +101,21 @@ function discoveryScore(popularityTier: number, discoveryStyle: string): number 
   }
 }
 
+// track_feedback rows only store title/artist, not song id (see lib/db/trackFeedback.ts),
+// so matching recently-shown candidates back to their catalog id has to go through
+// a normalized title+artist key rather than a direct id lookup.
+function feedbackKey(title: string, artist: string): string {
+  return `${title.trim().toLowerCase()}|||${artist.trim().toLowerCase()}`;
+}
+
+export function resolveRecentlyShownSongIds(
+  candidates: { id: string; title: string; artist: string }[],
+  feedback: { title: string; artist: string }[]
+): string[] {
+  const seen = new Set(feedback.map((f) => feedbackKey(f.title, f.artist)));
+  return candidates.filter((song) => seen.has(feedbackKey(song.title, song.artist))).map((song) => song.id);
+}
+
 export function buildRecommendations(
   req: RecommendRequest,
   candidates: CatalogSong[]
@@ -270,15 +285,30 @@ export function buildRecommendations(
     const qualityBonus = song.quality_score * 5;
 
     // Penalties
+    // -30 (not a lighter value) because it must outweigh a max-strength tasteFit
+    // boost (genre+artist+aesthetic, ~27.5) — otherwise an explicit language
+    // preference gets silently drowned out by an otherwise-great match. Guarded
+    // by req.languages.length > 0 so a user with no stated preference (empty
+    // languages, e.g. taste row missing/not yet onboarded) isn't penalized on
+    // every non-instrumental song uniformly — that provided zero discrimination
+    // and just added noise to the score.
     const languagePenalty =
-      req.languageOpenness === "flexible" && !languageMatches(song.language, req.languages)
-        ? -15
+      req.languages.length > 0 &&
+      req.languageOpenness === "flexible" &&
+      !languageMatches(song.language, req.languages)
+        ? -30
         : 0;
     const freshnessPenalty = req.recentlyShownSongIds.includes(song.id) ? -20 : 0;
+    // "balanced" still mildly deprioritizes mainstream (users never opted into it
+    // either), just lighter than the niche/hidden-gems penalty; "popular-ok" opts
+    // out entirely per its name.
     const mainstreamPenalty =
-      (req.discoveryStyle === "niche" || req.discoveryStyle === "hidden-gems") &&
       song.popularity_tier > 3
-        ? -10
+        ? req.discoveryStyle === "niche" || req.discoveryStyle === "hidden-gems"
+          ? -10
+          : req.discoveryStyle === "balanced"
+            ? -5
+            : 0
         : 0;
     const needsReviewPenalty = song.needs_review ? -12 : 0;
 
