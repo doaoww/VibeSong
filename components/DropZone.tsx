@@ -28,36 +28,6 @@ async function extractExif(file: File): Promise<ExifData> {
 
 const MAX_SIZE = 15 * 1024 * 1024;
 
-// Same ceiling as lib/imageCompression.ts — 4K+ video frames can be just as
-// large as an uncompressed photo, so the same defense applies here.
-const MAX_VIDEO_FRAME_DIMENSION = 1600;
-
-async function extractVideoFrame(
-  file: File
-): Promise<{ base64: string; objectUrl: string }> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    const objectUrl = URL.createObjectURL(file);
-    video.src = objectUrl;
-    video.crossOrigin = "anonymous";
-    video.muted = true;
-    video.currentTime = 1;
-    video.onseeked = () => {
-      const nativeWidth = video.videoWidth || 1280;
-      const nativeHeight = video.videoHeight || 720;
-      const scale = Math.min(1, MAX_VIDEO_FRAME_DIMENSION / Math.max(nativeWidth, nativeHeight));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(nativeWidth * scale));
-      canvas.height = Math.max(1, Math.round(nativeHeight * scale));
-      canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-      resolve({ base64, objectUrl });
-    };
-    video.onerror = reject;
-    video.load();
-  });
-}
-
 export default function DropZone({ onImageReady, disabled = false }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,23 +44,13 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
         setError("File too large. Max 15MB.");
         return;
       }
-      const isVideo = file.type.startsWith("video/");
       const isImage = file.type.startsWith("image/");
-      if (!isVideo && !isImage) {
-        setError("Only JPG, PNG, or MP4 files supported.");
+      if (!isImage) {
+        setError("Only JPG or PNG files supported.");
         return;
       }
       setIsProcessing(true);
       try {
-        if (isVideo) {
-          const [{ base64, objectUrl }, exifData] = await Promise.all([
-            extractVideoFrame(file),
-            Promise.resolve({} as ExifData),
-          ]);
-          onImageReady(base64, "image/jpeg", objectUrl, exifData);
-          return;
-        }
-
         const objectUrl = URL.createObjectURL(file);
         const [compressed, exifData] = await Promise.all([
           compressImageFile(file),
@@ -107,7 +67,7 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
         onImageReady(compressed.base64, compressed.mimeType, objectUrl, exifData);
       } catch (err) {
         console.error("[DropZone] file processing failed:", err);
-        setError("Couldn't prepare that file for upload. Please try another photo or video.");
+        setError("Couldn't prepare that file for upload. Please try another photo.");
       } finally {
         setIsProcessing(false);
       }
@@ -154,10 +114,10 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
         </div>
         <div>
           <p className="font-display font-bold text-white text-base">
-            {isProcessing ? "Preparing your photo..." : "Drop your photo or video"}
+            {isProcessing ? "Preparing your photo..." : "Drop your photo"}
           </p>
           <p className="text-on-surface-variant text-xs mt-1">
-            {isProcessing ? "Resizing for upload, just a moment" : "JPG, PNG, MP4 · Max 15MB"}
+            {isProcessing ? "Resizing for upload, just a moment" : "JPG, PNG · Max 15MB"}
           </p>
         </div>
         <div className="flex gap-3 w-full">
@@ -167,7 +127,6 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
             onClick={(e) => {
               e.stopPropagation();
               if (!isBusy && inputRef.current) {
-                inputRef.current.accept = "image/*";
                 inputRef.current.click();
               }
             }}
@@ -178,27 +137,12 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
             </span>
             Photo
           </button>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isBusy && inputRef.current) {
-                inputRef.current.accept = "video/*";
-                inputRef.current.click();
-              }
-            }}
-            className="flex-1 flex items-center justify-center gap-2 border border-white/25 text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:border-white/50 active:scale-95 transition-all disabled:pointer-events-none"
-          >
-            <span className="material-symbols-outlined text-[18px]">movie</span>
-            Video
-          </button>
         </div>
       </motion.div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,video/*"
+        accept="image/*"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
