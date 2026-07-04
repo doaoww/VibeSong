@@ -109,7 +109,7 @@ export default function AppUploadPage() {
       setAnalyzeTextIdx((i) => (i + 1) % t.home.analyzingTexts.length);
     }, 1500);
     return () => clearInterval(interval);
-  }, [pageState]);
+  }, [pageState, t]);
 
   const runAnalysis = useCallback(
     async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => {
@@ -210,6 +210,7 @@ export default function AppUploadPage() {
       setIsAnalyzing,
       router,
       likedSeedTracks,
+      t,
     ]
   );
 
@@ -425,7 +426,7 @@ export default function AppUploadPage() {
             <ContrastModeToggle />
 
             <p className="text-center text-xs text-on-surface-variant">
-              {t.home.freeMatches(credits)}
+              <span className="text-hot-pink">✦</span> {t.home.freeMatches(credits)}
             </p>
           </section>
         </div>

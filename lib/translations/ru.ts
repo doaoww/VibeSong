@@ -106,7 +106,7 @@ export const ru: Translation = {
     headingLine2: "Твой саундтрек.",
     subtitle: "Загрузи любое фото. ИИ считывает вайб и находит песни, которые подходят.",
     errorHeading: "Не удалось считать вайб фото",
-    freeMatches: (credits: number) => `✦ ${credits} бесплатных мэтчей · Любое фото подойдёт`,
+    freeMatches: (credits: number) => `${credits} бесплатных мэтчей · Любое фото подойдёт`,
     recentVibesHeading: "Недавние вайбы",
     seeAll: "Смотреть все",
   },
