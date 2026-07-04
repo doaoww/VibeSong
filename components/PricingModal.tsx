@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "../lib/translations/useTranslation";
 
 interface PricingModalProps {
   isOpen: boolean;
@@ -9,44 +10,46 @@ interface PricingModalProps {
   onAddCredits: (amount: number) => Promise<void>;
 }
 
-const PACKAGES = [
-  {
-    id: "starter",
-    label: "Try it",
-    credits: 10,
-    price: "$2.99",
-    priceNote: "one-time",
-    perMatch: "$0.30 per match",
-    badge: null as string | null,
-    saveBadge: null as string | null,
-    popular: false,
-    isSubscription: false,
-  },
-  {
-    id: "popular",
-    label: "Popular",
-    credits: 50,
-    price: "$9.99",
-    priceNote: "one-time",
-    perMatch: "$0.20 per match",
-    badge: "MOST POPULAR",
-    saveBadge: "SAVE 33%",
-    popular: true,
-    isSubscription: false,
-  },
-  {
-    id: "pro",
-    label: "Unlimited",
-    credits: 9999,
-    price: "$19.99",
-    priceNote: "/ month",
-    perMatch: "Unlimited matches",
-    badge: "BEST VALUE",
-    saveBadge: null as string | null,
-    popular: false,
-    isSubscription: true,
-  },
-];
+function getPackages(t: ReturnType<typeof useTranslation>) {
+  return [
+    {
+      id: "starter",
+      label: t.pricing.tryIt,
+      credits: 10,
+      price: "$2.99",
+      priceNote: t.pricing.oneTime,
+      perMatch: t.pricing.starterPerMatch,
+      badge: null as string | null,
+      saveBadge: null as string | null,
+      popular: false,
+      isSubscription: false,
+    },
+    {
+      id: "popular",
+      label: t.pricing.popular,
+      credits: 50,
+      price: "$9.99",
+      priceNote: t.pricing.oneTime,
+      perMatch: t.pricing.popularPerMatch,
+      badge: t.pricing.mostPopularBadge,
+      saveBadge: t.pricing.save33,
+      popular: true,
+      isSubscription: false,
+    },
+    {
+      id: "pro",
+      label: t.pricing.unlimited,
+      credits: 9999,
+      price: "$19.99",
+      priceNote: t.pricing.perMonth,
+      perMatch: t.pricing.unlimitedMatches,
+      badge: t.pricing.bestValue,
+      saveBadge: null as string | null,
+      popular: false,
+      isSubscription: true,
+    },
+  ];
+}
 
 export default function PricingModal({
   isOpen,
@@ -54,6 +57,8 @@ export default function PricingModal({
   currentCredits,
   onAddCredits,
 }: PricingModalProps) {
+  const t = useTranslation();
+  const PACKAGES = useMemo(() => getPackages(t), [t]);
   const [selected, setSelected] = useState("popular");
 
   const [adding, setAdding] = useState(false);
@@ -72,12 +77,12 @@ export default function PricingModal({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Error ${res.status}`);
+        throw new Error(err.error || t.pricing.errorStatus(res.status));
       }
       const { url } = await res.json();
       window.location.href = url;
     } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : "Checkout failed");
+      setCheckoutError(err instanceof Error ? err.message : t.pricing.checkoutFailed);
       setAdding(false);
     }
   };
@@ -108,7 +113,7 @@ export default function PricingModal({
                 <span className="material-symbols-outlined">close</span>
               </button>
               <h2 className="font-display font-bold text-lg text-ink">
-                Get Credits
+                {t.pricing.getCredits}
               </h2>
               <div className="bg-hot-pink text-white rounded-full px-3 py-1 text-xs font-semibold flex items-center gap-1 font-display">
                 <span>✦</span>
@@ -117,17 +122,17 @@ export default function PricingModal({
             </div>
 
             <div className="text-center space-y-1">
-              <p className="text-black/50 text-xs font-semibold">Balance</p>
+              <p className="text-black/50 text-xs font-semibold">{t.pricing.balance}</p>
               <p className="text-hot-pink font-display text-5xl font-extrabold">
                 {currentCredits}✦
               </p>
-              <p className="text-black/60 text-sm">credits remaining</p>
+              <p className="text-black/60 text-sm">{t.pricing.creditsRemaining}</p>
               <p className="text-black/40 text-xs">
-                Each photo match uses 1 credit
+                {t.pricing.eachMatchUses}
               </p>
               <div className="inline-flex items-center gap-1.5 mt-2 bg-black/5 text-black/50 text-[11px] font-semibold px-3 py-1 rounded-full">
                 <span>✦</span>
-                <span>Credits never expire · Cancel anytime</span>
+                <span>{t.pricing.neverExpire}</span>
               </div>
             </div>
 
@@ -161,7 +166,7 @@ export default function PricingModal({
                         </p>
                         {pkg.isSubscription && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-hot-pink/15 text-hot-pink">
-                            SUBSCRIPTION
+                            {t.pricing.subscriptionLabel}
                           </span>
                         )}
                       </div>
@@ -174,8 +179,8 @@ export default function PricingModal({
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-black/50 text-xs">
                           {pkg.isSubscription
-                            ? "Unlimited matches every month"
-                            : `${pkg.credits} credits · ${pkg.perMatch}`}
+                            ? t.pricing.unlimitedEveryMonth
+                            : t.pricing.creditsPerMatch(pkg.credits, pkg.perMatch)}
                         </p>
                         {pkg.saveBadge && (
                           <span className="bg-black/5 text-black/60 text-[10px] font-bold px-2 py-0.5 rounded-full">
@@ -220,13 +225,13 @@ export default function PricingModal({
               className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-[0.98] transition-all glow-pink disabled:opacity-70"
             >
               {done
-                ? "✓ Done! Enjoy your matches"
+                ? t.pricing.done
                 : adding
-                ? "Processing…"
+                ? t.pricing.processing
                 : (() => {
                     const pkg = PACKAGES.find((p) => p.id === selected)!;
-                    if (pkg.isSubscription) return `Subscribe for ${pkg.price}/mo →`;
-                    return `Get ${pkg.credits} credits for ${pkg.price} →`;
+                    if (pkg.isSubscription) return t.pricing.subscribeFor(pkg.price);
+                    return t.pricing.getCreditsFor(pkg.credits, pkg.price);
                   })()}
             </button>
           </motion.div>

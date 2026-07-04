@@ -8,6 +8,7 @@ import { useCredits } from "../../lib/useCredits";
 import { useAccountSync } from "../../lib/useAccountSync";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import PricingModal from "../../components/PricingModal";
+import { useTranslation } from "../../lib/translations/useTranslation";
 
 interface LearnedTaste {
   learnedGenres: string[];
@@ -18,6 +19,7 @@ interface LearnedTaste {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const t = useTranslation();
   const { user } = useAccountSync();
   const { savedSongs, loadFeedback } = useAppStore();
   const { credits, add } = useCredits();
@@ -68,7 +70,7 @@ export default function ProfilePage() {
         <AppHeader
           credits={credits}
           onCreditsClick={() => setShowPricing(true)}
-          center="Profile"
+          center={t.profile.heading}
           left={
             <button
               onClick={() => history.back()}
@@ -92,23 +94,23 @@ export default function ProfilePage() {
             </div>
             <div>
               <h1 className="font-display font-bold text-2xl md:text-3xl text-white">
-                Your Profile
+                {t.profile.yourProfileHeading}
               </h1>
               <p className="text-on-surface-variant text-sm mt-2 max-w-sm mx-auto">
-                Sign in to see your matches and credits
+                {t.profile.signInPrompt}
               </p>
             </div>
             <a
               href="/app"
               className="flex items-center gap-2 bg-hot-pink text-white font-display font-bold py-4 px-8 rounded-full hover:opacity-90 active:scale-95 transition-all glow-pink"
             >
-              Sign in
+              {t.profile.signIn}
             </a>
             <StatsCard
               stats={[
-                { label: "Matches", value: savedSongs.length },
-                { label: "Saved", value: savedSongs.length },
-                { label: "Credits", value: credits },
+                { label: t.profile.statMatches, value: savedSongs.length },
+                { label: t.profile.statSaved, value: savedSongs.length },
+                { label: t.profile.statCredits, value: credits },
               ]}
             />
           </div>
@@ -136,9 +138,9 @@ export default function ProfilePage() {
 
               <StatsCard
                 stats={[
-                  { label: "Matches", value: savedSongs.length },
-                  { label: "Saved", value: savedSongs.length },
-                  { label: "Credits", value: credits },
+                  { label: t.profile.statMatches, value: savedSongs.length },
+                  { label: t.profile.statSaved, value: savedSongs.length },
+                  { label: t.profile.statCredits, value: credits },
                 ]}
               />
 
@@ -146,40 +148,40 @@ export default function ProfilePage() {
                 onClick={() => setShowPricing(true)}
                 className="w-full border border-hot-pink text-hot-pink font-display font-bold py-3 rounded-xl hover:bg-hot-pink/10 active:scale-95 transition-all"
               >
-                Manage Credits · {credits} left
+                {t.profile.manageCredits(credits)}
               </button>
 
               <button
                 onClick={handleRetakeQuiz}
                 className="w-full border border-white/10 text-white/50 font-semibold text-sm py-3 rounded-xl hover:border-white/20 hover:text-white/70 active:scale-95 transition-all"
               >
-                Retake taste quiz
+                {t.profile.retakeQuiz}
               </button>
 
               <button
                 onClick={handleSignOut}
                 className="w-full text-on-surface-variant text-sm hover:text-white transition-colors py-2"
               >
-                Sign out
+                {t.profile.signOut}
               </button>
             </div>
 
             <div className="space-y-6">
               {learnedTaste && (
-                <TasteSection learnedTaste={learnedTaste} />
+                <TasteSection learnedTaste={learnedTaste} t={t} />
               )}
 
               {savedSongs.length > 0 && (
                 <section className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h2 className="font-display font-bold text-white text-lg">
-                      My Matches
+                      {t.profile.myMatchesHeading}
                     </h2>
                     <a
                       href="/library"
                       className="text-hot-pink text-xs font-semibold hover:underline"
                     >
-                      View All
+                      {t.profile.viewAll}
                     </a>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 gap-2 md:gap-3">
@@ -285,6 +287,7 @@ function ChipRow({
 
 function TasteSection({
   learnedTaste,
+  t,
 }: {
   learnedTaste: {
     learnedGenres: string[];
@@ -292,6 +295,7 @@ function TasteSection({
     learnedArtists: string[];
     avoidArtists: string[];
   };
+  t: ReturnType<typeof useTranslation>;
 }) {
   const hasSignal =
     learnedTaste.learnedGenres.length > 0 ||
@@ -305,16 +309,16 @@ function TasteSection({
     <section className="space-y-4 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
       <div>
         <h2 className="font-display font-bold text-white text-lg">
-          Your Taste
+          {t.profile.yourTasteHeading}
         </h2>
         <p className="text-on-surface-variant text-xs mt-0.5">
-          Learned from what you save and skip
+          {t.profile.learnedFrom}
         </p>
       </div>
-      <ChipRow label="Genres you save" items={learnedTaste.learnedGenres} tone="save" />
-      <ChipRow label="Artists you save" items={learnedTaste.learnedArtists} tone="save" />
-      <ChipRow label="Genres we're avoiding" items={learnedTaste.avoidGenres} tone="avoid" />
-      <ChipRow label="Artists we're avoiding" items={learnedTaste.avoidArtists} tone="avoid" />
+      <ChipRow label={t.profile.genresYouSave} items={learnedTaste.learnedGenres} tone="save" />
+      <ChipRow label={t.profile.artistsYouSave} items={learnedTaste.learnedArtists} tone="save" />
+      <ChipRow label={t.profile.genresAvoiding} items={learnedTaste.avoidGenres} tone="avoid" />
+      <ChipRow label={t.profile.artistsAvoiding} items={learnedTaste.avoidArtists} tone="avoid" />
     </section>
   );
 }
