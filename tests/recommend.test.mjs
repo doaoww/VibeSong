@@ -362,3 +362,38 @@ test("resolveRecentlyShownSongIds returns empty array when no feedback overlaps"
   const ids = rec.resolveRecentlyShownSongIds(candidates, []);
   assert.deepEqual(ids, []);
 });
+
+test("applyArtistDiversityCap caps a dominant artist at maxPerArtist, backfilling from other artists", () => {
+  const sorted = [
+    { id: "1", artist: "Taylor Swift" },
+    { id: "2", artist: "Taylor Swift" },
+    { id: "3", artist: "Taylor Swift" },
+    { id: "4", artist: "Taylor Swift" },
+    { id: "5", artist: "Other Artist" },
+  ];
+  const result = rec.applyArtistDiversityCap(sorted, 5, 2);
+  const ids = [...result].map((r) => r.id);
+  assert.deepEqual(ids, ["1", "2", "5", "3", "4"], "cap defers 3rd/4th Taylor Swift song behind Other Artist, then backfills to reach the limit");
+  assert.equal(ids.filter((id) => ["1", "2", "3", "4"].includes(id)).length, 4);
+});
+
+test("applyArtistDiversityCap is a no-op when no artist exceeds the cap", () => {
+  const sorted = [
+    { id: "1", artist: "A" },
+    { id: "2", artist: "B" },
+    { id: "3", artist: "C" },
+  ];
+  const result = rec.applyArtistDiversityCap(sorted, 3, 2);
+  assert.deepEqual([...result].map((r) => r.id), ["1", "2", "3"]);
+});
+
+test("applyArtistDiversityCap matches artist names case-insensitively", () => {
+  const sorted = [
+    { id: "1", artist: "Taylor Swift" },
+    { id: "2", artist: "taylor swift" },
+    { id: "3", artist: "TAYLOR SWIFT" },
+    { id: "4", artist: "Other Artist" },
+  ];
+  const result = rec.applyArtistDiversityCap(sorted, 4, 2);
+  assert.deepEqual([...result].map((r) => r.id), ["1", "2", "4", "3"]);
+});

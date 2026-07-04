@@ -25,6 +25,13 @@ import { vectorToArray } from "../../../lib/vectorMath";
 import type { ExifData } from "../../../store/useAppStore";
 
 export const runtime = "nodejs";
+// Up to 3 sequential GPT-4o vision calls can happen in the worst case (main
+// attempt -> network-error retry -> invalid-JSON retry), each bounded to 15s
+// below — without an explicit maxDuration, Vercel's default function timeout
+// can kill the request mid-retry with no graceful response.
+export const maxDuration = 60;
+
+const OPENAI_CALL_TIMEOUT_MS = 15_000;
 
 const BASE_SYSTEM_PROMPT = `You are a photo vibe analyst. Your job is to understand the emotional and aesthetic character of a photo so that songs can be matched to it from a database.
 
@@ -248,16 +255,18 @@ export async function POST(req: NextRequest) {
       max_tokens: 5000,
     });
 
-    // Attempt 1 — default temperature
+    // Attempt 1 — default temperature. Each attempt is bounded to
+    // OPENAI_CALL_TIMEOUT_MS so a hung request fails fast into the next
+    // fallback instead of silently eating the whole maxDuration budget.
     let rawContent: string | null = null;
     try {
-      const res = await openai.chat.completions.create(callOptions());
+      const res = await openai.chat.completions.create(callOptions(), { timeout: OPENAI_CALL_TIMEOUT_MS });
       rawContent = res.choices[0].message.content || "";
     } catch (openAiErr) {
       console.error("[analyze] OpenAI attempt 1 failed:", openAiErr);
       // Attempt 2 — retry with temperature 0
       try {
-        const retry = await openai.chat.completions.create(callOptions(0));
+        const retry = await openai.chat.completions.create(callOptions(0), { timeout: OPENAI_CALL_TIMEOUT_MS });
         rawContent = retry.choices[0].message.content || "";
       } catch (retryErr) {
         console.error("[analyze] OpenAI attempt 2 failed:", retryErr);
@@ -287,18 +296,21 @@ export async function POST(req: NextRequest) {
         : "";
 
       const fixPrompt = `${overridePrefix}${prompt}\n\nIMPORTANT: You MUST respond with ONLY a valid JSON object. No apologies, no explanations, no markdown. Start your response with { and end with }.`;
-      const fixRes = await openai.chat.completions.create({
-        ...callOptions(0),
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: fixPrompt },
-              { type: "image_url", image_url: { url: `data:${mimeType};base64,${image}` } },
-            ],
-          },
-        ],
-      });
+      const fixRes = await openai.chat.completions.create(
+        {
+          ...callOptions(0),
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: fixPrompt },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${image}` } },
+              ],
+            },
+          ],
+        },
+        { timeout: OPENAI_CALL_TIMEOUT_MS }
+      );
       const fixRaw = fixRes.choices[0].message.content || "";
       console.log("[analyze] retry raw (first 200):", fixRaw.slice(0, 200));
       result = parseGPTJson(fixRaw);

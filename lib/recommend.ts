@@ -116,6 +116,38 @@ export function resolveRecentlyShownSongIds(
   return candidates.filter((song) => seen.has(feedbackKey(song.title, song.artist))).map((song) => song.id);
 }
 
+// Guards against an artist that's over-represented in the catalog (broad
+// emotional-vector coverage across many songs) winning most slots in every
+// user's results just by having more chances to be the closest vector match --
+// scoring alone can't fix this since photoFit is artist-agnostic by design.
+export function applyArtistDiversityCap<T extends { artist: string }>(
+  sorted: T[],
+  limit: number,
+  maxPerArtist = 2
+): T[] {
+  const counts = new Map<string, number>();
+  const picked: T[] = [];
+  const overflow: T[] = [];
+
+  for (const item of sorted) {
+    const key = item.artist.trim().toLowerCase();
+    const count = counts.get(key) ?? 0;
+    if (count < maxPerArtist) {
+      counts.set(key, count + 1);
+      picked.push(item);
+    } else {
+      overflow.push(item);
+    }
+    if (picked.length >= limit) break;
+  }
+
+  if (picked.length < limit) {
+    picked.push(...overflow.slice(0, limit - picked.length));
+  }
+
+  return picked;
+}
+
 export function buildRecommendations(
   req: RecommendRequest,
   candidates: CatalogSong[]

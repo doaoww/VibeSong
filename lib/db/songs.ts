@@ -256,6 +256,20 @@ export async function searchCatalogByBrief(
   return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
+export async function searchCatalogByLanguage(
+  languages: string[],
+  queryVector: number[],
+  matchCount = 25
+): Promise<CatalogSong[]> {
+  const { data, error } = await supabase.rpc("match_songs_by_language", {
+    p_languages: languages,
+    query_vector: queryVector,
+    p_match_count: matchCount,
+  });
+  if (error) throw new Error(`searchCatalogByLanguage failed: ${error.message}`);
+  return normalizeSongs((data ?? []) as CatalogSong[]);
+}
+
 export async function recordFeedback(
   songId: string,
   action: "save" | "skip" | "perfect"

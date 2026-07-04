@@ -61,6 +61,14 @@ export default function AppUploadPage() {
     objectUrl: string;
     exifData: ExifData;
   } | null>(null);
+  // Kept so "Try again" can re-run analysis on the same photo without the
+  // user re-selecting a file — cleared on success or manual dismiss.
+  const [failedUpload, setFailedUpload] = useState<{
+    base64: string;
+    mimeType: string;
+    objectUrl: string;
+    exifData: ExifData;
+  } | null>(null);
 
   const {
     setUploadedImage,
@@ -114,6 +122,7 @@ export default function AppUploadPage() {
     async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => {
       setPageState("analyzing");
       setErrorMsg(null);
+      setFailedUpload(null);
       setIsAnalyzing(true);
       setUploadedImage(base64, objectUrl);
 
@@ -195,7 +204,8 @@ export default function AppUploadPage() {
         add(1); // Refund the credit — analysis didn't complete
         setIsAnalyzing(false);
         setPageState("idle");
-        setErrorMsg(msg);
+        setErrorMsg("Analysis temporarily failed — no credit was used. Try again?");
+        setFailedUpload({ base64, mimeType, objectUrl, exifData });
       }
     },
     [
@@ -390,13 +400,26 @@ export default function AppUploadPage() {
                 <span className="material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5">
                   error
                 </span>
-                <div>
-                  <p className="font-semibold">Analysis failed</p>
+                <div className="flex-1">
+                  <p className="font-semibold">Couldn&apos;t read that photo&apos;s vibe</p>
                   <p className="opacity-80 text-xs mt-0.5">{errorMsg}</p>
+                  {failedUpload && (
+                    <button
+                      onClick={() => {
+                        const upload = failedUpload;
+                        setErrorMsg(null);
+                        setFailedUpload(null);
+                        runAnalysis(upload.base64, upload.mimeType, upload.objectUrl, upload.exifData);
+                      }}
+                      className="mt-2 text-xs font-semibold underline underline-offset-2 hover:opacity-80"
+                    >
+                      Try again
+                    </button>
+                  )}
                 </div>
                 <button
-                  onClick={() => setErrorMsg(null)}
-                  className="ml-auto text-error/60 hover:text-error"
+                  onClick={() => { setErrorMsg(null); setFailedUpload(null); }}
+                  className="text-error/60 hover:text-error"
                 >
                   <span className="material-symbols-outlined text-[18px]">
                     close

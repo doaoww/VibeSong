@@ -3,9 +3,9 @@ import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getUserTaste, getEmotionalVector } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
-import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, type CatalogSong } from "../../../lib/db/songs";
+import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, type CatalogSong } from "../../../lib/db/songs";
 import { blendQueryVector } from "../../../lib/vectorMath";
-import { buildRecommendations, resolveRecentlyShownSongIds } from "../../../lib/recommend";
+import { buildRecommendations, resolveRecentlyShownSongIds, applyArtistDiversityCap } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
 import {
   gateAntiTags,
@@ -121,16 +121,19 @@ export async function POST(req: NextRequest) {
       .filter(([, score]) => score > 0.3)
       .map(([genre]) => genre);
 
-    const [vectorPool, storyPool, contextPool, tastePool, briefPool] = await Promise.all([
+    const [vectorPool, storyPool, contextPool, tastePool, briefPool, languagePool] = await Promise.all([
       searchCatalog(queryVector, 25),
       searchCatalogByTags({ intentTags: storyIntentTags, aestheticTags, moodTags }, 25),
       searchCatalogByTags({ contextTags: sceneContextTags }, 20),
       searchCatalogByTaste({ artistPatterns, positiveGenres }, 20),
       photoBriefEmbedding ? searchCatalogByBrief(photoBriefEmbedding, 25) : Promise.resolve([] as CatalogSong[]),
+      taste.languages.length > 0
+        ? searchCatalogByLanguage(taste.languages, queryVector, 25)
+        : Promise.resolve([] as CatalogSong[]),
     ]);
 
     const poolMap = new Map<string, CatalogSong>();
-    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool]) {
+    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool, ...languagePool]) {
       if (!poolMap.has(song.id)) poolMap.set(song.id, song);
     }
     const candidates = Array.from(poolMap.values());
@@ -172,13 +175,14 @@ export async function POST(req: NextRequest) {
       tastePoolCount: tastePool.length,
       briefPoolCount: briefPool.length,
       briefPoolEnabled,
+      languagePoolCount: languagePool.length,
       mergedCandidateCount: candidates.length,
       removedByRulesCount: debugLog.filter((e) => e.rulesRemoved).length,
     };
     console.log("[recommend] pool stats:", JSON.stringify(poolStats));
 
     return NextResponse.json({
-      songs: recommendations.slice(0, 12),
+      songs: applyArtistDiversityCap(recommendations, 12),
       totalCandidates: candidates.length,
       debugLog,
       poolStats,

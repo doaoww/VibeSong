@@ -18,15 +18,21 @@ export async function POST(req: NextRequest) {
 
   const baseUrl = process.env.NEXT_PUBLIC_URL ?? "http://localhost:3000";
 
-  const checkout = await polar.checkouts.create({
-    products: [productId],
-    successUrl: `${baseUrl}/app?payment=success`,
-    externalCustomerId: user.id,
-    metadata: {
-      userId: user.id,
-      packageId,
-    },
-  });
+  try {
+    const checkout = await polar.checkouts.create({
+      products: [productId],
+      successUrl: `${baseUrl}/app?payment=success`,
+      externalCustomerId: user.id,
+      metadata: {
+        userId: user.id,
+        packageId,
+      },
+    });
 
-  return NextResponse.json({ url: checkout.url });
+    return NextResponse.json({ url: checkout.url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/api/checkout/polar error:", message);
+    return NextResponse.json({ error: "Checkout failed", detail: message }, { status: 502 });
+  }
 }

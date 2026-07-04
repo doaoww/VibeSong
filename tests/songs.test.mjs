@@ -59,6 +59,34 @@ test("searchCatalogByTags throws with a descriptive message on RPC error", async
   await assert.rejects(() => songsLib.searchCatalogByTags({}), /searchCatalogByTags failed: boom/);
 });
 
+test("searchCatalogByLanguage calls match_songs_by_language with languages and query vector", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => {
+    captured = { name, args };
+    return { data: [{ id: "1" }], error: null };
+  };
+  const result = await songsLib.searchCatalogByLanguage(["Russian", "English"], [0.1, 0.2]);
+  assert.equal(captured.name, "match_songs_by_language");
+  assert.deepEqual(plain(captured.args), {
+    p_languages: ["Russian", "English"],
+    query_vector: [0.1, 0.2],
+    p_match_count: 25,
+  });
+  assert.deepEqual(plain(result), [{ id: "1", emotional_vector: null }]);
+});
+
+test("searchCatalogByLanguage accepts a custom match count", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: [], error: null }; };
+  await songsLib.searchCatalogByLanguage(["Korean"], [0.1], 10);
+  assert.equal(captured.args.p_match_count, 10);
+});
+
+test("searchCatalogByLanguage throws with a descriptive message on RPC error", async () => {
+  mockSupabase.rpc = async () => ({ data: null, error: { message: "boom" } });
+  await assert.rejects(() => songsLib.searchCatalogByLanguage(["Russian"], [0.1]), /searchCatalogByLanguage failed: boom/);
+});
+
 test("searchCatalogByTaste calls match_songs_by_taste with artist patterns and positive genres", async () => {
   let captured = null;
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: [{ id: "2" }], error: null }; };
