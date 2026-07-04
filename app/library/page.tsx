@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import { useAppStore, Track } from "../../store/useAppStore";
+import { useTranslation } from "../../lib/translations/useTranslation";
+import { en } from "../../lib/translations/en";
 
 const FILTERS = ["All", "This Week", "Moody", "Hype"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -17,8 +19,19 @@ function filterSongs(songs: Track[], filter: Filter): Track[] {
   return songs;
 }
 
+function getFilterLabel(filter: Filter, t: typeof en): string {
+  switch (filter) {
+    case "All": return t.library.filterAll;
+    case "This Week": return t.library.filterThisWeek;
+    case "Moody": return t.library.filterMoody;
+    case "Hype": return t.library.filterHype;
+    default: return filter;
+  }
+}
+
 export default function LibraryPage() {
   const { savedSongs, loadFeedback } = useAppStore();
+  const t = useTranslation();
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
 
   useEffect(() => {
@@ -31,15 +44,15 @@ export default function LibraryPage() {
     <AppShell
       bottomPad="large"
       decor
-      header={<AppHeader showCredits={false} center="Library" />}
+      header={<AppHeader showCredits={false} center={t.library.heading} />}
     >
       <div className="space-y-6">
         <div>
           <h1 className="font-display font-bold text-xl md:text-2xl text-white">
-            Saved Songs
+            {t.library.savedSongsHeading}
           </h1>
           <p className="text-on-surface-variant text-sm mt-1">
-            From your VibeSong matches
+            {t.library.subtitle}
           </p>
         </div>
 
@@ -54,7 +67,7 @@ export default function LibraryPage() {
                   : "border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-white/30"
               }`}
             >
-              {f}
+              {getFilterLabel(f, t)}
             </button>
           ))}
         </div>
@@ -64,15 +77,15 @@ export default function LibraryPage() {
             <span className="material-symbols-outlined text-5xl text-on-surface-variant">
               music_off
             </span>
-            <p className="text-on-surface-variant">No saved songs yet.</p>
+            <p className="text-on-surface-variant">{t.library.emptyTitle}</p>
             <p className="text-on-surface-variant/60 text-sm">
-              Upload a photo to get started.
+              {t.library.emptyBody}
             </p>
             <a
               href="/app"
               className="mt-2 inline-flex items-center gap-2 bg-hot-pink text-white px-6 py-3 rounded-full text-sm font-display font-semibold glow-pink"
             >
-              Upload a photo →
+              {t.common.uploadPhotoArrow}
             </a>
           </div>
         ) : (

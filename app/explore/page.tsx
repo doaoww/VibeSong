@@ -2,6 +2,8 @@
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import Star from "../../components/Star";
+import { useTranslation } from "../../lib/translations/useTranslation";
+import { en } from "../../lib/translations/en";
 
 const EXPLORE_CARDS = [
   {
@@ -48,20 +50,37 @@ const EXPLORE_CARDS = [
   },
 ];
 
+function getTagTranslation(tag: string, t: typeof en): string {
+  const tagMap: Record<string, string> = {
+    "R&B": t.explore.tagRnb,
+    "Late Night": t.explore.tagLateNight,
+    "Synthwave": t.explore.tagSynthwave,
+    "City": t.explore.tagCity,
+    "Indie": t.explore.tagIndie,
+    "Warm": t.explore.tagWarm,
+    "Moody": t.explore.tagMoody,
+    "Funk": t.explore.tagFunk,
+    "Noir": t.explore.tagNoir,
+    "Soft": t.explore.tagSoft,
+  };
+  return tagMap[tag] || tag;
+}
+
 export default function ExplorePage() {
+  const t = useTranslation();
+
   return (
-    <AppShell decor header={<AppHeader showCredits={false} center="Explore" />}>
+    <AppShell decor header={<AppHeader showCredits={false} center={t.explore.heading} />}>
       <div className="space-y-6">
         <div>
           <p className="text-hot-pink text-xs font-semibold font-display">
-            Real matches
+            {t.explore.realMatches}
           </p>
           <h1 className="font-display font-bold text-xl md:text-2xl text-white mt-1">
-            What photos sound like
+            {t.explore.whatPhotosSound}
           </h1>
           <p className="text-on-surface-variant text-sm mt-1 max-w-xl">
-            Example vibes from the community. Upload your own photo to get a
-            personalized soundtrack.
+            {t.explore.subtitle}
           </p>
         </div>
 
@@ -73,7 +92,7 @@ export default function ExplorePage() {
             >
               <div className={`relative h-28 md:h-36 bg-gradient-to-br ${c.gradient}`}>
                 <div className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {c.tags[0]}
+                  {getTagTranslation(c.tags[0], t)}
                 </div>
               </div>
               <div className="p-3 md:p-4">
@@ -85,7 +104,7 @@ export default function ExplorePage() {
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-[10px] text-on-surface-variant">
-                    {c.tags[1]}
+                    {getTagTranslation(c.tags[1], t)}
                   </span>
                   <span className="font-display text-xs font-bold text-hot-pink">
                     {c.match}
@@ -100,7 +119,7 @@ export default function ExplorePage() {
           href="/app"
           className="flex items-center justify-center gap-2 w-full md:w-auto md:max-w-xs bg-hot-pink text-white py-4 px-8 rounded-full font-display font-bold text-sm glow-pink hover:bg-[#ff4488] transition-colors"
         >
-          Upload your photo
+          {t.explore.uploadYourPhoto}
           <Star className="h-3 w-3" color="white" />
         </a>
       </div>
