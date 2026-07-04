@@ -4,6 +4,8 @@ import Link from "next/link";
 import { motion, useInView, useMotionValue, useTransform, animate } from "framer-motion";
 import { useEffect, useRef } from "react";
 import Star from "./Star";
+import LanguageToggle from "./LanguageToggle";
+import { useTranslation } from "../lib/translations/useTranslation";
 
 function PinkButton({
   children,
@@ -93,6 +95,8 @@ function CountUp({
 }
 
 function LandingNav() {
+  const t = useTranslation();
+
   return (
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
@@ -102,19 +106,20 @@ function LandingNav() {
         </Link>
         <div className="hidden items-center gap-6 lg:gap-8 text-sm text-white/70 md:flex">
           <a href="#how" className="hover:text-white transition-colors">
-            How it Works
+            {t.landing.navHowItWorks}
           </a>
           <span className="h-1 w-1 rounded-full bg-white/30" />
           <a href="#features" className="hover:text-white transition-colors">
-            Features
+            {t.landing.navFeatures}
           </a>
           <span className="h-1 w-1 rounded-full bg-white/30" />
           <a href="#pricing" className="hover:text-white transition-colors">
-            Pricing
+            {t.landing.navPricing}
           </a>
+          <LanguageToggle />
         </div>
         <PinkButton href="/app" className="!px-5 !py-2.5 text-sm">
-          Try Free →
+          {t.landing.navTryFree}
         </PinkButton>
       </div>
     </nav>
@@ -122,6 +127,8 @@ function LandingNav() {
 }
 
 function Hero() {
+  const t = useTranslation();
+
   return (
     <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 md:pt-44 md:pb-32">
       <Star className="float-slow absolute left-[8%] top-32 h-8 w-8 md:h-10 md:w-10 opacity-90 hidden sm:block" />
@@ -140,12 +147,12 @@ function Hero() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6 md:mb-7 inline-flex items-center gap-2 rounded-full bg-hot-pink px-4 py-1.5 text-xs font-semibold text-white font-display"
         >
-          ✦ AI Music Matching
+          {t.landing.heroBadge}
         </motion.div>
 
         <h1 className="font-display text-[13vw] sm:text-7xl md:text-[88px] lg:text-[96px] font-extrabold leading-[0.95] tracking-tight text-white">
-          <span className="block">Your photo.</span>
-          <span className="block text-hot-pink">Your soundtrack.</span>
+          <span className="block">{t.landing.heroHeadingLine1}</span>
+          <span className="block text-hot-pink">{t.landing.heroHeadingLine2}</span>
         </h1>
 
         <motion.p
@@ -154,8 +161,7 @@ function Hero() {
           transition={{ delay: 0.3 }}
           className="mt-6 md:mt-7 max-w-lg text-base md:text-lg leading-relaxed text-white/60"
         >
-          Drop any photo. Our AI reads the vibe, the color, the mood, the energy,
-          and finds songs that just fit.
+          {t.landing.heroSubtitle}
         </motion.p>
 
         <motion.div
@@ -165,10 +171,10 @@ function Hero() {
           className="mt-8 md:mt-9 flex flex-wrap items-center gap-3 md:gap-4"
         >
           <PinkButton href="/app" className="!px-8 !py-4 text-base">
-            Upload a Photo →
+            {t.landing.heroCtaPrimary}
           </PinkButton>
           <OutlineButton href="#how" className="!px-8 !py-4 text-base">
-            See How It Works
+            {t.landing.heroCtaSecondary}
           </OutlineButton>
         </motion.div>
 
@@ -178,8 +184,7 @@ function Hero() {
           transition={{ delay: 0.6 }}
           className="mt-5 md:mt-6 text-sm text-white/40"
         >
-          <span className="text-hot-pink">✦</span> 3 free matches · No signup
-          needed · Any photo works
+          <span className="text-hot-pink">✦</span> {t.landing.heroMicrocopy}
         </motion.p>
       </div>
 
@@ -187,7 +192,7 @@ function Hero() {
         <div className="marquee-track flex whitespace-nowrap font-display text-3xl sm:text-4xl md:text-6xl font-extrabold uppercase tracking-tight">
           {Array.from({ length: 2 }).map((_, dup) => (
             <div key={dup} className="flex shrink-0 items-center gap-6 md:gap-8 px-4">
-              {["MOOD", "ENERGY", "VIBE", "AESTHETIC", "SOUNDTRACK", "FEELING", "COLOR", "MOMENT"].map(
+              {t.landing.marqueeWords.map(
                 (w, i) => (
                   <span key={`${dup}-${i}`} className="flex items-center gap-6 md:gap-8">
                     <span className={i % 2 === 0 ? "text-white" : "text-hot-pink"}>
@@ -206,19 +211,20 @@ function Hero() {
 }
 
 function QuizPreview() {
+  const t = useTranslation();
   const cards = [
-    { n: "01", title: "Your genres", chips: ["Indie", "Hip-Hop", "R&B", "Pop", "Lo-fi"] },
-    { n: "02", title: "Your artists", chips: ["Frank Ocean", "SZA", "+ add"] },
-    { n: "03", title: "Your mood", chips: ["Chill", "Hype", "Sad", "Romantic"] },
+    { n: "01", title: t.landing.yourGenres, chips: [t.landing.genreIndie, t.landing.genreHipHop, t.landing.genreRnb, t.landing.genrePop, t.landing.genreLofi] },
+    { n: "02", title: t.landing.yourArtists, chips: ["Frank Ocean", "SZA", t.landing.addMore] },
+    { n: "03", title: t.landing.yourMood, chips: [t.landing.moodChill, t.landing.moodHype, t.landing.moodSad, t.landing.moodRomantic] },
   ];
 
   return (
     <section className="bg-cream py-16 md:py-24 text-ink">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <h2 className="max-w-4xl font-display text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.05]">
-          First, we learn
+          {t.landing.quizHeadingPre}
           <br />
-          what you <span className="wavy-underline text-hot-pink">love.</span>
+          {t.landing.quizHeadingWhat}<span className="wavy-underline text-hot-pink">{t.landing.quizHeadingLove}</span>
         </h2>
 
         <div className="mt-10 md:mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -255,7 +261,7 @@ function QuizPreview() {
             href="/app"
             className="inline-flex items-center gap-2 rounded-full bg-ink px-7 py-3.5 font-display font-semibold text-white transition-transform hover:scale-[1.03]"
           >
-            Take the quiz →
+            {t.landing.takeQuiz}
           </Link>
         </div>
       </div>
@@ -264,21 +270,22 @@ function QuizPreview() {
 }
 
 function HowItWorks() {
+  const t = useTranslation();
   const steps = [
     {
       n: "01",
-      title: "DROP ANYTHING",
-      body: "Any photo from your camera roll. Beach, city, bedroom, anything.",
+      title: t.landing.step1Title,
+      body: t.landing.step1Body,
     },
     {
       n: "02",
-      title: "AI READS THE ROOM",
-      body: "GPT-4o analyzes mood, colors, energy, and emotion from your photo.",
+      title: t.landing.step2Title,
+      body: t.landing.step2Body,
     },
     {
       n: "03",
-      title: "SWIPE YOUR SOUND",
-      body: "Five perfect songs. Tinder-style swiping. Save the ones that hit different.",
+      title: t.landing.step3Title,
+      body: t.landing.step3Body,
     },
   ];
 
@@ -290,10 +297,10 @@ function HowItWorks() {
       />
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-hot-pink font-display">
-          How it works
+          {t.landing.howItWorksLabel}
         </p>
         <h2 className="mt-3 max-w-3xl font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white">
-          Three steps to your perfect sound
+          {t.landing.howItWorksHeading}
         </h2>
 
         <div className="mt-12 md:mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
@@ -321,21 +328,22 @@ function HowItWorks() {
 }
 
 function Examples() {
+  const t = useTranslation();
   const cards = [
-    { image: "/landing/golden-hour.jpg", song: "Golden Hour", artist: "JVKE", match: "91%", tags: ["Pop", "Dreamy"] },
-    { image: "/landing/blinding-lights.jpg", song: "Blinding Lights", artist: "The Weeknd", match: "88%", tags: ["Synthwave", "City"] },
-    { image: "/landing/happiness.jpg", song: "Happiness", artist: "Rex Orange County", match: "94%", tags: ["Indie", "Warm"] },
-    { image: "/landing/kill-bill.jpg", song: "Kill Bill", artist: "SZA", match: "96%", tags: ["R&B", "Moody"] },
+    { image: "/landing/golden-hour.jpg", song: "Golden Hour", artist: "JVKE", match: "91%", tags: ["Pop", t.landing.tagDreamy] },
+    { image: "/landing/blinding-lights.jpg", song: "Blinding Lights", artist: "The Weeknd", match: "88%", tags: [t.landing.tagSynthwave, t.landing.tagCity] },
+    { image: "/landing/happiness.jpg", song: "Happiness", artist: "Rex Orange County", match: "94%", tags: ["Indie", t.landing.tagWarm] },
+    { image: "/landing/kill-bill.jpg", song: "Kill Bill", artist: "SZA", match: "96%", tags: ["R&B", t.landing.tagMoody] },
   ];
 
   return (
     <section id="features" className="bg-cream py-16 md:py-28 text-ink">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-hot-pink font-display">
-          Real matches
+          {t.landing.realMatches}
         </p>
         <h2 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold">
-          What photos sound like
+          {t.landing.whatPhotosSound}
         </h2>
 
         <div className="mt-10 md:mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -352,7 +360,7 @@ function Examples() {
               <div className="relative h-80 sm:h-64 md:h-80">
                 <img
                   src={c.image}
-                  alt={`${c.song} by ${c.artist}`}
+                  alt={t.landing.matchAlt(c.song, c.artist)}
                   className="h-full w-full object-cover object-top"
                 />
                 <div className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
@@ -364,9 +372,9 @@ function Examples() {
                 <div className="text-sm text-black/60">{c.artist}</div>
                 <div className="mt-3 md:mt-4 flex items-center justify-between">
                   <div className="flex gap-1.5 flex-wrap">
-                    {c.tags.map((t) => (
-                      <span key={t} className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px]">
-                        {t}
+                    {c.tags.map((tag) => (
+                      <span key={tag} className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px]">
+                        {tag}
                       </span>
                     ))}
                   </div>
@@ -382,6 +390,8 @@ function Examples() {
 }
 
 function Stats() {
+  const t = useTranslation();
+
   return (
     <section className="relative overflow-hidden py-16 md:py-28">
       <Star className="absolute left-[6%] top-16 h-8 w-8 md:h-10 md:w-10 hidden sm:block" />
@@ -393,10 +403,10 @@ function Stats() {
         <div className="grid gap-10 sm:grid-cols-3">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-hot-pink">
-              <CountUp to={80} suffix="M+" />
+              <CountUp to={80} suffix={t.landing.statTracksSuffix} />
             </div>
             <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
-              Tracks searched per match
+              {t.landing.statTracksLabel}
             </div>
           </motion.div>
           <motion.div
@@ -406,11 +416,11 @@ function Stats() {
             transition={{ delay: 0.1 }}
           >
             <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-lime">
-              {"< "}
-              <CountUp to={5} suffix="s" />
+              {t.landing.statTimePrefix}
+              <CountUp to={5} suffix={t.landing.statTimeSuffix} />
             </div>
             <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
-              Time to find your song
+              {t.landing.statTimeLabel}
             </div>
           </motion.div>
           <motion.div
@@ -423,7 +433,7 @@ function Stats() {
               <CountUp to={94} suffix="%" />
             </div>
             <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
-              Average match accuracy
+              {t.landing.statAccuracyLabel}
             </div>
           </motion.div>
         </div>
@@ -433,20 +443,21 @@ function Stats() {
 }
 
 function Pricing() {
+  const t = useTranslation();
   const plans = [
-    { name: "STARTER", price: "$1.99", credits: "10 credits", per: "$0.20 / match", popular: false },
-    { name: "POPULAR", price: "$6.99", credits: "50 credits", per: "$0.14 / match", popular: true },
-    { name: "PRO", price: "$19.99", credits: "200 credits", per: "$0.10 / match", popular: false },
+    { name: t.landing.starterLabel, price: "$1.99", credits: t.landing.starterCredits, per: t.landing.starterPrice, popular: false },
+    { name: t.landing.popularLabel, price: "$6.99", credits: t.landing.popularCredits, per: t.landing.popularPrice, popular: true },
+    { name: t.landing.proLabel, price: "$19.99", credits: t.landing.proCredits, per: t.landing.proPrice, popular: false },
   ];
 
   return (
     <section id="pricing" className="bg-cream py-16 md:py-28 text-ink">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <h2 className="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold">
-          Simple pricing.
+          {t.landing.simplePricingHeading}
         </h2>
         <p className="mt-3 font-display text-lg md:text-xl italic text-hot-pink">
-          Start free, pay when you love it.
+          {t.landing.simplePricingBody}
         </p>
 
         <div className="mt-10 md:mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -464,7 +475,7 @@ function Pricing() {
             >
               {p.popular && (
                 <div className="absolute -top-3 left-6 rounded-full bg-hot-pink px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
-                  ★ Most Popular
+                  {t.landing.mostPopularBadge}
                 </div>
               )}
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-black/50">
@@ -479,7 +490,7 @@ function Pricing() {
                   p.popular ? "bg-hot-pink text-white" : "bg-ink text-white"
                 }`}
               >
-                Get started
+                {t.landing.getStarted}
               </Link>
             </motion.div>
           ))}
@@ -490,6 +501,8 @@ function Pricing() {
 }
 
 function FinalCTA() {
+  const t = useTranslation();
+
   return (
     <section className="relative overflow-hidden py-20 md:py-32 text-center">
       <Star className="absolute left-[10%] top-24 h-10 w-10 md:h-12 md:w-12 hidden sm:block" />
@@ -506,19 +519,19 @@ function FinalCTA() {
           transition={{ duration: 0.6 }}
           className="font-display text-[18vw] sm:text-8xl md:text-9xl lg:text-[140px] font-black leading-none text-white"
         >
-          READY?
+          {t.landing.readyHeading}
         </motion.h2>
         <div className="mt-4 md:mt-6 font-display text-xl md:text-3xl font-bold text-hot-pink">
-          Find your soundtrack.
+          {t.landing.findSoundtrack}
         </div>
-        <p className="mt-3 text-white/50">Upload your first photo free. No signup needed.</p>
+        <p className="mt-3 text-white/50">{t.landing.finalCtaBody}</p>
         <div className="mt-8 flex justify-center">
           <PinkButton href="/app" className="!px-10 !py-5 text-lg">
-            Upload a Photo →
+            {t.landing.heroCtaPrimary}
           </PinkButton>
         </div>
         <p className="mt-5 text-sm text-white/40">
-          <span className="text-hot-pink">✦</span> 3 free matches included
+          <span className="text-hot-pink">✦</span> {t.landing.threeFreeIncluded}
         </p>
       </div>
     </section>
@@ -526,6 +539,8 @@ function FinalCTA() {
 }
 
 function Footer() {
+  const t = useTranslation();
+
   return (
     <footer className="border-t border-white/10 py-8 md:py-10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -535,19 +550,19 @@ function Footer() {
           </div>
           <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-sm text-white/60">
             <Link href="/app" className="hover:text-white transition-colors">
-              Open App
+              {t.landing.openApp}
             </Link>
             <a href="#how" className="hover:text-white transition-colors">
-              How it Works
+              {t.landing.navHowItWorks}
             </a>
             <a href="#pricing" className="hover:text-white transition-colors">
-              Pricing
+              {t.landing.navPricing}
             </a>
           </div>
         </div>
         <div className="mt-6 md:mt-8 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6 text-sm text-white/40">
           <div>© 2026 VibeSong AI</div>
-          <div className="italic">Your photo. Your soundtrack.</div>
+          <div className="italic">{t.landing.footerTagline}</div>
         </div>
       </div>
     </footer>
