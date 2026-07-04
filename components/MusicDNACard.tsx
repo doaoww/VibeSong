@@ -1,17 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import type { EmotionalVector } from "../lib/emotionalVector";
-
-const DNA_LABELS: Array<{ key: keyof EmotionalVector; icon: string; label: string }> = [
-  { key: "dreamy",      icon: "✨", label: "Dreamy" },
-  { key: "nostalgia",   icon: "🌧", label: "Nostalgic" },
-  { key: "cinematic",   icon: "🎞", label: "Cinematic" },
-  { key: "intimacy",    icon: "🌙", label: "Intimate" },
-  { key: "darkness",    icon: "🖤", label: "Dark" },
-  { key: "energy",      icon: "⚡", label: "Energy" },
-  { key: "confidence",  icon: "💫", label: "Confident" },
-  { key: "danceability",icon: "🎵", label: "Danceable" },
-];
+import { useTranslation } from "../lib/translations/useTranslation";
 
 interface Props {
   vector: EmotionalVector;
@@ -19,6 +9,19 @@ interface Props {
 }
 
 export default function MusicDNACard({ vector, onContinue }: Props) {
+  const t = useTranslation();
+
+  const DNA_LABELS: Array<{ key: keyof EmotionalVector; icon: string; label: string }> = [
+    { key: "dreamy",      icon: "✨", label: t.swipe.dnaDreamy },
+    { key: "nostalgia",   icon: "🌧", label: t.swipe.dnaNostalgic },
+    { key: "cinematic",   icon: "🎞", label: t.swipe.dnaCinematic },
+    { key: "intimacy",    icon: "🌙", label: t.swipe.dnaIntimate },
+    { key: "darkness",    icon: "🖤", label: t.swipe.dnaDark },
+    { key: "energy",      icon: "⚡", label: t.swipe.dnaEnergy },
+    { key: "confidence",  icon: "💫", label: t.swipe.dnaConfident },
+    { key: "danceability",icon: "🎵", label: t.swipe.dnaDanceable },
+  ];
+
   const sorted = [...DNA_LABELS]
     .sort((a, b) => vector[b.key] - vector[a.key])
     .slice(0, 5);
@@ -32,9 +35,9 @@ export default function MusicDNACard({ vector, onContinue }: Props) {
         className="w-full max-w-sm space-y-6"
       >
         <div className="text-center space-y-1">
-          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">Your</p>
-          <h2 className="font-display text-3xl font-black text-white">Music DNA</h2>
-          <p className="text-white/40 text-sm">Every match is tuned to this.</p>
+          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">{t.swipe.your}</p>
+          <h2 className="font-display text-3xl font-black text-white">{t.swipe.musicDna}</h2>
+          <p className="text-white/40 text-sm">{t.swipe.tunedToThis}</p>
         </div>
 
         <div className="space-y-3">
@@ -74,7 +77,7 @@ export default function MusicDNACard({ vector, onContinue }: Props) {
           onClick={onContinue}
           className="w-full py-4 rounded-full bg-hot-pink text-white font-display font-bold text-base glow-pink active:scale-95 transition-transform"
         >
-          Start matching →
+          {t.swipe.startMatching}
         </motion.button>
       </motion.div>
     </div>

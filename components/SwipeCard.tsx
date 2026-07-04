@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { Track } from "../store/useAppStore";
 import YouTubePlayer from "./YouTubePlayer";
 import VibeTags from "./VibeTags";
+import { useTranslation } from "../lib/translations/useTranslation";
 
 interface SwipeCardProps {
   track: Track;
@@ -38,12 +39,12 @@ function useIsDesktopViewport() {
   );
 }
 
-function MatchScore({ score }: { score: number }) {
+function MatchScore({ score, t }: { score: number; t: ReturnType<typeof useTranslation> }) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between items-end">
         <span className="text-lime text-[10px] font-semibold uppercase tracking-widest">
-          Match Score
+          {t.swipe.matchScore}
         </span>
         <span className="text-white font-display font-bold text-base lg:text-lg">
           {score}%
@@ -69,6 +70,7 @@ export default function SwipeCard({
   vibeCaption,
   vibeTags,
 }: SwipeCardProps) {
+  const t = useTranslation();
   const isDesktop = useIsDesktopViewport();
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-10, 10]);
@@ -119,13 +121,13 @@ export default function SwipeCard({
         style={{ opacity: skipOpacity }}
         className="absolute top-4 left-4 z-30 border-[3px] border-error text-error rounded-lg px-3 py-1 font-display font-bold text-lg rotate-[-14deg] pointer-events-none lg:top-4 lg:left-4"
       >
-        NOPE
+        {t.swipe.stampNope}
       </motion.div>
       <motion.div
         style={{ opacity: saveOpacity }}
         className="absolute top-4 right-4 z-30 border-[3px] border-hot-pink text-hot-pink rounded-lg px-3 py-1 font-display font-bold text-lg rotate-[14deg] pointer-events-none lg:top-4 lg:right-4"
       >
-        SAVE
+        {t.swipe.stampSave}
       </motion.div>
 
       {/* Mobile: combined photo + song — one swipeable card */}
@@ -134,7 +136,7 @@ export default function SwipeCard({
           {vibeImageUrl ? (
             <img
               src={vibeImageUrl}
-              alt="Your vibe"
+              alt={t.swipe.yourVibeAlt}
               className="w-full h-full object-contain"
               draggable={false}
             />
@@ -233,7 +235,7 @@ export default function SwipeCard({
               {track.reason}
             </p>
 
-            <MatchScore score={track.matchScore} />
+            <MatchScore score={track.matchScore} t={t} />
           </div>
         </div>
 

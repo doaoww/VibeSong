@@ -6,26 +6,29 @@ import AppShell from "../../components/AppShell";
 import SwipeCard from "../../components/SwipeCard";
 import VibeTags from "../../components/VibeTags";
 import { useAppStore, Track } from "../../store/useAppStore";
+import { useTranslation } from "../../lib/translations/useTranslation";
 
 function VibeHero({
   imageUrl,
   caption,
   tags,
+  t,
 }: {
   imageUrl: string;
   caption?: string;
   tags?: string[];
+  t: ReturnType<typeof useTranslation>;
 }) {
   return (
     <section className="space-y-3">
       <p className="text-hot-pink text-xs font-display font-semibold uppercase tracking-widest">
-        Your photo
+        {t.results.yourPhoto}
       </p>
 
       <div className="w-full rounded-xl overflow-hidden bg-surface-container border border-outline-variant/25 flex items-center justify-center">
         <img
           src={imageUrl}
-          alt="Your vibe"
+          alt={t.results.yourVibeAlt}
           className="w-full h-auto max-h-[calc(100vh-14rem)] object-contain"
         />
       </div>
@@ -48,28 +51,30 @@ function MatchControls({
   topIdx,
   onSkip,
   onSave,
+  t,
 }: {
   topIdx: number;
   onSkip: () => void;
   onSave: () => void;
+  t: ReturnType<typeof useTranslation>;
 }) {
   return (
     <div className="flex items-center justify-center gap-10 lg:gap-14">
       <button
         onClick={onSkip}
         disabled={topIdx < 0}
-        aria-label="Skip song"
+        aria-label={t.results.skipAria}
         className="flex flex-col items-center gap-1 disabled:opacity-40"
       >
         <span className="w-12 h-12 lg:w-14 lg:h-14 rounded-full border-2 border-error/40 bg-error/10 flex items-center justify-center text-error hover:bg-error/15 transition-colors active:scale-90 shadow-[0_0_20px_-4px_rgba(255,107,107,0.4)]">
           <span className="material-symbols-outlined text-2xl lg:text-3xl">close</span>
         </span>
-        <span className="text-error/80 text-[10px] lg:text-[11px] font-semibold">Skip</span>
+        <span className="text-error/80 text-[10px] lg:text-[11px] font-semibold">{t.common.skip}</span>
       </button>
       <button
         onClick={onSave}
         disabled={topIdx < 0}
-        aria-label="Save song"
+        aria-label={t.results.saveAria}
         className="flex flex-col items-center gap-1 disabled:opacity-40"
       >
         <span className="w-12 h-12 lg:w-14 lg:h-14 rounded-full border-2 border-hot-pink/40 bg-hot-pink/15 flex items-center justify-center text-hot-pink hover:bg-hot-pink/25 transition-colors active:scale-90 glow-pink">
@@ -80,7 +85,7 @@ function MatchControls({
             favorite
           </span>
         </span>
-        <span className="text-hot-pink/80 text-[10px] lg:text-[11px] font-semibold">Save</span>
+        <span className="text-hot-pink/80 text-[10px] lg:text-[11px] font-semibold">{t.results.saveLabel}</span>
       </button>
     </div>
   );
@@ -114,6 +119,7 @@ function ProgressDots({
 }
 
 export default function ResultsPage() {
+  const t = useTranslation();
   const router = useRouter();
   const {
     tracks,
@@ -171,7 +177,7 @@ export default function ResultsPage() {
             >
               <img
                 src={uploadedImageUrl}
-                alt="Your vibe"
+                alt={t.results.yourVibeAlt}
                 className="w-full max-h-52 object-cover rounded-2xl"
               />
               {vibeProfile?.vibeCaption && (
@@ -193,15 +199,15 @@ export default function ResultsPage() {
           >
             {savedTracks.length > 0 ? (
               <>
-                <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">Your soundtrack</p>
+                <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">{t.results.yourSoundtrack}</p>
                 <h1 className="font-display font-black text-white text-2xl">
-                  {savedTracks.length} song{savedTracks.length !== 1 ? "s" : ""} chosen ✦
+                  {t.results.songsChosen(savedTracks.length)}
                 </h1>
               </>
             ) : (
               <>
-                <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">Nothing saved</p>
-                <h1 className="font-display font-black text-white text-2xl">Try another photo?</h1>
+                <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">{t.results.nothingSaved}</p>
+                <h1 className="font-display font-black text-white text-2xl">{t.results.tryAnotherPhoto}</h1>
               </>
             )}
           </motion.div>
@@ -252,14 +258,14 @@ export default function ResultsPage() {
                 onClick={() => router.push("/library")}
                 className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
               >
-                Open Library →
+                {t.results.openLibrary}
               </button>
             )}
             <button
               onClick={() => router.push("/app")}
               className="w-full border border-white/10 text-white/60 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white/80 active:scale-95 transition-all"
             >
-              Match another photo
+              {t.results.matchAnotherPhoto}
             </button>
           </motion.div>
         </div>
@@ -283,7 +289,7 @@ export default function ResultsPage() {
               </span>
             </button>
             <h1 className="font-display font-bold text-hot-pink text-sm md:text-base">
-              {displayTracks.length - gone.size} of {displayTracks.length} left
+              {t.results.tracksLeft(displayTracks.length - gone.size, displayTracks.length)}
             </h1>
             <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors">
               <span className="material-symbols-outlined text-hot-pink">
@@ -302,17 +308,18 @@ export default function ResultsPage() {
               imageUrl={uploadedImageUrl}
               caption={vibeProfile?.vibeCaption}
               tags={vibeProfile?.vibeTags}
+              t={t}
             />
           </aside>
         )}
 
         <div className="flex flex-col flex-1 min-h-0 space-y-3 lg:space-y-5">
           <p className="hidden lg:block text-hot-pink text-xs font-display font-semibold uppercase tracking-widest">
-            Now playing match
+            {t.results.nowPlayingMatch}
           </p>
 
           <p className="lg:hidden text-center text-on-surface-variant/60 text-[11px]">
-            Swipe right to save · left to skip
+            {t.results.swipeHint}
           </p>
 
           {/* Mobile: tall combined swipe stack; desktop: song card only */}
@@ -343,6 +350,7 @@ export default function ResultsPage() {
             topIdx={topIdx}
             onSkip={() => topIdx >= 0 && handleSkip(topIdx, displayTracks[topIdx])}
             onSave={() => topIdx >= 0 && handleSave(topIdx, displayTracks[topIdx])}
+            t={t}
           />
 
           <ProgressDots

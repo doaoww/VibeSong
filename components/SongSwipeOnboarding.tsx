@@ -4,6 +4,7 @@ import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import type { EmotionalVector } from "../lib/emotionalVector";
 import MusicDNACard from "./MusicDNACard";
 import { buildTasteVector } from "../lib/emotionalVector";
+import { useTranslation } from "../lib/translations/useTranslation";
 
 export interface SeedSong {
   title: string;
@@ -23,6 +24,7 @@ interface Props {
 type Phase = "swipe" | "progress" | "dna";
 
 export default function SongSwipeOnboarding({ languages, likedArtists, onComplete }: Props) {
+  const t = useTranslation();
   const [phase, setPhase] = useState<Phase>("swipe");
 
   const [songs, setSongs] = useState<SeedSong[]>([]);
@@ -190,7 +192,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
       <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex items-center justify-center" style={{ height: '100dvh' }}>
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-hot-pink border-t-transparent animate-spin" />
-          <p className="text-white/50 text-sm font-display">Loading songs...</p>
+          <p className="text-white/50 text-sm font-display">{t.swipe.loadingSongs}</p>
         </div>
       </div>
     );
@@ -220,18 +222,18 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-white font-display font-extrabold text-3xl">{confidence}%</span>
-              <span className="text-white/40 text-xs mt-0.5">taste match</span>
+              <span className="text-white/40 text-xs mt-0.5">{t.swipe.tasteMatch}</span>
             </div>
           </div>
 
           <div>
             <h2 className="text-white font-display font-extrabold text-xl mb-2">
-              We know your taste!
+              {t.swipe.weKnowTaste}
             </h2>
             <p className="text-white/50 text-sm">
               {canImprove
-                ? `Swipe 10 more songs to reach ${nextConfidence}% accuracy`
-                : "Your taste profile is fully calibrated"}
+                ? t.swipe.swipeMoreToReach(nextConfidence)
+                : t.swipe.fullyCalibrated}
             </p>
           </div>
 
@@ -242,7 +244,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
                 disabled={loadingMore}
                 className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base glow-pink disabled:opacity-60 active:scale-95 transition-all"
               >
-                {loadingMore ? "Loading..." : "Swipe 10 more →"}
+                {loadingMore ? t.swipe.loadingButton : t.swipe.swipeMoreButton}
               </button>
             )}
             <button
@@ -253,7 +255,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
                   : "bg-hot-pink text-white glow-pink"
               }`}
             >
-              See my Music DNA →
+              {t.swipe.seeMyDna}
             </button>
           </div>
         </div>
@@ -301,13 +303,13 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
           onClick={() => { audioRef.current?.pause(); onComplete(false); }}
           className="text-white/40 text-xs font-semibold hover:text-white/70 transition-colors flex-shrink-0 px-3 py-2 -mr-1"
         >
-          Skip
+          {t.common.skip}
         </button>
       </div>
 
       {/* Prompt */}
       <p className="text-center text-white/40 text-xs font-semibold tracking-wide uppercase px-4 pb-2 flex-shrink-0">
-        Do you vibe with this?
+        {t.swipe.doYouVibe}
       </p>
 
       {/* Card stack */}
@@ -340,14 +342,14 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
               style={{ opacity: likeOpacity }}
               className="absolute top-5 right-4 bg-hot-pink text-white font-display font-black text-lg px-3 py-1 rounded-lg rotate-12 border-2 border-white/30"
             >
-              LOVE
+              {t.swipe.stampLove}
             </motion.div>
 
             <motion.div
               style={{ opacity: nopeOpacity }}
               className="absolute top-5 left-4 bg-black/50 backdrop-blur text-white font-display font-black text-lg px-3 py-1 rounded-lg -rotate-12 border-2 border-white/20"
             >
-              NOPE
+              {t.swipe.stampNope}
             </motion.div>
 
             {currentSong.previewUrl && (
@@ -367,11 +369,11 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
                         style={{ minHeight: 3, maxHeight: 12 }}
                       />
                     ))}
-                    <span className="text-white/60 text-[10px] ml-1">playing</span>
+                    <span className="text-white/60 text-[10px] ml-1">{t.swipe.playing}</span>
                   </div>
                 ) : (
                   <div className="bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-full">
-                    <span className="text-white/50 text-[10px]">▶ tap to play</span>
+                    <span className="text-white/50 text-[10px]">{t.swipe.tapToPlay}</span>
                   </div>
                 )}
               </button>
@@ -402,7 +404,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
         <button
           onClick={() => currentSong && swipeOff("left", currentSong)}
           className="w-14 h-14 rounded-full border border-white/15 bg-white/5 flex items-center justify-center text-white/50 text-xl hover:border-white/30 hover:bg-white/10 transition-all active:scale-90"
-          aria-label="Skip"
+          aria-label={t.swipe.skipAria}
         >
           ✕
         </button>
@@ -410,7 +412,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
           onClick={() => currentSong && swipeOff("right", currentSong)}
           className="w-18 h-18 rounded-full bg-hot-pink flex items-center justify-center text-white text-2xl glow-pink hover:scale-105 transition-all active:scale-95 shadow-xl"
           style={{ width: 68, height: 68 }}
-          aria-label="Love it"
+          aria-label={t.swipe.loveItAria}
         >
           ♥
         </button>
@@ -418,7 +420,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
 
       {index === 0 && (
         <p className="text-center text-white/25 text-[11px] pb-3 -mt-4 flex-shrink-0">
-          Swipe or tap · right to love it · left to skip
+          {t.swipe.swipeHintFull}
         </p>
       )}
     </div>
