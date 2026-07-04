@@ -861,7 +861,7 @@ git commit -m "feat: localize upload/home page (EN/RU)"
     saveAria: "Save song",
     saveLabel: "Save",
     yourSoundtrack: "Your soundtrack",
-    songsChosen: (count: number) => `Выбрано песен: ${count} ✦`,
+    songsChosen: (count: number) => `${count} song${count === 1 ? "" : "s"} chosen ✦`,
     nothingSaved: "Nothing saved",
     tryAnotherPhoto: "Try another photo?",
     openLibrary: "Open Library →",
