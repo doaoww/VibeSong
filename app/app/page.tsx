@@ -14,19 +14,12 @@ import { useAppStore, ExifData, Track } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import { useAccountSync } from "../../lib/useAccountSync";
 import ContrastModeToggle from "../../components/ContrastModeToggle";
+import { useTranslation } from "../../lib/translations/useTranslation";
 
 type HomeState = "idle" | "uploading" | "analyzing";
 
-const ANALYZING_TEXTS = [
-  "Reading the vibe...",
-  "Analyzing mood & energy...",
-  "Searching millions of tracks...",
-  "Curating your soundtrack...",
-];
-
-const MARQUEE_WORDS = ["MOOD", "ENERGY", "VIBE", "SOUND", "FEELING", "COLOR"];
-
 export default function AppUploadPage() {
+  const t = useTranslation();
   const router = useRouter();
   const { user, status, tasteComplete } = useAccountSync();
   const { credits, loaded, deduct, add, refresh } = useCredits();
@@ -113,7 +106,7 @@ export default function AppUploadPage() {
   useEffect(() => {
     if (pageState !== "analyzing") return;
     const interval = setInterval(() => {
-      setAnalyzeTextIdx((i) => (i + 1) % ANALYZING_TEXTS.length);
+      setAnalyzeTextIdx((i) => (i + 1) % t.home.analyzingTexts.length);
     }, 1500);
     return () => clearInterval(interval);
   }, [pageState]);
@@ -204,7 +197,7 @@ export default function AppUploadPage() {
         add(1); // Refund the credit — analysis didn't complete
         setIsAnalyzing(false);
         setPageState("idle");
-        setErrorMsg("Analysis temporarily failed — no credit was used. Try again?");
+        setErrorMsg(t.home.errorRefund);
         setFailedUpload({ base64, mimeType, objectUrl, exifData });
       }
     },
@@ -271,7 +264,7 @@ export default function AppUploadPage() {
             <div className="relative h-1/2 lg:h-[55%] flex-shrink-0">
               <img
                 src={uploadedImageUrl}
-                alt="Your upload"
+                alt={t.home.uploadedAlt}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
@@ -319,12 +312,12 @@ export default function AppUploadPage() {
                 transition={{ duration: 0.3 }}
                 className="text-white font-display font-bold text-xl md:text-2xl text-center"
               >
-                {ANALYZING_TEXTS[analyzeTextIdx]}
+                {t.home.analyzingTexts[analyzeTextIdx]}
               </motion.p>
             </AnimatePresence>
 
             <p className="text-on-surface-variant text-sm">
-              This takes about 5 seconds
+              {t.home.analyzingSubtext}
             </p>
           </div>
         </div>
@@ -355,7 +348,7 @@ export default function AppUploadPage() {
           exit={{ opacity: 0, y: -12 }}
           className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2"
         >
-          <span>✓</span> Credits added — enjoy your matches!
+          {t.home.creditsAddedToast}
         </motion.div>
       )}
 
@@ -368,7 +361,7 @@ export default function AppUploadPage() {
               animate={{ opacity: 1, y: 0 }}
               className="inline-flex items-center gap-2 rounded-full bg-hot-pink px-3 py-1 text-[11px] font-semibold text-white font-display"
             >
-              ✦ AI Music Matching
+              {t.home.badge}
             </motion.div>
 
             <motion.h1
@@ -377,9 +370,9 @@ export default function AppUploadPage() {
               transition={{ delay: 0.05 }}
               className="font-display text-3xl md:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight text-white"
             >
-              Your photo.
+              {t.home.headingLine1}
               <br />
-              <span className="text-hot-pink">Your soundtrack.</span>
+              <span className="text-hot-pink">{t.home.headingLine2}</span>
             </motion.h1>
 
             <motion.p
@@ -388,8 +381,7 @@ export default function AppUploadPage() {
               transition={{ delay: 0.15 }}
               className="text-on-surface-variant text-sm md:text-base leading-relaxed max-w-md"
             >
-              Drop any photo. Our AI reads the vibe and finds songs that just
-              fit.
+              {t.home.subtitle}
             </motion.p>
 
           </section>
@@ -401,7 +393,7 @@ export default function AppUploadPage() {
                   error
                 </span>
                 <div className="flex-1">
-                  <p className="font-semibold">Couldn&apos;t read that photo&apos;s vibe</p>
+                  <p className="font-semibold">{t.home.errorHeading}</p>
                   <p className="opacity-80 text-xs mt-0.5">{errorMsg}</p>
                   {failedUpload && (
                     <button
@@ -413,7 +405,7 @@ export default function AppUploadPage() {
                       }}
                       className="mt-2 text-xs font-semibold underline underline-offset-2 hover:opacity-80"
                     >
-                      Try again
+                      {t.common.tryAgain}
                     </button>
                   )}
                 </div>
@@ -433,8 +425,7 @@ export default function AppUploadPage() {
             <ContrastModeToggle />
 
             <p className="text-center text-xs text-on-surface-variant">
-              <span className="text-hot-pink">✦</span> {credits} free matches ·
-              Any photo works
+              {t.home.freeMatches(credits)}
             </p>
           </section>
         </div>
@@ -443,13 +434,13 @@ export default function AppUploadPage() {
           <section className="space-y-3">
             <div className="flex justify-between items-center">
               <h2 className="font-display font-bold text-base md:text-lg text-white">
-                Recent Vibes
+                {t.home.recentVibesHeading}
               </h2>
               <a
                 href="/library"
                 className="text-hot-pink text-xs font-semibold hover:underline"
               >
-                See all
+                {t.home.seeAll}
               </a>
             </div>
             <div className="flex overflow-x-auto gap-3 scroll-hide pb-1 lg:grid lg:grid-cols-4 xl:grid-cols-6 lg:overflow-visible">
@@ -487,7 +478,7 @@ export default function AppUploadPage() {
           <div className="marquee-track flex whitespace-nowrap font-display text-2xl md:text-3xl font-extrabold uppercase tracking-tight">
             {Array.from({ length: 2 }).map((_, dup) => (
               <div key={dup} className="flex shrink-0 items-center gap-6 px-3">
-                {MARQUEE_WORDS.map((w, i) => (
+                {t.home.marqueeWords.map((w, i) => (
                   <span key={`${dup}-${i}`} className="flex items-center gap-6">
                     <span
                       className={i % 2 === 0 ? "text-white" : "text-hot-pink"}
