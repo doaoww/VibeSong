@@ -91,6 +91,7 @@ interface AppState {
   likedSeedTracks: Array<{ title: string; artist: string }>;
   onboardingPrefs: { languagePreference: string; dislikes: string[] };
   contrastMode: boolean;
+  locale: "en" | "ru";
 
   setUploadedImage: (base64: string, objectUrl: string) => void;
   setVibeProfile: (profile: VibeProfile) => void;
@@ -105,6 +106,7 @@ interface AppState {
   setLikedSeedTracks: (tracks: Array<{ title: string; artist: string }>) => void;
   setOnboardingPrefs: (prefs: { languagePreference: string; dislikes: string[] }) => void;
   setContrastMode: (v: boolean) => void;
+  setLocale: (locale: "en" | "ru") => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -120,6 +122,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   likedSeedTracks: [],
   onboardingPrefs: { languagePreference: "No preference", dislikes: [] },
   contrastMode: false,
+  locale: "en",
 
   setUploadedImage: (base64, objectUrl) =>
     set({ uploadedImage: base64, uploadedImageUrl: objectUrl }),
@@ -239,4 +242,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setOnboardingPrefs: (prefs) => set({ onboardingPrefs: prefs }),
 
   setContrastMode: (v) => set({ contrastMode: v }),
+
+  setLocale: (locale) => {
+    if (typeof window !== "undefined") localStorage.setItem("vibesong_locale", locale);
+    set({ locale });
+  },
 }));
