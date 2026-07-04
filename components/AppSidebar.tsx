@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const NAV_ITEMS = [
-  { href: "/app", icon: "home", label: "Upload" },
-  { href: "/explore", icon: "explore", label: "Explore" },
-  { href: "/library", icon: "library_music", label: "Library" },
-  { href: "/profile", icon: "person", label: "Profile" },
-];
+import { useTranslation } from "../lib/translations/useTranslation";
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const t = useTranslation();
+
+  const NAV_ITEMS = [
+    { href: "/app", icon: "home", label: t.nav.upload },
+    { href: "/explore", icon: "explore", label: t.nav.explore },
+    { href: "/library", icon: "library_music", label: t.nav.library },
+    { href: "/profile", icon: "person", label: t.nav.profile },
+  ];
 
   return (
     <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-64 flex-col border-r border-outline-variant/20 bg-surface-container-lowest/95 backdrop-blur-xl">
@@ -59,7 +61,7 @@ export default function AppSidebar() {
           href="/app"
           className="flex items-center justify-center gap-2 w-full bg-hot-pink text-white py-3 rounded-full font-display font-semibold text-sm glow-pink hover:bg-[#ff4488] transition-colors"
         >
-          Upload a photo →
+          {t.common.uploadPhotoArrow}
         </Link>
       </div>
     </aside>

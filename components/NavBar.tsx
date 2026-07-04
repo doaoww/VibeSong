@@ -1,16 +1,18 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const NAV_ITEMS = [
-  { href: "/app", icon: "home", label: "Home" },
-  { href: "/explore", icon: "explore", label: "Explore" },
-  { href: "/library", icon: "library_music", label: "Library" },
-  { href: "/profile", icon: "person", label: "Profile" },
-];
+import { useTranslation } from "../lib/translations/useTranslation";
 
 export default function NavBar() {
   const pathname = usePathname();
+  const t = useTranslation();
+
+  const NAV_ITEMS = [
+    { href: "/app", icon: "home", label: t.nav.home },
+    { href: "/explore", icon: "explore", label: t.nav.explore },
+    { href: "/library", icon: "library_music", label: t.nav.library },
+    { href: "/profile", icon: "person", label: t.nav.profile },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around items-center px-3 pb-4 pt-2 glass-effect border-t border-outline-variant/20 rounded-t-2xl lg:hidden">

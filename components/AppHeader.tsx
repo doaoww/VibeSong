@@ -1,6 +1,8 @@
 "use client";
 
 import CreditBadge from "./CreditBadge";
+import LanguageToggle from "./LanguageToggle";
+import { useTranslation } from "../lib/translations/useTranslation";
 
 interface AppHeaderProps {
   credits?: number;
@@ -19,6 +21,8 @@ export default function AppHeader({
   left,
   right,
 }: AppHeaderProps) {
+  const t = useTranslation();
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-outline-variant/20 lg:left-64">
       <div className="mx-auto max-w-6xl flex items-center justify-between px-4 md:px-6 lg:px-8 py-3">
@@ -39,17 +43,20 @@ export default function AppHeader({
           </span>
         ) : (
           <span className="hidden lg:block font-display font-bold text-lg text-white flex-1">
-            Upload
+            {t.nav.upload}
           </span>
         )}
 
-        {right ?? (
-          showCredits ? (
-            <CreditBadge credits={credits} onClick={onCreditsClick} />
-          ) : (
-            <div className="w-16" />
-          )
-        )}
+        <div className="flex items-center gap-2">
+          <LanguageToggle />
+          {right ?? (
+            showCredits ? (
+              <CreditBadge credits={credits} onClick={onCreditsClick} />
+            ) : (
+              <div className="w-16" />
+            )
+          )}
+        </div>
       </div>
     </header>
   );
