@@ -282,4 +282,17 @@ export const ru: Translation = {
       continueLabel: "Продолжить",
     },
   },
+  auth: {
+    sendFailed: "Не удалось отправить ссылку. Попробуй ещё раз.",
+    checkInbox: "Проверь почту",
+    linkSentTo: (email: string) => `Мы отправили ссылку для входа на ${email}. Перейди по ней, чтобы продолжить — пароль не нужен.`,
+    didntGetIt: "Не пришло?",
+    oneLastStep: "Последний шаг",
+    signInBenefit: "Войди, чтобы сохранять мэтчи и получать более точные рекомендации со временем.",
+    continueWithGoogle: "Продолжить с Google",
+    or: "или",
+    sendingLink: "Отправляем ссылку...",
+    sendMagicLink: "Отправить ссылку для входа",
+    noPasswordNeeded: "Мы пришлём ссылку на почту — пароль не нужен.",
+  },
 };

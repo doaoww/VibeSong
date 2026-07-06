@@ -278,4 +278,17 @@ export const en = {
       continueLabel: "Continue",
     },
   },
+  auth: {
+    sendFailed: "Couldn't send the link. Try again.",
+    checkInbox: "Check your inbox",
+    linkSentTo: (email: string) => `We sent a sign-in link to ${email}. Click it to continue — no password needed.`,
+    didntGetIt: "Didn't get it?",
+    oneLastStep: "One last step",
+    signInBenefit: "Sign in to save your matches and get better recommendations over time.",
+    continueWithGoogle: "Continue with Google",
+    or: "or",
+    sendingLink: "Sending link...",
+    sendMagicLink: "Send magic link",
+    noPasswordNeeded: "We'll email you a link — no password needed.",
+  },
 };
