@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useTranslation } from "../../lib/translations/useTranslation";
 
 interface SongSuggestion {
   id: string;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function StorySongsStep({ onNext, onBack, onSkip }: Props) {
+  const t = useTranslation();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<SongSuggestion[]>([]);
   const [picked, setPicked] = useState<PickedSong[]>([]);
@@ -61,7 +63,7 @@ export default function StorySongsStep({ onNext, onBack, onSkip }: Props) {
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
       onNext();
     } catch {
-      setError("Couldn't save those songs — you can still continue.");
+      setError(t.onboarding.storySongs.saveFailed);
     } finally {
       setResolving(false);
     }
@@ -71,10 +73,10 @@ export default function StorySongsStep({ onNext, onBack, onSkip }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-white font-display font-extrabold text-2xl mb-1">
-          Which songs have you recently posted?
+          {t.onboarding.storySongs.heading}
         </h2>
         <p className="text-white/40 text-sm">
-          Add up to 3 songs you&apos;ve recently used in your Instagram or TikTok stories.
+          {t.onboarding.storySongs.subtitle}
         </p>
       </div>
 
@@ -99,7 +101,7 @@ export default function StorySongsStep({ onNext, onBack, onSkip }: Props) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for a song..."
+            placeholder={t.onboarding.storySongs.searchPlaceholder}
             className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-hot-pink transition-colors text-base"
           />
           {suggestions.length > 0 && (
@@ -122,14 +124,14 @@ export default function StorySongsStep({ onNext, onBack, onSkip }: Props) {
 
       <div className="flex gap-3">
         <button onClick={onBack} disabled={resolving} className="px-6 py-3.5 rounded-xl border border-white/15 text-white/60 font-semibold text-sm disabled:opacity-40">
-          Back
+          {t.common.back}
         </button>
         <button
           onClick={handleContinue}
           disabled={resolving}
           className="flex-1 py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base active:scale-95 transition-all disabled:opacity-60"
         >
-          {resolving ? "Finding these songs…" : picked.length > 0 ? "Continue" : "Skip"}
+          {resolving ? t.onboarding.storySongs.finding : picked.length > 0 ? t.onboarding.storySongs.continueLabel : t.common.skip}
         </button>
       </div>
     </div>

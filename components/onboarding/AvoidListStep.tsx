@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "../../lib/translations/useTranslation";
 
 type AvoidTarget =
   | { type: "genre"; key: string }
@@ -28,6 +29,26 @@ interface Props {
 }
 
 export default function AvoidListStep({ selected, onChange, onNext, onBack }: Props) {
+  const t = useTranslation();
+
+  // AVOID_OPTIONS' `label` field is the stored/matched value (compared via
+  // `selected.includes`, looked up via `AVOID_OPTIONS.find`, and passed up
+  // through `onChange`) — it must stay the original English string regardless
+  // of UI language. Only the rendered button text is translated, via this
+  // lookup.
+  const displayLabel = (label: string): string => {
+    switch (label) {
+      case "EDM": return t.onboarding.avoidList.tagEdm;
+      case "Rap": return t.onboarding.avoidList.tagRap;
+      case "Mainstream pop": return t.onboarding.avoidList.tagMainstreamPop;
+      case "Sad acoustic": return t.onboarding.avoidList.tagSadAcoustic;
+      case "Too dramatic": return t.onboarding.avoidList.tagTooDramatic;
+      case "Too niche": return t.onboarding.avoidList.tagTooNiche;
+      case "Too mainstream": return t.onboarding.avoidList.tagTooMainstream;
+      default: return label;
+    }
+  };
+
   const toggle = (label: string) => {
     const nextLabels = selected.includes(label)
       ? selected.filter((l) => l !== label)
@@ -51,8 +72,8 @@ export default function AvoidListStep({ selected, onChange, onNext, onBack }: Pr
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-white font-display font-extrabold text-2xl mb-1">Anything to avoid?</h2>
-        <p className="text-white/40 text-sm">Optional — no wrong answers.</p>
+        <h2 className="text-white font-display font-extrabold text-2xl mb-1">{t.onboarding.avoidList.heading}</h2>
+        <p className="text-white/40 text-sm">{t.onboarding.avoidList.subtitle}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {AVOID_OPTIONS.map(({ label }) => (
@@ -65,19 +86,19 @@ export default function AvoidListStep({ selected, onChange, onNext, onBack }: Pr
                 : "border-white/15 text-white/50 hover:border-white/30"
             }`}
           >
-            {label}
+            {displayLabel(label)}
           </button>
         ))}
       </div>
       <div className="flex gap-3">
         <button onClick={onBack} className="px-6 py-3.5 rounded-xl border border-white/15 text-white/60 font-semibold text-sm">
-          Back
+          {t.common.back}
         </button>
         <button
           onClick={onNext}
           className="flex-1 py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base active:scale-95 transition-all"
         >
-          Next
+          {t.common.next}
         </button>
       </div>
     </div>

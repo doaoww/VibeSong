@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useTranslation } from "../../lib/translations/useTranslation";
 
 interface Props {
   selectedArtists: string[];
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function ArtistStep({ selectedArtists, onChange, onQuickStart, onContinue }: Props) {
+  const t = useTranslation();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
@@ -37,8 +39,8 @@ export default function ArtistStep({ selectedArtists, onChange, onQuickStart, on
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-white font-display font-extrabold text-2xl mb-1">Artists you love</h2>
-        <p className="text-white/40 text-sm">Name 2-3 — the more you add, the better we match.</p>
+        <h2 className="text-white font-display font-extrabold text-2xl mb-1">{t.onboarding.artist.heading}</h2>
+        <p className="text-white/40 text-sm">{t.onboarding.artist.subtitle}</p>
       </div>
 
       {selectedArtists.length > 0 && (
@@ -62,7 +64,7 @@ export default function ArtistStep({ selectedArtists, onChange, onQuickStart, on
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addArtist(query); } }}
-          placeholder="e.g. Земфира"
+          placeholder={t.onboarding.artist.placeholderExample}
           className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-hot-pink transition-colors text-base"
           autoFocus
         />
@@ -80,7 +82,7 @@ export default function ArtistStep({ selectedArtists, onChange, onQuickStart, on
           </div>
         )}
       </div>
-      <p className="text-white/30 text-xs">Can&apos;t find them? Type the name and press Enter.</p>
+      <p className="text-white/30 text-xs">{t.onboarding.artist.helpText}</p>
 
       <div className="space-y-3 pt-2">
         <button
@@ -88,13 +90,13 @@ export default function ArtistStep({ selectedArtists, onChange, onQuickStart, on
           disabled={selectedArtists.length === 0}
           className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
         >
-          Keep improving my matches →
+          {t.onboarding.artist.continueImprove}
         </button>
         <button
           onClick={onQuickStart}
           className="w-full py-3.5 rounded-xl border border-white/15 text-white/70 font-display font-bold text-base active:scale-95 transition-all"
         >
-          Skip to upload →
+          {t.onboarding.artist.skipToUpload}
         </button>
       </div>
     </div>
