@@ -280,18 +280,3 @@ export async function recordFeedback(
   });
   if (error) throw new Error(`recordFeedback failed: ${error.message}`);
 }
-
-export interface SongSearchResult {
-  id: string;
-  title: string;
-  artist: string;
-}
-
-export async function searchCatalogByText(query: string, limit = 8): Promise<SongSearchResult[]> {
-  const { data, error } = await supabase.rpc("search_catalog", {
-    p_query: query,
-    p_limit: limit,
-  });
-  if (error) throw new Error(`searchCatalogByText failed: ${error.message}`);
-  return (data ?? []) as SongSearchResult[];
-}
