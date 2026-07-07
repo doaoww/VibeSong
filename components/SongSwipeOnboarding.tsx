@@ -171,18 +171,19 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
     else audio.play().then(() => setIsPlaying(true)).catch(() => {});
   };
 
-  // Persist swipe feedback so it actually influences future recommendations
-  // (insertFeedback + upsertEmotionalVector server-side) — without this call
-  // saved/skipped songs only ever fed the local, in-memory dnaVector display.
+  // Always call seed-feedback on finish, even with 0 swipes (e.g. seed-tracks
+  // returned no songs for this catalog/language). This is the only request
+  // that flips user_taste.setup_complete to true server-side — skipping it
+  // left returning users stuck with setup_complete=false in the DB forever,
+  // masked only by a local "onboardingDone" flag, so any new device/browser/
+  // cleared storage sent them through onboarding (and the auth gate) again.
   const finish = useCallback(() => {
     audioRef.current?.pause();
-    if (saved.length + skipped.length > 0) {
-      fetch("/api/seed-feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ saved, skipped }),
-      }).catch(() => {});
-    }
+    fetch("/api/seed-feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ saved, skipped }),
+    }).catch(() => {});
     onComplete(true);
   }, [saved, skipped, onComplete]);
 
