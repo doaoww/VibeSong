@@ -92,6 +92,7 @@ interface AppState {
   onboardingPrefs: { languagePreference: string; dislikes: string[] };
   contrastMode: boolean;
   locale: "en" | "ru";
+  vibeIntent: string | null;
 
   setUploadedImage: (base64: string, objectUrl: string) => void;
   setVibeProfile: (profile: VibeProfile) => void;
@@ -107,6 +108,7 @@ interface AppState {
   setOnboardingPrefs: (prefs: { languagePreference: string; dislikes: string[] }) => void;
   setContrastMode: (v: boolean) => void;
   setLocale: (locale: "en" | "ru") => void;
+  setVibeIntent: (text: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -123,6 +125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   onboardingPrefs: { languagePreference: "No preference", dislikes: [] },
   contrastMode: false,
   locale: "en",
+  vibeIntent: null,
 
   setUploadedImage: (base64, objectUrl) =>
     set({ uploadedImage: base64, uploadedImageUrl: objectUrl }),
@@ -217,6 +220,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       vibeProfile: null,
       tracks: [],
       currentCardIndex: 0,
+      vibeIntent: null,
     }),
 
   loadFeedback: async () => {
@@ -247,4 +251,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (typeof window !== "undefined") localStorage.setItem("vibesong_locale", locale);
     set({ locale });
   },
+
+  setVibeIntent: (text) => set({ vibeIntent: text.trim() || null }),
 }));
