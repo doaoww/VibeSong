@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import Star from "../../components/Star";
@@ -7,6 +8,8 @@ import { en } from "../../lib/translations/en";
 
 const EXPLORE_CARDS = [
   {
+    image: "/landing/golden-hour.jpg",
+    imagePosition: "object-[50%_30%]",
     gradient: "from-[#5C1B2E] to-[#2A0710]",
     song: "Nights",
     artist: "Frank Ocean",
@@ -14,6 +17,8 @@ const EXPLORE_CARDS = [
     tags: ["R&B", "Late Night"],
   },
   {
+    image: "/landing/blinding-lights.jpg",
+    imagePosition: "object-[50%_35%]",
     gradient: "from-[#0F3D8C] to-[#0A1A3A]",
     song: "Blinding Lights",
     artist: "The Weeknd",
@@ -21,6 +26,8 @@ const EXPLORE_CARDS = [
     tags: ["Synthwave", "City"],
   },
   {
+    image: "/landing/happiness.jpg",
+    imagePosition: "object-[50%_30%]",
     gradient: "from-[#D9A05B] to-[#7A4A1F]",
     song: "Happiness",
     artist: "Rex Orange County",
@@ -28,6 +35,8 @@ const EXPLORE_CARDS = [
     tags: ["Indie", "Warm"],
   },
   {
+    image: "/landing/kill-bill.jpg",
+    imagePosition: "object-[50%_35%]",
     gradient: "from-[#1E1E1E] to-[#000000]",
     song: "Kill Bill",
     artist: "SZA",
@@ -35,6 +44,8 @@ const EXPLORE_CARDS = [
     tags: ["R&B", "Moody"],
   },
   {
+    image: "/landing/blinding-lights.jpg",
+    imagePosition: "object-[50%_70%]",
     gradient: "from-[#2D1B4E] to-[#0F0820]",
     song: "Redbone",
     artist: "Childish Gambino",
@@ -42,6 +53,8 @@ const EXPLORE_CARDS = [
     tags: ["Funk", "Noir"],
   },
   {
+    image: "/landing/golden-hour.jpg",
+    imagePosition: "object-[50%_68%]",
     gradient: "from-[#1A4D3A] to-[#0A2018]",
     song: "Sunflower",
     artist: "Rex Orange County",
@@ -91,6 +104,15 @@ export default function ExplorePage() {
               className="overflow-hidden rounded-xl bg-surface-container border border-outline-variant/20 hover:border-hot-pink/30 transition-colors"
             >
               <div className={`relative h-28 md:h-36 bg-gradient-to-br ${c.gradient}`}>
+                <Image
+                  src={c.image}
+                  alt={`${c.song} by ${c.artist}`}
+                  fill
+                  sizes="(min-width: 768px) 33vw, 50vw"
+                  className={`absolute inset-0 h-full w-full object-cover ${c.imagePosition}`}
+                />
+                <div className={`absolute inset-0 bg-gradient-to-br ${c.gradient} opacity-35`} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-black/10" />
                 <div className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {getTagTranslation(c.tags[0], t)}
                 </div>
