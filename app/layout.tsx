@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, DM_Sans } from "next/font/google";
+import { Space_Grotesk, DM_Sans, Unbounded, Golos_Text } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import LocaleInit from "../components/LocaleInit";
 import AmplitudeInit from "../components/AmplitudeInit";
@@ -14,6 +14,22 @@ const spaceGrotesk = Space_Grotesk({
 const dmSans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-dm-sans",
+  weight: ["400", "500", "600", "700"],
+});
+
+// Neither Space Grotesk nor DM Sans ship Cyrillic glyphs, so Russian text was
+// falling back to the browser's default system-ui font — much larger and a
+// visual mismatch with the Latin UI. These cover the same weight roles for
+// :lang(ru) (see globals.css).
+const unbounded = Unbounded({
+  subsets: ["cyrillic", "latin"],
+  variable: "--font-unbounded",
+  weight: ["500", "600", "700", "800"],
+});
+
+const golosText = Golos_Text({
+  subsets: ["cyrillic", "latin"],
+  variable: "--font-golos",
   weight: ["400", "500", "600", "700"],
 });
 
@@ -43,14 +59,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
-          rel="stylesheet"
-        />
-      </head>
       <body
-        className={`${spaceGrotesk.variable} ${dmSans.variable} font-sans min-h-full bg-background text-on-surface antialiased`}
+        className={`${spaceGrotesk.variable} ${dmSans.variable} ${unbounded.variable} ${golosText.variable} font-sans min-h-full bg-background text-on-surface antialiased`}
       >
         <LocaleInit />
         <AmplitudeInit />

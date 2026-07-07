@@ -73,6 +73,55 @@
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
 }
 
+/* Space Grotesk / DM Sans have no Cyrillic glyphs — without this, Russian
+   text silently fell back to the browser's system-ui font, which reads much
+   larger and clashes with the Latin UI. */
+:lang(ru) {
+  --font-display: var(--font-unbounded), var(--font-space-grotesk), system-ui, sans-serif;
+  --font-sans: var(--font-golos), var(--font-dm-sans), system-ui, sans-serif;
+}
+
+/* Space Grotesk's -0.02em tracking is tuned for its own letterforms — Unbounded
+   reads better untouched. */
+:lang(ru) h1,
+:lang(ru) h2,
+:lang(ru) h3,
+:lang(ru) h4,
+:lang(ru) h5,
+:lang(ru) h6 {
+  letter-spacing: normal;
+}
+
+/* Self-hosted so icons don't depend on a runtime request to
+   fonts.googleapis.com/fonts.gstatic.com — that request is unreliable for
+   users in regions where Google's font CDN is blocked or throttled, which
+   left icons rendering as their raw ligature text (e.g. "home") instead of
+   glyphs. Variable weight + FILL/GRAD/opsz axes are preserved, matching the
+   file Google's CSS2 API itself serves. */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  src: url("/fonts/material-symbols-outlined.woff2") format("woff2");
+  font-display: block;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
 html {
   /* Prevent elastic overscroll bounce on iOS — keeps app feel */
   overscroll-behavior: none;
@@ -81,7 +130,7 @@ html {
 body {
   background-color: #0a0a0a;
   color: #ffffff;
-  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
@@ -93,7 +142,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
