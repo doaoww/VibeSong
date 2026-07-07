@@ -11,6 +11,7 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@amplitude/unified": "^1.1.20",
     "@auth/supabase-adapter": "^1.11.2",
     "@polar-sh/sdk": "^0.48.1",
     "@supabase/ssr": "^0.12.0",

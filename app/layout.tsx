@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import LocaleInit from "../components/LocaleInit";
+import AmplitudeInit from "../components/AmplitudeInit";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -52,6 +53,7 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${dmSans.variable} font-sans min-h-full bg-background text-on-surface antialiased`}
       >
         <LocaleInit />
+        <AmplitudeInit />
         {children}
         <Analytics />
       </body>
