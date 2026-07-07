@@ -110,6 +110,7 @@ export const ru: Translation = {
     freeMatches: (credits: number) => `${credits} бесплатных мэтчей · Любое фото подойдёт`,
     recentVibesHeading: "Недавние вайбы",
     seeAll: "Смотреть все",
+    vibeIntentPlaceholder: "Какой вайб тебе нужен? (необязательно)",
   },
   results: {
     yourPhoto: "Твоё фото",
@@ -126,6 +127,7 @@ export const ru: Translation = {
     tracksLeft: (remaining: number, total: number) => `Осталось ${remaining} из ${total}`,
     nowPlayingMatch: "Сейчас играет",
     swipeHint: "Свайп вправо — сохранить, влево — пропустить",
+    youToldUs: (text: string) => `Ты хотел(а): «${text}»`,
   },
   swipe: {
     dnaDreamy: "Мечтательность",

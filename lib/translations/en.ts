@@ -106,6 +106,7 @@ export const en = {
     freeMatches: (credits: number) => `${credits} free matches · Any photo works`,
     recentVibesHeading: "Recent Vibes",
     seeAll: "See all",
+    vibeIntentPlaceholder: "What vibe do you want? (optional)",
   },
   results: {
     yourPhoto: "Your photo",
@@ -122,6 +123,7 @@ export const en = {
     tracksLeft: (remaining: number, total: number) => `${remaining} of ${total} left`,
     nowPlayingMatch: "Now playing match",
     swipeHint: "Swipe right to save · left to skip",
+    youToldUs: (text: string) => `You told us: "${text}"`,
   },
   swipe: {
     dnaDreamy: "Dreamy",
