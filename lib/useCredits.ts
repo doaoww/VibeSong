@@ -16,14 +16,14 @@ function lsSet(n: number) {
 
 async function fetchCredits(): Promise<number | null> {
   try {
-    const res = await fetch("/api/credits");
+    const res = await fetch("/api/credits", { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       lsSet(data.credits);
       return data.credits;
     }
   } catch {}
-  return null; // not signed in or offline → fall back to localStorage
+  return null; // not signed in or offline -> fall back to localStorage
 }
 
 export function useCredits() {
@@ -31,15 +31,20 @@ export function useCredits() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Initialize from localStorage immediately (works for anon users too)
-    setCredits(lsGet());
+    let cancelled = false;
 
-    fetchCredits().then((value) => {
+    void Promise.resolve().then(async () => {
+      const value = await fetchCredits();
+      if (cancelled) return;
       if (value !== null) {
         setCredits(value);
       }
       setLoaded(true);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const deduct = useCallback(async (): Promise<boolean> => {
@@ -77,9 +82,10 @@ export function useCredits() {
     setCredits(next);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<number | null> => {
     const value = await fetchCredits();
     if (value !== null) setCredits(value);
+    return value;
   }, []);
 
   return { credits, loaded, refresh, deduct, add };

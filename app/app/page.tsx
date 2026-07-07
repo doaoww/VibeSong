@@ -524,6 +524,7 @@ export default function AppUploadPage() {
         onClose={() => setShowPricing(false)}
         currentCredits={credits}
         onAddCredits={handleCreditsAdded}
+        onRefreshCredits={refresh}
       />
       {effectiveShowOnboarding && (
         <OnboardingFlow

@@ -22,7 +22,7 @@ export default function ProfilePage() {
   const t = useTranslation();
   const { user } = useAccountSync();
   const { savedSongs, loadFeedback } = useAppStore();
-  const { credits, add } = useCredits();
+  const { credits, add, refresh } = useCredits();
   const [showPricing, setShowPricing] = useState(false);
   const [learnedTaste, setLearnedTaste] = useState<LearnedTaste | null>(null);
 
@@ -226,6 +226,7 @@ export default function ProfilePage() {
         onClose={() => setShowPricing(false)}
         currentCredits={credits}
         onAddCredits={add}
+        onRefreshCredits={refresh}
       />
     </AppShell>
   );

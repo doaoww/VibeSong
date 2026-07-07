@@ -10,5 +10,8 @@ export async function GET() {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const profile = await getOrCreateProfile(user.id);
-  return NextResponse.json({ credits: profile.credits });
+  return NextResponse.json(
+    { credits: profile.credits },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

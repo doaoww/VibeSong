@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "../lib/translations/useTranslation";
 
@@ -8,6 +8,7 @@ interface PricingModalProps {
   onClose: () => void;
   currentCredits: number;
   onAddCredits: (amount: number) => Promise<void>;
+  onRefreshCredits: () => Promise<number | null>;
 }
 
 function getPackages(t: ReturnType<typeof useTranslation>) {
@@ -56,6 +57,7 @@ export default function PricingModal({
   onClose,
   currentCredits,
   onAddCredits,
+  onRefreshCredits,
 }: PricingModalProps) {
   const t = useTranslation();
   const PACKAGES = useMemo(() => getPackages(t), [t]);
@@ -64,6 +66,11 @@ export default function PricingModal({
   const [adding, setAdding] = useState(false);
   const [done, setDone] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void onRefreshCredits();
+  }, [isOpen, onRefreshCredits]);
 
   const handleContinue = async () => {
     const pkg = PACKAGES.find((p) => p.id === selected)!;
