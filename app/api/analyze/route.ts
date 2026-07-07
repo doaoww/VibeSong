@@ -22,6 +22,7 @@ import { parseMatchSignals } from "../../../lib/matchSignals";
 import { parseMusicSupervisorBrief, buildBriefText } from "../../../lib/musicSupervisorBrief";
 import { embedText } from "../../../lib/embeddings";
 import { vectorToArray } from "../../../lib/vectorMath";
+import { sanitizeVibeIntent } from "../../../lib/vibeIntent";
 import type { ExifData } from "../../../store/useAppStore";
 
 export const runtime = "nodejs";
@@ -128,8 +129,14 @@ NUMBER RULES:
 - energy_bounds: floats 0.0-1.0 describing how tightly a fitting song's energy should match this specific photo. Narrow (e.g. min 0.15 / max 0.30) for a still, unambiguous moment; wider (e.g. min 0.2 / max 0.55) if the photo's energy is more open to interpretation.
 - scene_context_tags: closed vocabulary is deliberately narrow — when a photo doesn't cleanly match any listed category (e.g. a landscape with no person, an object close-up), map it to the nearest listed category instead of inventing a new word, and prefer an empty array over a made-up tag.`;
 
-function buildPrompt(exifBlock: string): string {
-  return BASE_SYSTEM_PROMPT + exifBlock;
+function buildPrompt(exifBlock: string, vibeIntentBlock: string): string {
+  return BASE_SYSTEM_PROMPT + exifBlock + vibeIntentBlock;
+}
+
+function buildVibeIntentBlock(vibeIntent: unknown): string {
+  const cleaned = sanitizeVibeIntent(vibeIntent);
+  if (!cleaned) return "";
+  return `\n\nUSER'S REQUESTED VIBE (weight this heavily as the dominant driver of emotion, musicDNA, matchSignals, and musicBrief — but still ground scene/visual fields in what is literally visible in the photo):\n"${cleaned}"`;
 }
 
 function buildExifBlock(exif: ExifData | null): string {
@@ -214,7 +221,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { image, mimeType, exifData = null, contrastMode = false } = await req.json();
+    const { image, mimeType, exifData = null, contrastMode = false, vibeIntent = "" } = await req.json();
     if (!image || !mimeType) {
       return NextResponse.json(
         { error: "image and mimeType required" },
@@ -235,7 +242,8 @@ export async function POST(req: NextRequest) {
 
     // Add EXIF block before GPT call (photo metadata as additional context)
     const exifBlock = buildExifBlock(exifData as ExifData | null);
-    const prompt = buildPrompt(exifBlock);
+    const vibeIntentBlock = buildVibeIntentBlock(vibeIntent);
+    const prompt = buildPrompt(exifBlock, vibeIntentBlock);
 
     const callOptions = (temperature?: number) => ({
       model: "gpt-4o" as const,
