@@ -81,13 +81,19 @@ export async function setCredits(userId: string, amount: number): Promise<number
   return data.credits;
 }
 
+export function mergeMigratedCredits(serverCredits: number, localCredits: number | null): number {
+  return typeof localCredits === "number"
+    ? Math.max(serverCredits, localCredits)
+    : serverCredits;
+}
+
 export async function markMigrated(userId: string, credits: number | null): Promise<void> {
   const profile = await getOrCreateProfile(userId);
   const { error } = await supabase
     .from("profiles")
     .update({
       migrated_local_data: true,
-      credits: credits ?? profile.credits,
+      credits: mergeMigratedCredits(profile.credits, credits),
     })
     .eq("user_id", userId);
   if (error) throw error;
