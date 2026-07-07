@@ -114,7 +114,6 @@ export default function OnboardingFlow({ onComplete }: Props) {
         <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(4)}</p>
         <StorySongsStep
           onNext={finishToSwipe}
-          onBack={() => setStep("avoid")}
           onSkip={finishToSwipe}
         />
       </div>
