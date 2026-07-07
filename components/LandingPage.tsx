@@ -116,11 +116,13 @@ function LandingNav() {
           <a href="#pricing" className="hover:text-white transition-colors">
             {t.landing.navPricing}
           </a>
-          <LanguageToggle />
         </div>
-        <PinkButton href="/app" className="!px-5 !py-2.5 text-sm">
-          {t.landing.navTryFree}
-        </PinkButton>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <LanguageToggle />
+          <PinkButton href="/app" className="!px-4 !py-2 text-xs sm:!px-5 sm:!py-2.5 sm:text-sm">
+            {t.landing.navTryFree}
+          </PinkButton>
+        </div>
       </div>
     </nav>
   );
