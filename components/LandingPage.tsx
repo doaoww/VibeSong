@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useInView, useMotionValue, useTransform, animate } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { motion, AnimatePresence, useInView, useMotionValue, useTransform, animate } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import Star from "./Star";
 import LanguageToggle from "./LanguageToggle";
 import { useTranslation } from "../lib/translations/useTranslation";
@@ -96,6 +96,8 @@ function CountUp({
 
 function LandingNav() {
   const t = useTranslation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const closeMenu = () => setMobileMenuOpen(false);
 
   return (
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl">
@@ -117,7 +119,7 @@ function LandingNav() {
             {t.landing.navPricing}
           </a>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="hidden items-center gap-2 sm:gap-3 md:flex">
           <Link
             href="/app"
             className="text-sm text-white/70 hover:text-white transition-colors"
@@ -129,7 +131,52 @@ function LandingNav() {
             {t.landing.navTryFree}
           </PinkButton>
         </div>
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Menu"}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/5 transition-colors md:hidden"
+        >
+          <span className="material-symbols-outlined text-[24px]">
+            {mobileMenuOpen ? "close" : "menu"}
+          </span>
+        </button>
       </div>
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-t border-white/5 bg-black/90 backdrop-blur-xl md:hidden"
+          >
+            <div className="flex flex-col items-start gap-1 px-4 py-4 text-sm text-white/70">
+              <a href="#how" onClick={closeMenu} className="w-full py-2.5 hover:text-white transition-colors">
+                {t.landing.navHowItWorks}
+              </a>
+              <a href="#features" onClick={closeMenu} className="w-full py-2.5 hover:text-white transition-colors">
+                {t.landing.navFeatures}
+              </a>
+              <a href="#pricing" onClick={closeMenu} className="w-full py-2.5 hover:text-white transition-colors">
+                {t.landing.navPricing}
+              </a>
+              <div className="my-2 h-px w-full bg-white/10" />
+              <Link href="/app" onClick={closeMenu} className="w-full py-2.5 hover:text-white transition-colors">
+                {t.landing.navSignIn}
+              </Link>
+              <div className="py-2">
+                <LanguageToggle />
+              </div>
+              <div onClick={closeMenu} className="mt-2">
+                <PinkButton href="/app">
+                  {t.landing.navTryFree}
+                </PinkButton>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }
