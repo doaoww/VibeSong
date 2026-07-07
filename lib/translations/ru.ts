@@ -22,6 +22,7 @@ export const ru: Translation = {
     navFeatures: "Возможности",
     navPricing: "Цены",
     navTryFree: "Попробовать бесплатно →",
+    navSignIn: "Войти",
     heroBadge: "✦ Подбор музыки от ИИ",
     heroHeadingLine1: "Твоё фото.",
     heroHeadingLine2: "Твой саундтрек.",

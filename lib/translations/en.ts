@@ -18,6 +18,7 @@ export const en = {
     navFeatures: "Features",
     navPricing: "Pricing",
     navTryFree: "Try Free →",
+    navSignIn: "Sign In",
     heroBadge: "✦ AI Music Matching",
     heroHeadingLine1: "Your photo.",
     heroHeadingLine2: "Your soundtrack.",
