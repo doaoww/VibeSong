@@ -136,7 +136,7 @@ export default function StorySongsStep({ onNext, onSkip }: Props) {
               {t.onboarding.storySongs.addLabel}
             </button>
             {showFillHint && (
-              <p className="text-white/45 text-xs">{t.onboarding.storySongs.fillBothFields}</p>
+              <p role="alert" className="text-white/45 text-xs">{t.onboarding.storySongs.fillBothFields}</p>
             )}
           </div>
         )}
