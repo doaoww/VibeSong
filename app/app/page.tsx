@@ -31,9 +31,24 @@ export default function AppUploadPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("payment") === "success") {
+      const checkoutId = params.get("checkout_id");
       const showTimer = setTimeout(() => setPaymentSuccess(true), 0);
       window.history.replaceState({}, "", "/app");
-      void refresh();
+      const confirmPayment = async () => {
+        if (checkoutId) {
+          try {
+            await fetch("/api/checkout/polar/confirm", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ checkoutId }),
+            });
+          } catch (err) {
+            console.error("Polar checkout confirmation failed:", err);
+          }
+        }
+        await refresh();
+      };
+      void confirmPayment();
       const refreshTimers = [1000, 3000, 7000, 12000].map((delay) =>
         setTimeout(() => { void refresh(); }, delay)
       );

@@ -7,13 +7,15 @@ import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-let mockEvent = null;
 let productConfig = null;
 const calls = [];
+const claimedFulfillments = new Set();
 
-class MockWebhookVerificationError extends Error {}
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
 
-function loadRoute(path) {
+function loadModule(path) {
   const source = readFileSync(path, "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: {
@@ -25,28 +27,31 @@ function loadRoute(path) {
 
   const cjsModule = { exports: {} };
   const stubRequire = (id) => {
-    if (id === "next/server") {
-      return {
-        NextResponse: {
-          json: (body, init = {}) => ({ body, status: init.status ?? 200 }),
-        },
-      };
-    }
-    if (id === "@polar-sh/sdk/webhooks") {
-      return {
-        validateEvent: () => mockEvent,
-        WebhookVerificationError: MockWebhookVerificationError,
-      };
-    }
-    if (id.includes("lib/polar")) {
+    if (id === "./polar" || id.endsWith("/polar") || id.includes("lib/polar")) {
       return {
         getProductConfig: () => productConfig,
       };
     }
-    if (id.includes("lib/db/profiles")) {
+    if (id === "./db/profiles" || id.includes("lib/db/profiles")) {
       return {
-        addCredits: async (userId, amount) => calls.push({ fn: "addCredits", userId, amount }),
-        setCredits: async (userId, amount) => calls.push({ fn: "setCredits", userId, amount }),
+        addCredits: async (userId, amount) => {
+          calls.push({ fn: "addCredits", userId, amount });
+          return amount;
+        },
+        setCredits: async (userId, amount) => {
+          calls.push({ fn: "setCredits", userId, amount });
+          return amount;
+        },
+      };
+    }
+    if (id === "./db/polarFulfillments" || id.includes("lib/db/polarFulfillments")) {
+      return {
+        claimPolarFulfillment: async (fulfillment) => {
+          calls.push({ fn: "claimPolarFulfillment", key: fulfillment.key });
+          if (claimedFulfillments.has(fulfillment.key)) return false;
+          claimedFulfillments.add(fulfillment.key);
+          return true;
+        },
       };
     }
     return require(id);
@@ -64,63 +69,141 @@ function loadRoute(path) {
   return cjsModule.exports;
 }
 
-const route = loadRoute("app/api/webhooks/polar/route.ts");
+const { fulfillPolarOrder } = loadModule("lib/polarFulfillment.ts");
 
-function req() {
-  return {
-    text: async () => "{}",
-    headers: new Map(),
-  };
-}
-
-test("Polar order.paid webhook adds one-time purchase credits", async () => {
+test("Polar order.paid fulfillment adds one-time purchase credits", async () => {
   calls.length = 0;
+  claimedFulfillments.clear();
   productConfig = { credits: 50, isSubscription: false };
-  mockEvent = {
-    type: "order.paid",
-    data: {
+
+  const result = await fulfillPolarOrder(
+    {
+      id: "order-123",
       paid: true,
       productId: "polar-popular",
+      checkoutId: "checkout-123",
       metadata: { userId: "user-123" },
     },
-  };
+    "order.paid"
+  );
 
-  const res = await route.POST(req());
-
-  assert.equal(res.status, 200);
-  assert.deepEqual(calls, [{ fn: "addCredits", userId: "user-123", amount: 50 }]);
+  assert.deepEqual(plain(result), { status: "fulfilled", credits: 50 });
+  assert.deepEqual(calls, [
+    { fn: "claimPolarFulfillment", key: "checkout:checkout-123" },
+    { fn: "addCredits", userId: "user-123", amount: 50 },
+  ]);
 });
 
-test("Polar order.paid webhook refills subscription credits", async () => {
+test("Polar order.paid fulfillment refills subscription credits", async () => {
   calls.length = 0;
+  claimedFulfillments.clear();
   productConfig = { credits: 500, isSubscription: true };
-  mockEvent = {
-    type: "order.paid",
-    data: {
+
+  const result = await fulfillPolarOrder(
+    {
+      id: "order-456",
       paid: true,
       productId: "polar-pro",
       metadata: { userId: "user-123" },
     },
-  };
+    "order.paid"
+  );
 
-  await route.POST(req());
-
-  assert.deepEqual(calls, [{ fn: "setCredits", userId: "user-123", amount: 500 }]);
+  assert.deepEqual(plain(result), { status: "fulfilled", credits: 500 });
+  assert.deepEqual(calls, [
+    { fn: "claimPolarFulfillment", key: "order:order-456" },
+    { fn: "setCredits", userId: "user-123", amount: 500 },
+  ]);
 });
 
-test("Polar order.created pending webhook does not add credits", async () => {
+test("Polar pending order.created fulfillment does not add credits", async () => {
   calls.length = 0;
+  claimedFulfillments.clear();
   productConfig = { credits: 10, isSubscription: false };
-  mockEvent = {
-    type: "order.created",
-    data: {
+
+  const result = await fulfillPolarOrder(
+    {
+      id: "order-pending",
       paid: false,
       productId: "polar-starter",
       metadata: { userId: "user-123" },
     },
+    "order.created"
+  );
+
+  assert.deepEqual(plain(result), { status: "ignored", reason: "order_not_paid" });
+  assert.deepEqual(calls, []);
+});
+
+test("Polar order.created fulfillment adds credits when the order is already paid", async () => {
+  calls.length = 0;
+  claimedFulfillments.clear();
+  productConfig = { credits: 10, isSubscription: false };
+
+  const result = await fulfillPolarOrder(
+    {
+      id: "order-created-paid",
+      status: "paid",
+      paid: true,
+      productId: "polar-starter",
+      checkoutId: "checkout-created-paid",
+      metadata: { userId: "user-123" },
+    },
+    "order.created"
+  );
+
+  assert.deepEqual(plain(result), { status: "fulfilled", credits: 10 });
+  assert.deepEqual(calls, [
+    { fn: "claimPolarFulfillment", key: "checkout:checkout-created-paid" },
+    { fn: "addCredits", userId: "user-123", amount: 10 },
+  ]);
+});
+
+test("Polar order.updated fulfillment adds credits when a pending order becomes paid", async () => {
+  calls.length = 0;
+  claimedFulfillments.clear();
+  productConfig = { credits: 50, isSubscription: false };
+
+  const result = await fulfillPolarOrder(
+    {
+      id: "order-updated-paid",
+      status: "paid",
+      paid: true,
+      productId: "polar-popular",
+      checkoutId: "checkout-updated-paid",
+      metadata: {},
+      customer: { externalId: "user-from-customer" },
+    },
+    "order.updated"
+  );
+
+  assert.deepEqual(plain(result), { status: "fulfilled", credits: 50 });
+  assert.deepEqual(calls, [
+    { fn: "claimPolarFulfillment", key: "checkout:checkout-updated-paid" },
+    { fn: "addCredits", userId: "user-from-customer", amount: 50 },
+  ]);
+});
+
+test("Polar fulfillment does not double-credit the same checkout", async () => {
+  calls.length = 0;
+  claimedFulfillments.clear();
+  productConfig = { credits: 50, isSubscription: false };
+  const order = {
+    id: "order-duplicate",
+    paid: true,
+    productId: "polar-popular",
+    checkoutId: "checkout-duplicate",
+    metadata: { userId: "user-123" },
   };
 
-  await route.POST(req());
+  const first = await fulfillPolarOrder(order, "order.paid");
+  const second = await fulfillPolarOrder(order, "order.updated");
 
-  assert.deepEqual(calls, []);
+  assert.deepEqual(plain(first), { status: "fulfilled", credits: 50 });
+  assert.deepEqual(plain(second), { status: "duplicate" });
+  assert.deepEqual(calls, [
+    { fn: "claimPolarFulfillment", key: "checkout:checkout-duplicate" },
+    { fn: "addCredits", userId: "user-123", amount: 50 },
+    { fn: "claimPolarFulfillment", key: "checkout:checkout-duplicate" },
+  ]);
 });

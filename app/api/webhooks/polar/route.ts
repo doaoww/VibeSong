@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateEvent, WebhookVerificationError } from "@polar-sh/sdk/webhooks";
-import { getProductConfig } from "../../../../lib/polar";
-import { addCredits, setCredits } from "../../../../lib/db/profiles";
+import { fulfillPolarOrder } from "../../../../lib/polarFulfillment";
 
 export const runtime = "nodejs";
+
+const PAID_ORDER_EVENT_TYPES = new Set(["order.created", "order.updated", "order.paid"]);
 
 // Polar requires raw body for signature verification — must not parse as JSON
 export async function POST(req: NextRequest) {
@@ -20,28 +21,8 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  if (event.type === "order.paid") {
-    const order = event.data;
-
-    if (!order.paid) return NextResponse.json({ received: true });
-
-    const metadataUserId = order.metadata?.userId;
-    const userId =
-      typeof metadataUserId === "string"
-        ? metadataUserId
-        : order.customer.externalId ?? undefined;
-    if (!userId) return NextResponse.json({ received: true });
-
-    if (!order.productId) return NextResponse.json({ received: true });
-    const config = getProductConfig(order.productId);
-    if (!config) return NextResponse.json({ received: true });
-
-    if (config.isSubscription) {
-      // Refill to 500 credits each billing cycle (new subscription or renewal)
-      await setCredits(userId, config.credits);
-    } else {
-      await addCredits(userId, config.credits);
-    }
+  if (PAID_ORDER_EVENT_TYPES.has(event.type)) {
+    await fulfillPolarOrder(event.data, event.type);
   }
 
   return NextResponse.json({ received: true });
