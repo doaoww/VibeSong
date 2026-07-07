@@ -31,11 +31,18 @@ export default function AppUploadPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("payment") === "success") {
-      setPaymentSuccess(true);
+      const showTimer = setTimeout(() => setPaymentSuccess(true), 0);
       window.history.replaceState({}, "", "/app");
-      const t1 = setTimeout(() => refresh(), 2000);
-      const t2 = setTimeout(() => setPaymentSuccess(false), 5000);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      void refresh();
+      const refreshTimers = [1000, 3000, 7000, 12000].map((delay) =>
+        setTimeout(() => { void refresh(); }, delay)
+      );
+      const hideTimer = setTimeout(() => setPaymentSuccess(false), 5000);
+      return () => {
+        clearTimeout(showTimer);
+        refreshTimers.forEach(clearTimeout);
+        clearTimeout(hideTimer);
+      };
     }
   }, [refresh]);
   // Default true: server renders onboarding in the initial HTML so it appears on first paint.
@@ -45,6 +52,8 @@ export default function AppUploadPage() {
 
   useLayoutEffect(() => {
     const done = localStorage.getItem("onboardingDone") || localStorage.getItem("userTaste");
+    // This intentionally runs in layout effect to avoid flashing onboarding for returning users.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (done) setShowOnboarding(false);
   }, []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

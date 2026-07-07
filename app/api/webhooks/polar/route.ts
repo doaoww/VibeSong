@@ -20,13 +20,16 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  if (event.type === "order.created") {
+  if (event.type === "order.paid") {
     const order = event.data;
 
-    // Only process paid orders — status can be "pending" right after checkout
     if (!order.paid) return NextResponse.json({ received: true });
 
-    const userId = order.metadata?.userId as string | undefined;
+    const metadataUserId = order.metadata?.userId;
+    const userId =
+      typeof metadataUserId === "string"
+        ? metadataUserId
+        : order.customer.externalId ?? undefined;
     if (!userId) return NextResponse.json({ received: true });
 
     if (!order.productId) return NextResponse.json({ received: true });
