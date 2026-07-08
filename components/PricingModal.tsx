@@ -62,6 +62,7 @@ export default function PricingModal({
   const t = useTranslation();
   const PACKAGES = useMemo(() => getPackages(t), [t]);
   const [selected, setSelected] = useState("popular");
+  const selectedPkg = PACKAGES.find((p) => p.id === selected)!;
 
   const [adding, setAdding] = useState(false);
   const [done, setDone] = useState(false);
@@ -73,7 +74,7 @@ export default function PricingModal({
   }, [isOpen, onRefreshCredits]);
 
   const handleContinue = async () => {
-    const pkg = PACKAGES.find((p) => p.id === selected)!;
+    const pkg = selectedPkg;
     setAdding(true);
     setCheckoutError(null);
     try {
@@ -139,7 +140,7 @@ export default function PricingModal({
               </p>
               <div className="inline-flex items-center gap-1.5 mt-2 bg-black/5 text-black/50 text-[11px] font-semibold px-3 py-1 rounded-full">
                 <span>✦</span>
-                <span>{t.pricing.neverExpire}</span>
+                <span>{selectedPkg.isSubscription ? t.pricing.subscriptionExpiry : t.pricing.oneTimeExpiry}</span>
               </div>
             </div>
 
@@ -233,11 +234,9 @@ export default function PricingModal({
                 ? t.pricing.done
                 : adding
                 ? t.pricing.processing
-                : (() => {
-                    const pkg = PACKAGES.find((p) => p.id === selected)!;
-                    if (pkg.isSubscription) return t.pricing.subscribeFor(pkg.price);
-                    return t.pricing.getCreditsFor(pkg.credits, pkg.price);
-                  })()}
+                : selectedPkg.isSubscription
+                ? t.pricing.subscribeFor(selectedPkg.price)
+                : t.pricing.getCreditsFor(selectedPkg.credits, selectedPkg.price)}
             </button>
           </motion.div>
         </motion.div>
