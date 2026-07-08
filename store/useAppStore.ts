@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { mergeFeedbackTracks } from "../lib/mergeFeedback";
 
 export interface ExifData {
   capturedHour?: number;   // 0-23
@@ -235,9 +236,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       const res = await fetch("/api/feedback");
       if (res.ok) {
         const data = await res.json();
-        set({ savedSongs: data.saved ?? [], skippedSongs: data.skipped ?? [] });
-        // Sync DB result back to localStorage cache
-        try { localStorage.setItem("vs_saved", JSON.stringify(data.saved ?? [])); } catch {}
+        // Merge rather than replace: saveTrack/skipTrack POST without
+        // awaiting the result, so this GET can race ahead of that write
+        // landing in the DB — merging keeps a just-saved track visible
+        // instead of it vanishing until the next refresh.
+        set((s) => ({
+          savedSongs: mergeFeedbackTracks(s.savedSongs, data.saved ?? []),
+          skippedSongs: mergeFeedbackTracks(s.skippedSongs, data.skipped ?? []),
+        }));
+        // Sync merged result back to localStorage cache
+        try { localStorage.setItem("vs_saved", JSON.stringify(get().savedSongs)); } catch {}
         return;
       }
     } catch {}
