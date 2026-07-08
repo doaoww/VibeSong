@@ -500,9 +500,9 @@ function Stats() {
 function Pricing() {
   const t = useTranslation();
   const plans = [
-    { name: t.landing.starterLabel, price: "$1.99", credits: t.landing.starterCredits, per: t.landing.starterPrice, popular: false },
-    { name: t.landing.popularLabel, price: "$6.99", credits: t.landing.popularCredits, per: t.landing.popularPrice, popular: true },
-    { name: t.landing.proLabel, price: "$19.99", credits: t.landing.proCredits, per: t.landing.proPrice, popular: false },
+    { name: t.landing.starterLabel, price: "$1.99", credits: t.landing.starterCredits, per: t.landing.starterPrice, popular: false, isSubscription: false },
+    { name: t.landing.popularLabel, price: "$6.99", credits: t.landing.popularCredits, per: t.landing.popularPrice, popular: true, isSubscription: false },
+    { name: t.landing.proLabel, price: "$19.99", credits: t.landing.proCredits, per: t.landing.proPrice, popular: false, isSubscription: true },
   ];
 
   return (
@@ -533,10 +533,22 @@ function Pricing() {
                   {t.landing.mostPopularBadge}
                 </div>
               )}
+              {p.isSubscription && (
+                <div className="absolute -top-3 left-6 rounded-full bg-ink px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
+                  {t.landing.subscriptionBadge}
+                </div>
+              )}
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-black/50">
                 {p.name}
               </div>
-              <div className="mt-4 font-display text-5xl md:text-6xl font-bold">{p.price}</div>
+              <div className="mt-4 font-display text-5xl md:text-6xl font-bold">
+                {p.price}
+                {p.isSubscription && (
+                  <span className="ml-1 text-lg md:text-xl font-semibold text-black/40">
+                    {t.landing.perMonthSuffix}
+                  </span>
+                )}
+              </div>
               <div className="mt-2 text-black/60">{p.credits}</div>
               <div className="mt-1 text-sm text-black/50">{p.per}</div>
               <Link
@@ -550,6 +562,10 @@ function Pricing() {
             </motion.div>
           ))}
         </div>
+
+        <p className="mt-8 text-center text-sm text-black/50">
+          {t.landing.whatsACredit}
+        </p>
       </div>
     </section>
   );
