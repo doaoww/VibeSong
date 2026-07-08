@@ -205,7 +205,7 @@ function Hero() {
           {t.landing.heroBadge}
         </motion.div>
 
-        <h1 className="font-display text-[13vw] sm:text-7xl md:text-[88px] lg:text-[96px] font-extrabold leading-[0.95] tracking-tight text-white">
+        <h1 className="font-display text-[13vw] sm:text-7xl md:text-[88px] lg:text-[96px] font-bold leading-[0.95] tracking-tight text-white">
           <span className="block">{t.landing.heroHeadingLine1}</span>
           <span className="block text-hot-pink">{t.landing.heroHeadingLine2}</span>
         </h1>
@@ -244,7 +244,7 @@ function Hero() {
       </div>
 
       <div className="relative mt-14 md:mt-20 overflow-hidden border-y border-white/10 py-5 md:py-6">
-        <div className="marquee-track flex whitespace-nowrap font-display text-3xl sm:text-4xl md:text-6xl font-extrabold uppercase tracking-tight">
+        <div className="marquee-track flex whitespace-nowrap font-display text-3xl sm:text-4xl md:text-6xl font-bold uppercase tracking-tight">
           {Array.from({ length: 2 }).map((_, dup) => (
             <div key={dup} className="flex shrink-0 items-center gap-6 md:gap-8 px-4">
               {t.landing.marqueeWords.map(
@@ -276,7 +276,7 @@ function QuizPreview() {
   return (
     <section className="bg-cream py-16 md:py-24 text-ink">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <h2 className="max-w-4xl font-display text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.05]">
+        <h2 className="max-w-4xl font-display text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.05]">
           {t.landing.quizHeadingPre}
           <br />
           {t.landing.quizHeadingWhat}<span className="wavy-underline text-hot-pink">{t.landing.quizHeadingLove}</span>
@@ -293,7 +293,7 @@ function QuizPreview() {
               whileHover={{ y: -6 }}
               className="rounded-2xl bg-white p-6 md:p-7 border border-black/5"
             >
-              <div className="font-display text-5xl md:text-6xl font-extrabold text-hot-pink">
+              <div className="font-display text-5xl md:text-6xl font-bold text-hot-pink">
                 {c.n}
               </div>
               <div className="mt-3 font-display text-xl md:text-2xl font-bold">{c.title}</div>
@@ -354,7 +354,7 @@ function HowItWorks() {
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-hot-pink font-display">
           {t.landing.howItWorksLabel}
         </p>
-        <h2 className="mt-3 max-w-3xl font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white">
+        <h2 className="mt-3 max-w-3xl font-display text-4xl sm:text-5xl md:text-6xl font-bold text-white">
           {t.landing.howItWorksHeading}
         </h2>
 
@@ -397,7 +397,7 @@ function Examples() {
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-hot-pink font-display">
           {t.landing.realMatches}
         </p>
-        <h2 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold">
+        <h2 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl font-bold">
           {t.landing.whatPhotosSound}
         </h2>
 
@@ -457,7 +457,7 @@ function Stats() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid gap-10 sm:grid-cols-3">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-hot-pink">
+            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-hot-pink">
               <CountUp to={80} suffix={t.landing.statTracksSuffix} />
             </div>
             <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
@@ -470,7 +470,7 @@ function Stats() {
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
           >
-            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-lime">
+            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-lime">
               {t.landing.statTimePrefix}
               <CountUp to={5} suffix={t.landing.statTimeSuffix} />
             </div>
@@ -484,7 +484,7 @@ function Stats() {
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
           >
-            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-white">
+            <div className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-white">
               <CountUp to={94} suffix="%" />
             </div>
             <div className="mt-3 text-sm uppercase tracking-widest text-white/50">
@@ -508,7 +508,7 @@ function Pricing() {
   return (
     <section id="pricing" className="bg-cream py-16 md:py-28 text-ink">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <h2 className="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold">
+        <h2 className="font-display text-4xl sm:text-5xl md:text-6xl font-bold">
           {t.landing.simplePricingHeading}
         </h2>
         <p className="mt-3 font-display text-lg md:text-xl italic text-hot-pink">
@@ -536,7 +536,7 @@ function Pricing() {
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-black/50">
                 {p.name}
               </div>
-              <div className="mt-4 font-display text-5xl md:text-6xl font-extrabold">{p.price}</div>
+              <div className="mt-4 font-display text-5xl md:text-6xl font-bold">{p.price}</div>
               <div className="mt-2 text-black/60">{p.credits}</div>
               <div className="mt-1 text-sm text-black/50">{p.per}</div>
               <Link
@@ -572,7 +572,7 @@ function FinalCTA() {
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="font-display text-[18vw] sm:text-8xl md:text-9xl lg:text-[140px] font-black leading-none text-white"
+          className="font-display text-[18vw] sm:text-8xl md:text-9xl lg:text-[140px] font-bold leading-none text-white"
         >
           {t.landing.readyHeading}
         </motion.h2>
