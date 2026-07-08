@@ -145,11 +145,11 @@ function LandingNav() {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden border-t border-white/5 bg-black/90 backdrop-blur-xl md:hidden"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
+            className="border-t border-white/5 bg-black/90 backdrop-blur-xl md:hidden"
           >
             <div className="flex flex-col items-start gap-1 px-4 py-4 text-sm text-white/70">
               <a href="#how" onClick={closeMenu} className="w-full py-2.5 hover:text-white transition-colors">
