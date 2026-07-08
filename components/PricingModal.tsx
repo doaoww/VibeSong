@@ -39,11 +39,11 @@ function getPackages(t: ReturnType<typeof useTranslation>) {
     },
     {
       id: "pro",
-      label: t.pricing.unlimited,
-      credits: 9999,
+      label: t.pricing.proLabel,
+      credits: 500,
       price: "$19.99",
       priceNote: t.pricing.perMonth,
-      perMatch: t.pricing.unlimitedMatches,
+      perMatch: t.pricing.proPerMatch,
       badge: t.pricing.bestValue,
       saveBadge: null as string | null,
       popular: false,
@@ -185,9 +185,7 @@ export default function PricingModal({
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-black/50 text-xs">
-                          {pkg.isSubscription
-                            ? t.pricing.unlimitedEveryMonth
-                            : t.pricing.creditsPerMatch(pkg.credits, pkg.perMatch)}
+                          {t.pricing.creditsPerMatch(pkg.credits, pkg.perMatch)}
                         </p>
                         {pkg.saveBadge && (
                           <span className="bg-black/5 text-black/60 text-[10px] font-bold px-2 py-0.5 rounded-full">
