@@ -3,10 +3,16 @@ import { useCallback, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import exifr from "exifr";
 import type { ExifData } from "../store/useAppStore";
-import { compressImageFile } from "../lib/imageCompression";
+import { compressImageFile, compressThumbnail } from "../lib/imageCompression";
 
 interface DropZoneProps {
-  onImageReady: (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => void;
+  onImageReady: (
+    base64: string,
+    mimeType: string,
+    objectUrl: string,
+    exifData: ExifData,
+    thumbnailDataUrl: string
+  ) => void;
   disabled?: boolean;
 }
 
@@ -52,8 +58,9 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
       setIsProcessing(true);
       try {
         const objectUrl = URL.createObjectURL(file);
-        const [compressed, exifData] = await Promise.all([
+        const [compressed, thumbnailDataUrl, exifData] = await Promise.all([
           compressImageFile(file),
+          compressThumbnail(file),
           extractExif(file),
         ]);
 
@@ -64,7 +71,7 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
           estRequestBodySize: `${(requestBodyBytes / 1024 / 1024).toFixed(2)}MB`,
         });
 
-        onImageReady(compressed.base64, compressed.mimeType, objectUrl, exifData);
+        onImageReady(compressed.base64, compressed.mimeType, objectUrl, exifData, thumbnailDataUrl);
       } catch (err) {
         console.error("[DropZone] file processing failed:", err);
         setError("Couldn't prepare that file for upload. Please try another photo.");

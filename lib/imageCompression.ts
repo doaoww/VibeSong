@@ -10,6 +10,9 @@ const TARGET_BYTES = 1.5 * 1024 * 1024; // 1.5MB — leaves generous margin unde
 const QUALITY_STEPS = [0.82, 0.7, 0.6, 0.5];
 const MIN_DIMENSION = 640;
 
+const THUMBNAIL_MAX_DIMENSION = 240;
+const THUMBNAIL_QUALITY = 0.6;
+
 export interface CompressionResult {
   base64: string;
   mimeType: string;
@@ -106,4 +109,20 @@ export async function compressImageFile(file: File): Promise<CompressionResult> 
     compressedHeight: bestHeight,
     compressedBytes: bestBlob.size,
   };
+}
+
+/**
+ * Small, self-contained thumbnail for saved/skipped song history
+ * (`Track.sourceImage`). Deliberately separate from compressImageFile()'s
+ * ~1.5MB output: that size is fine for a single GPT-4o request but would
+ * bloat every saved-song row and balloon /api/feedback's response if reused
+ * here. Returns a ready-to-use data: URL (unlike compressImageFile's bare
+ * base64) so it works as-is wherever a blob:/http URL would have gone.
+ */
+export async function compressThumbnail(file: File): Promise<string> {
+  const img = await loadImage(file);
+  const canvas = drawAtDimension(img, THUMBNAIL_MAX_DIMENSION);
+  const blob = await canvasToBlob(canvas, THUMBNAIL_QUALITY);
+  const base64 = await blobToBase64(blob);
+  return `data:image/jpeg;base64,${base64}`;
 }

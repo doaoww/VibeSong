@@ -81,6 +81,11 @@ export interface Track {
 interface AppState {
   uploadedImage: string | null;
   uploadedImageUrl: string | null;
+  // Small data: URL, durable across reloads — unlike uploadedImageUrl (a
+  // blob: URL that only lives for the current tab). This is what actually
+  // gets persisted as Track.sourceImage; uploadedImageUrl stays blob-based
+  // since it's only ever used for same-session full-size display.
+  uploadedThumbnail: string | null;
   vibeProfile: VibeProfile | null;
   tracks: Track[];
   savedSongs: Track[];
@@ -94,7 +99,7 @@ interface AppState {
   locale: "en" | "ru";
   vibeIntent: string | null;
 
-  setUploadedImage: (base64: string, objectUrl: string) => void;
+  setUploadedImage: (base64: string, objectUrl: string, thumbnailDataUrl: string) => void;
   setVibeProfile: (profile: VibeProfile) => void;
   setTracks: (tracks: Track[]) => void;
   saveTrack: (track: Track) => void;
@@ -114,6 +119,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   uploadedImage: null,
   uploadedImageUrl: null,
+  uploadedThumbnail: null,
   vibeProfile: null,
   tracks: [],
   savedSongs: [],
@@ -127,8 +133,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   locale: "en",
   vibeIntent: null,
 
-  setUploadedImage: (base64, objectUrl) =>
-    set({ uploadedImage: base64, uploadedImageUrl: objectUrl }),
+  setUploadedImage: (base64, objectUrl, thumbnailDataUrl) =>
+    set({ uploadedImage: base64, uploadedImageUrl: objectUrl, uploadedThumbnail: thumbnailDataUrl }),
 
   setVibeProfile: (profile) => set({ vibeProfile: profile }),
 
@@ -138,7 +144,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const withMeta: Track = {
       ...track,
       savedAt: Date.now(),
-      sourceImage: get().uploadedImageUrl || undefined,
+      sourceImage: get().uploadedThumbnail || undefined,
     };
     set((s) => {
       const updated = [...s.savedSongs, withMeta];
@@ -168,7 +174,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           track.genres && track.genres.length > 0
             ? track.genres
             : get().vibeProfile?.musicDNA.genres ?? [],
-        sourceImage: get().uploadedImageUrl || undefined,
+        sourceImage: get().uploadedThumbnail || undefined,
       }),
     }).catch(() => {});
   },
@@ -177,7 +183,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const withMeta: Track = {
       ...track,
       skippedAt: Date.now(),
-      sourceImage: get().uploadedImageUrl || undefined,
+      sourceImage: get().uploadedThumbnail || undefined,
     };
     set((s) => ({ skippedSongs: [...s.skippedSongs, withMeta].slice(-50) }));
     fetch("/api/feedback", {
@@ -202,7 +208,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           track.genres && track.genres.length > 0
             ? track.genres
             : get().vibeProfile?.musicDNA.genres ?? [],
-        sourceImage: get().uploadedImageUrl || undefined,
+        sourceImage: get().uploadedThumbnail || undefined,
       }),
     }).catch(() => {});
   },
@@ -217,6 +223,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       uploadedImage: null,
       uploadedImageUrl: null,
+      uploadedThumbnail: null,
       vibeProfile: null,
       tracks: [],
       currentCardIndex: 0,

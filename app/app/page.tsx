@@ -79,6 +79,7 @@ export default function AppUploadPage() {
     mimeType: string;
     objectUrl: string;
     exifData: ExifData;
+    thumbnailDataUrl: string;
   } | null>(null);
   // Kept so "Try again" can re-run analysis on the same photo without the
   // user re-selecting a file — cleared on success or manual dismiss.
@@ -87,6 +88,7 @@ export default function AppUploadPage() {
     mimeType: string;
     objectUrl: string;
     exifData: ExifData;
+    thumbnailDataUrl: string;
   } | null>(null);
 
   const {
@@ -140,12 +142,12 @@ export default function AppUploadPage() {
   }, [pageState, t]);
 
   const runAnalysis = useCallback(
-    async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => {
+    async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData, thumbnailDataUrl: string) => {
       setPageState("analyzing");
       setErrorMsg(null);
       setFailedUpload(null);
       setIsAnalyzing(true);
-      setUploadedImage(base64, objectUrl);
+      setUploadedImage(base64, objectUrl, thumbnailDataUrl);
       setVibeIntent(vibeIntentText);
 
       try {
@@ -233,7 +235,7 @@ export default function AppUploadPage() {
         setIsAnalyzing(false);
         setPageState("idle");
         setErrorMsg(t.home.errorRefund);
-        setFailedUpload({ base64, mimeType, objectUrl, exifData });
+        setFailedUpload({ base64, mimeType, objectUrl, exifData, thumbnailDataUrl });
       }
     },
     [
@@ -252,9 +254,9 @@ export default function AppUploadPage() {
   );
 
   const handleImageReady = useCallback(
-    async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData) => {
+    async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData, thumbnailDataUrl: string) => {
       if (credits <= 0) {
-        setPendingImage({ base64, mimeType, objectUrl, exifData });
+        setPendingImage({ base64, mimeType, objectUrl, exifData, thumbnailDataUrl });
         setShowPricing(true);
         return;
       }
@@ -264,11 +266,11 @@ export default function AppUploadPage() {
       deduct().then((ok) => {
         if (!ok) {
           setPageState("idle");
-          setPendingImage({ base64, mimeType, objectUrl, exifData });
+          setPendingImage({ base64, mimeType, objectUrl, exifData, thumbnailDataUrl });
           setShowPricing(true);
         }
       });
-      setTimeout(() => runAnalysis(base64, mimeType, objectUrl, exifData), 300);
+      setTimeout(() => runAnalysis(base64, mimeType, objectUrl, exifData, thumbnailDataUrl), 300);
     },
     [credits, deduct, runAnalysis]
   );
@@ -285,7 +287,8 @@ export default function AppUploadPage() {
               pendingImage.base64,
               pendingImage.mimeType,
               pendingImage.objectUrl,
-              pendingImage.exifData
+              pendingImage.exifData,
+              pendingImage.thumbnailDataUrl
             ),
           300
         );
@@ -445,7 +448,7 @@ export default function AppUploadPage() {
                         const upload = failedUpload;
                         setErrorMsg(null);
                         setFailedUpload(null);
-                        runAnalysis(upload.base64, upload.mimeType, upload.objectUrl, upload.exifData);
+                        runAnalysis(upload.base64, upload.mimeType, upload.objectUrl, upload.exifData, upload.thumbnailDataUrl);
                       }}
                       className="mt-2 text-xs font-semibold underline underline-offset-2 hover:opacity-80"
                     >
