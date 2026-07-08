@@ -40,7 +40,7 @@ The `/api/admin/songs` route already does all the hard work per song — dedupe 
 **New lib module**: `lib/curator.ts`
 - `TRENDING_COUNTRIES = ["us", "ru", "fr", "es", "gb"]` (matches the language spread in existing seed scripts: English, Russian, French, Spanish).
 - `MAX_NEW_SONGS_PER_RUN = 15` — hard cap on inserts for the whole run, spent first-come across the country list in order.
-- `fetchTrendingTracks(countryCode: string): Promise<{ title: string; artist: string }[]>` — fetches `https://rss.applemarketingtools.com/api/v2/{countryCode}/music/most-played/50/songs.json`, maps the feed's `feed.results[].{name,artistName}` into `{ title, artist }`, returns the top ~25.
+- `fetchTrendingTracks(countryCode: string): Promise<{ title: string; artist: string }[]>` — fetches `https://rss.marketingtools.apple.com/api/v2/{countryCode}/music/most-played/50/songs.json` (verified live; the older `rss.applemarketingtools.com` host now 301-redirects here, so the canonical host is used directly), maps the feed's `feed.results[].{name,artistName}` into `{ title, artist }`, returns the top ~25.
 - `curateCatalog(): Promise<{ inserted: {title,artist,id}[]; skipped: number; failed: {title,artist,error}[] }>`:
   1. For each country in `TRENDING_COUNTRIES`, in order: `fetchTrendingTracks`.
   2. For each candidate, in order: if `inserted.length >= MAX_NEW_SONGS_PER_RUN`, stop entirely.
