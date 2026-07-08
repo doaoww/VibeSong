@@ -6,6 +6,7 @@ import AppHeader from "../../components/AppHeader";
 import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
 import { en } from "../../lib/translations/en";
+import { resolveSongLink } from "../../lib/songLink";
 
 const FILTERS = ["All", "This Week", "Moody", "Hype"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -90,16 +91,20 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {displayed.map((song, i) => (
+            {displayed.map((song, i) => {
+              const link = resolveSongLink(song);
+              return (
               <motion.a
                 key={`${song.previewUrl || song.youtubeId || song.title}-${i}`}
-                href={song.appleMusicUrl || song.youtubeUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={link ?? undefined}
+                target={link ? "_blank" : undefined}
+                rel={link ? "noopener noreferrer" : undefined}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                className="flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant/20 hover:border-hot-pink/40 transition-all"
+                className={`flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant/20 transition-all ${
+                  link ? "hover:border-hot-pink/40 cursor-pointer" : "opacity-70 cursor-default"
+                }`}
               >
                 {song.artwork || song.thumbnail ? (
                   <img
@@ -131,7 +136,8 @@ export default function LibraryPage() {
                   </p>
                 </div>
               </motion.a>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
