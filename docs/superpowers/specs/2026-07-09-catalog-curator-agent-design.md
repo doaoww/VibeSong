@@ -40,6 +40,7 @@ The `/api/admin/songs` route already does all the hard work per song — dedupe 
 **New lib module**: `lib/curator.ts`
 - `TRENDING_COUNTRIES = ["us", "ru", "fr", "es", "gb"]` (matches the language spread in existing seed scripts: English, Russian, French, Spanish).
 - `MAX_NEW_SONGS_PER_RUN = 15` — hard cap on inserts for the whole run, spent first-come across the country list in order.
+- `AUTOTAG_MIN_INTERVAL_MS = 2000` — every `scripts/seed-*.mjs` runner throttles calls into the tagging pipeline to at least 2s apart to respect iTunes/Last.fm/GPT-4o rate limits (see `scripts/seed-catalog.mjs`'s `sleep`/`wait` logic). `curateCatalog` applies the same floor between candidates that actually reach `autoTagSong` (dedupe-skipped candidates are exempt, since they never call it) — otherwise an autonomous daily run risks the exact rate-limit failures the manual scripts were written to avoid.
 - `fetchTrendingTracks(countryCode: string): Promise<{ title: string; artist: string }[]>` — fetches `https://rss.marketingtools.apple.com/api/v2/{countryCode}/music/most-played/50/songs.json` (verified live; the older `rss.applemarketingtools.com` host now 301-redirects here, so the canonical host is used directly), maps the feed's `feed.results[].{name,artistName}` into `{ title, artist }`, returns the top ~25.
 - `curateCatalog(): Promise<{ inserted: {title,artist,id}[]; skipped: number; failed: {title,artist,error}[] }>`:
   1. For each country in `TRENDING_COUNTRIES`, in order: `fetchTrendingTracks`.
