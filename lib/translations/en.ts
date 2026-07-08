@@ -103,7 +103,7 @@ export const en = {
     headingLine2: "Your soundtrack.",
     subtitle: "Drop any photo. Our AI reads the vibe and finds songs that just fit.",
     errorHeading: "Couldn't read that photo's vibe",
-    freeMatches: (credits: number) => `${credits} free matches · Any photo works`,
+    freeMatches: (credits: number) => `${credits} matches · Any photo works`,
     recentVibesHeading: "Recent Vibes",
     seeAll: "See all",
     vibeIntentPlaceholder: "What vibe do you want? (optional)",
