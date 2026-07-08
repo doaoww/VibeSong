@@ -68,9 +68,10 @@
   --color-spotify-green: #1db954;
   --color-surface-tint: #ff2d7a;
 
-  /* Typography */
-  --font-display: var(--font-space-grotesk), system-ui, sans-serif;
-  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  /* Typography — one family (Manrope) for both roles and every locale,
+     differentiated by weight rather than by swapping fonts. */
+  --font-display: var(--font-manrope), system-ui, sans-serif;
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
 }
 
 /* Self-hosted so icons don't depend on a runtime request to
