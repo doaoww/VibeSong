@@ -39,7 +39,7 @@ export default function ArtistStep({ selectedArtists, onChange, onQuickStart, on
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-white font-display font-extrabold text-2xl mb-1">{t.onboarding.artist.heading}</h2>
+        <h2 className="text-white font-display font-bold text-2xl mb-1">{t.onboarding.artist.heading}</h2>
         <p className="text-white/40 text-sm">{t.onboarding.artist.subtitle}</p>
       </div>
 

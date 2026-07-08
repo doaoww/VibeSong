@@ -130,7 +130,7 @@ export default function PricingModal({
 
             <div className="text-center space-y-1">
               <p className="text-black/50 text-xs font-semibold">{t.pricing.balance}</p>
-              <p className="text-hot-pink font-display text-5xl font-extrabold">
+              <p className="text-hot-pink font-display text-5xl font-bold">
                 {currentCredits}✦
               </p>
               <p className="text-black/60 text-sm">{t.pricing.creditsRemaining}</p>

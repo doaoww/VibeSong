@@ -415,7 +415,7 @@ export default function AppUploadPage() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="font-display text-3xl md:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight text-white"
+              className="font-display text-3xl md:text-4xl lg:text-5xl font-bold leading-[1.05] tracking-tight text-white"
             >
               {t.home.headingLine1}
               <br />
@@ -528,7 +528,7 @@ export default function AppUploadPage() {
 
 
         <div className="relative overflow-hidden border-y border-outline-variant/20 py-4 -mx-4 md:-mx-6 lg:mx-0 lg:rounded-xl lg:border lg:border-outline-variant/20">
-          <div className="marquee-track flex whitespace-nowrap font-display text-2xl md:text-3xl font-extrabold uppercase tracking-tight">
+          <div className="marquee-track flex whitespace-nowrap font-display text-2xl md:text-3xl font-bold uppercase tracking-tight">
             {Array.from({ length: 2 }).map((_, dup) => (
               <div key={dup} className="flex shrink-0 items-center gap-6 px-3">
                 {t.home.marqueeWords.map((w, i) => (

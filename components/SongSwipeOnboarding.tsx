@@ -222,13 +222,13 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-white font-display font-extrabold text-3xl">{confidence}%</span>
+              <span className="text-white font-display font-bold text-3xl">{confidence}%</span>
               <span className="text-white/40 text-xs mt-0.5">{t.swipe.tasteMatch}</span>
             </div>
           </div>
 
           <div>
-            <h2 className="text-white font-display font-extrabold text-xl mb-2">
+            <h2 className="text-white font-display font-bold text-xl mb-2">
               {t.swipe.weKnowTaste}
             </h2>
             <p className="text-white/50 text-sm">
@@ -381,7 +381,7 @@ export default function SongSwipeOnboarding({ languages, likedArtists, onComplet
             )}
 
             <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1.5">
-              <p className="text-white font-display font-extrabold text-xl leading-tight">
+              <p className="text-white font-display font-bold text-xl leading-tight">
                 {currentSong.title}
               </p>
               <p className="text-white/65 font-semibold text-sm">{currentSong.artist}</p>

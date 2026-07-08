@@ -60,7 +60,7 @@ export default function LanguageStep({ languages, openness, onChange, onNext }: 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-white font-display font-extrabold text-2xl mb-1">
+        <h2 className="text-white font-display font-bold text-2xl mb-1">
           {t.onboarding.language.heading}
         </h2>
         <p className="text-white/40 text-sm">{t.onboarding.language.subtitle}</p>
