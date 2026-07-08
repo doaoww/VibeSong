@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import DropZone from "../../components/DropZone";
+import VibeIntentInput from "../../components/VibeIntentInput";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
 import VibeTags from "../../components/VibeTags";
@@ -72,6 +73,7 @@ export default function AppUploadPage() {
     if (done) setShowOnboarding(false);
   }, []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [vibeIntentText, setVibeIntentText] = useState("");
   const [pendingImage, setPendingImage] = useState<{
     base64: string;
     mimeType: string;
@@ -96,9 +98,11 @@ export default function AppUploadPage() {
     setOnboardingPrefs,
     savedSongs,
     vibeProfile,
+    vibeIntent,
     uploadedImageUrl,
     likedSeedTracks,
     loadFeedback,
+    setVibeIntent,
   } = useAppStore();
 
   // Restore saved songs on mount (DB for signed-in, localStorage for anonymous)
@@ -142,13 +146,20 @@ export default function AppUploadPage() {
       setFailedUpload(null);
       setIsAnalyzing(true);
       setUploadedImage(base64, objectUrl);
+      setVibeIntent(vibeIntentText);
 
       try {
         const { contrastMode, onboardingPrefs } = useAppStore.getState();
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mimeType, exifData, contrastMode }),
+          body: JSON.stringify({
+            image: base64,
+            mimeType,
+            exifData,
+            contrastMode,
+            vibeIntent: vibeIntentText.trim(),
+          }),
         });
         if (!analyzeRes.ok) {
           const errBody = await analyzeRes.json().catch(() => ({}));
@@ -235,6 +246,8 @@ export default function AppUploadPage() {
       router,
       likedSeedTracks,
       t,
+      vibeIntentText,
+      setVibeIntent,
     ]
   );
 
@@ -310,6 +323,12 @@ export default function AppUploadPage() {
           <div className="flex-1 flex flex-col items-center justify-start pt-6 px-6 space-y-5">
             {vibeProfile?.vibeTags && (
               <VibeTags tags={vibeProfile.vibeTags} animate />
+            )}
+
+            {vibeIntent && (
+              <p className="text-on-surface-variant text-sm italic text-center">
+                “{vibeIntent}”
+              </p>
             )}
 
             <div className="flex items-end gap-1 h-10">
@@ -444,6 +463,12 @@ export default function AppUploadPage() {
                 </button>
               </div>
             )}
+
+            <VibeIntentInput
+              value={vibeIntentText}
+              onChange={setVibeIntentText}
+              placeholder={t.home.vibeIntentPlaceholder}
+            />
 
             <DropZone onImageReady={handleImageReady} disabled={loaded && credits <= 0} />
 
