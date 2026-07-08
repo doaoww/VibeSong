@@ -73,25 +73,6 @@
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
 }
 
-/* Space Grotesk / DM Sans have no Cyrillic glyphs — without this, Russian
-   text silently fell back to the browser's system-ui font, which reads much
-   larger and clashes with the Latin UI. */
-:lang(ru) {
-  --font-display: var(--font-unbounded), var(--font-space-grotesk), system-ui, sans-serif;
-  --font-sans: var(--font-golos), var(--font-dm-sans), system-ui, sans-serif;
-}
-
-/* Space Grotesk's -0.02em tracking is tuned for its own letterforms — Unbounded
-   reads better untouched. */
-:lang(ru) h1,
-:lang(ru) h2,
-:lang(ru) h3,
-:lang(ru) h4,
-:lang(ru) h5,
-:lang(ru) h6 {
-  letter-spacing: normal;
-}
-
 /* Self-hosted so icons don't depend on a runtime request to
    fonts.googleapis.com/fonts.gstatic.com — that request is unreliable for
    users in regions where Google's font CDN is blocked or throttled, which
