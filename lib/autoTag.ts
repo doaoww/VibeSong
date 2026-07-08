@@ -40,6 +40,13 @@ export interface SourceConfidenceResult {
 /**
  * Deterministic confidence from what evidence was actually available.
  * Lyrics deliberately do not contribute yet — NullLyricsProvider is a no-op seam.
+ *
+ * itunes_exact + metadata_complete alone must clear the 0.6 needs_review
+ * threshold without Last.fm: Last.fm has near-zero tag coverage for
+ * non-English/niche catalogs (measured 0/62 Russian, 0/9 Kazakh songs in this
+ * catalog have lastfm_tags evidence), so requiring it as a near-mandatory
+ * third signal was flagging almost every correctly-identified song in exactly
+ * those languages as needs_review, independent of GPT's actual confidence.
  */
 export function computeSourceConfidence(
   matchType: "exact" | "fallback" | "none",
@@ -51,10 +58,10 @@ export function computeSourceConfidence(
   const evidenceSources: string[] = [];
 
   if (matchType === "exact") {
-    score += 0.4;
+    score += 0.5;
     evidenceSources.push("itunes_exact");
   } else if (matchType === "fallback") {
-    score += 0.2;
+    score += 0.25;
     evidenceSources.push("itunes_fallback");
   }
 
@@ -68,7 +75,7 @@ export function computeSourceConfidence(
     evidenceSources.push("metadata_complete");
   }
 
-  return { score: Math.max(0, Math.min(1, score)), evidenceSources };
+  return { score: Math.round(Math.max(0, Math.min(1, score)) * 100) / 100, evidenceSources };
 }
 
 export interface AutoTagResult {

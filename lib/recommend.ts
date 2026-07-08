@@ -63,13 +63,29 @@ function languageMatches(songLang: string, userLangs: string[]): boolean {
   );
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Plain .includes() treated "pop" as a match inside fused-word genres like
+// "hyperpop"/"britpop"/"electropop" (unrelated genres that just happen to end
+// in the same letters), silently cancelling real taste signal for those songs
+// or wrongly inheriting a boost/avoid meant for mainstream pop. \b boundaries
+// still allow legitimate hyphen/space-separated matches ("indie pop", "k-pop"
+// against "pop") since those genuinely contain "pop" as a separate word.
+function wordBoundaryIncludes(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  return new RegExp(`\\b${escapeRegExp(needle)}\\b`, "i").test(haystack);
+}
+
 function genreOverlapScore(songGenres: string[], genreScores: Record<string, number>): number {
   if (!songGenres.length || !Object.keys(genreScores).length) return 0;
   let total = 0;
   for (const genre of songGenres) {
     const normalized = genre.toLowerCase();
     for (const [key, score] of Object.entries(genreScores)) {
-      if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
+      const normalizedKey = key.toLowerCase();
+      if (wordBoundaryIncludes(normalized, normalizedKey) || wordBoundaryIncludes(normalizedKey, normalized)) {
         total += score;
       }
     }
@@ -82,9 +98,10 @@ function artistProximityScore(songArtist: string, likedArtists: string[]): numbe
   const normalized = songArtist.toLowerCase();
   const exact = likedArtists.some((a) => a.toLowerCase() === normalized);
   if (exact) return 1.0;
-  const partial = likedArtists.some(
-    (a) => normalized.includes(a.toLowerCase()) || a.toLowerCase().includes(normalized)
-  );
+  const partial = likedArtists.some((a) => {
+    const normalizedLiked = a.toLowerCase();
+    return wordBoundaryIncludes(normalized, normalizedLiked) || wordBoundaryIncludes(normalizedLiked, normalized);
+  });
   return partial ? 0.5 : 0;
 }
 
@@ -167,8 +184,11 @@ export function buildRecommendations(
   for (const song of candidates) {
     // ── Rules Layer ──────────────────────────────────────────────────────────
 
-    // 0. Guard: skip songs without emotional_vector (cannot score)
-    if (!song.emotional_vector) {
+    // 0. Guard: skip songs without emotional_vector (cannot score). An empty
+    // array is truthy in JS and must be checked explicitly — cosine() over a
+    // zero-length vector produces NaN (not 0), which then flows into
+    // finalScore and sorts unpredictably instead of being excluded.
+    if (!song.emotional_vector || song.emotional_vector.length === 0) {
       debugLog.push({
         id: song.id,
         title: song.title,

@@ -397,3 +397,37 @@ test("applyArtistDiversityCap matches artist names case-insensitively", () => {
   const result = rec.applyArtistDiversityCap(sorted, 4, 2);
   assert.deepEqual([...result].map((r) => r.id), ["1", "2", "4", "3"]);
 });
+
+test("genreOverlapScore does not match a fused-word genre that merely contains a scored genre as a substring", () => {
+  // "hyperpop"/"britpop"/"electropop" are distinct genres from mainstream "pop" -
+  // raw substring matching wrongly pulled them into any "pop" boost or avoid.
+  // aesthetic_tags cleared so tasteFit isolates the genre-match component.
+  const fused = makeSong({ id: "fused", genre_tags: ["hyperpop"], artist: "A", aesthetic_tags: [] });
+  const req = makeRequest({ genreScores: { pop: 1 } });
+  const { results } = rec.buildRecommendations(req, [fused]);
+  assert.equal(results[0].scoreComponents.tasteFit, 0, "hyperpop must not inherit the 'pop' genre score");
+});
+
+test("genreOverlapScore still matches a hyphen/space-separated genre against a scored genre", () => {
+  const spaced = makeSong({ id: "spaced", genre_tags: ["indie pop"], artist: "A", aesthetic_tags: [] });
+  const req = makeRequest({ genreScores: { pop: 1 } });
+  const { results } = rec.buildRecommendations(req, [spaced]);
+  assert.ok(results[0].scoreComponents.tasteFit > 0, "indie pop should still match a scored 'pop' genre");
+});
+
+test("artistProximityScore does not give partial credit to an unrelated artist whose name embeds a liked artist's name", () => {
+  // aesthetic_tags cleared so tasteFit isolates the artist-match component
+  // (makeSong's default aesthetic_tags otherwise contributes a flat +2.5 via
+  // the unrelated "has any aesthetic tags" presence signal).
+  const unrelated = makeSong({ id: "unrelated", artist: "Bad Cats", aesthetic_tags: [] });
+  const req = makeRequest({ likedArtists: ["Cat"] });
+  const { results } = rec.buildRecommendations(req, [unrelated]);
+  assert.equal(results[0].scoreComponents.tasteFit, 0, "'Bad Cats' must not match liked artist 'Cat'");
+});
+
+test("emotional_vector stored as an empty array is treated the same as missing (no NaN scores)", () => {
+  const broken = makeSong({ id: "broken", emotional_vector: [] });
+  const { results, debugLog } = rec.buildRecommendations(makeRequest(), [broken]);
+  assert.equal(results.length, 0, "song with an empty emotional_vector should be excluded, not scored as NaN");
+  assert.equal(debugLog[0].removedReason, "no_emotional_vector");
+});

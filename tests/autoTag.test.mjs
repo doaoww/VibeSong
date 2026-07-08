@@ -254,7 +254,7 @@ test("computeSourceConfidence combines evidence into a score and evidenceSources
   const { computeSourceConfidence } = autoTag;
 
   const full = computeSourceConfidence("exact", ["russian indie"], 210, 2011);
-  assert.ok(Math.abs(full.score - 0.85) < 0.001);
+  assert.ok(Math.abs(full.score - 0.95) < 0.001);
   assert.deepEqual([...full.evidenceSources].sort(), ["itunes_exact", "lastfm_tags", "metadata_complete"].sort());
 
   const nothing = computeSourceConfidence("none", [], null, null);
@@ -262,8 +262,19 @@ test("computeSourceConfidence combines evidence into a score and evidenceSources
   assert.deepEqual([...nothing.evidenceSources], []);
 
   const fallbackOnly = computeSourceConfidence("fallback", [], null, null);
-  assert.ok(Math.abs(fallbackOnly.score - 0.2) < 0.001);
+  assert.ok(Math.abs(fallbackOnly.score - 0.25) < 0.001);
   assert.deepEqual([...fallbackOnly.evidenceSources], ["itunes_fallback"]);
+});
+
+test("computeSourceConfidence: exact match + complete metadata clears the review threshold even with no Last.fm tags", () => {
+  // Last.fm has near-zero coverage of non-English/niche catalogs (e.g. Russian,
+  // Kazakh) in this app's real data — an exact iTunes match plus complete
+  // metadata must be enough evidence on its own, or every correctly-identified
+  // song in those languages gets flagged needs_review purely for lacking a
+  // third-party tag source that was never going to have it.
+  const { computeSourceConfidence } = autoTag;
+  const result = computeSourceConfidence("exact", [], 210, 2011);
+  assert.ok(result.score >= 0.6, `expected score >= 0.6, got ${result.score}`);
 });
 
 test("autoTagSong keeps exact evidence conservative and surfaces final review fields", async () => {
@@ -326,7 +337,7 @@ test("autoTagSong keeps exact evidence conservative and surfaces final review fi
   const { autoTagSong } = loadTsModule("lib/autoTag.ts");
   const result = await autoTagSong("blinding lights", "the weeknd");
 
-  assert.equal(result.source_confidence, 0.85);
+  assert.equal(result.source_confidence, 0.95);
   assert.equal(result.final_confidence, 0.6);
   assert.equal(result.needs_review, false);
   assert.deepEqual(
@@ -389,8 +400,8 @@ test("autoTagSong treats artist-only iTunes hits as fallback evidence", async ()
   const result = await autoTagSong("Blinding Lights", "The Weeknd");
 
   assert.equal(result.title, "Save Your Tears");
-  assert.equal(result.source_confidence, 0.35);
-  assert.equal(result.final_confidence, 0.35);
+  assert.equal(result.source_confidence, 0.4);
+  assert.equal(result.final_confidence, 0.4);
   assert.equal(result.needs_review, true);
   assert.deepEqual([...result.evidence_sources], ["itunes_fallback", "metadata_complete"]);
   assert.equal(result.tagging_version, "v1");
@@ -457,8 +468,12 @@ test("autoTagSong uses a provided lyrics provider without changing source_confid
   const result = await autoTagSong("Midnight City", "M83", lyricsProvider);
 
   assert.deepEqual(lyricsCall, { title: "Midnight City", artist: "M83" });
-  assert.equal(result.source_confidence, 0.55);
-  assert.equal(result.final_confidence, 0.55);
+  // Exact iTunes match + complete metadata, no Last.fm tags — this is the
+  // common shape for correctly-identified non-English/niche songs (Last.fm
+  // has near-zero coverage there). Must clear needs_review on its own.
+  assert.equal(result.source_confidence, 0.65);
+  assert.equal(result.final_confidence, 0.65);
+  assert.equal(result.needs_review, false);
 });
 
 test("buildGptTagPrompt includes musicSupervisorBrief instructions", () => {
