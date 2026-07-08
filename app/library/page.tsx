@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
@@ -34,12 +34,39 @@ export default function LibraryPage() {
   const { savedSongs, loadFeedback } = useAppStore();
   const t = useTranslation();
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     loadFeedback();
   }, [loadFeedback]);
 
+  // Pause playback when leaving the page instead of letting it run under
+  // whatever's rendered next.
+  useEffect(() => {
+    return () => { audioRef.current?.pause(); };
+  }, []);
+
   const displayed = filterSongs(savedSongs, activeFilter);
+
+  const handleRowActivate = (song: Track, key: string) => {
+    if (song.previewUrl) {
+      const audio = audioRef.current;
+      if (!audio) return;
+      if (playingKey === key) {
+        audio.pause();
+        setPlayingKey(null);
+        return;
+      }
+      audio.src = song.previewUrl;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+      setPlayingKey(key);
+      return;
+    }
+    const link = resolveSongLink(song);
+    if (link) window.open(link, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <AppShell
@@ -90,20 +117,39 @@ export default function LibraryPage() {
             </a>
           </div>
         ) : (
+          <>
+          <audio
+            ref={audioRef}
+            onEnded={() => setPlayingKey(null)}
+            className="hidden"
+          />
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {displayed.map((song, i) => {
-              const link = resolveSongLink(song);
+              const key = `${song.previewUrl || song.youtubeId || song.title}-${i}`;
+              const canPlayInline = Boolean(song.previewUrl);
+              const isInteractive = canPlayInline || Boolean(resolveSongLink(song));
+              const isPlaying = playingKey === key;
               return (
-              <motion.a
-                key={`${song.previewUrl || song.youtubeId || song.title}-${i}`}
-                href={link ?? undefined}
-                target={link ? "_blank" : undefined}
-                rel={link ? "noopener noreferrer" : undefined}
+              <motion.div
+                key={key}
+                role={isInteractive ? "button" : undefined}
+                tabIndex={isInteractive ? 0 : undefined}
+                onClick={isInteractive ? () => handleRowActivate(song, key) : undefined}
+                onKeyDown={
+                  isInteractive
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleRowActivate(song, key);
+                        }
+                      }
+                    : undefined
+                }
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
                 className={`flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant/20 transition-all ${
-                  link ? "hover:border-hot-pink/40 cursor-pointer" : "opacity-70 cursor-default"
+                  isInteractive ? "hover:border-hot-pink/40 cursor-pointer" : "opacity-70 cursor-default"
                 }`}
               >
                 {song.artwork || song.thumbnail ? (
@@ -131,14 +177,23 @@ export default function LibraryPage() {
                       className="w-8 h-8 rounded-full object-cover border-2 border-hot-pink/30 hidden sm:block"
                     />
                   )}
+                  {canPlayInline && (
+                    <span
+                      className="material-symbols-outlined text-hot-pink text-2xl"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      {isPlaying ? "pause_circle" : "play_circle"}
+                    </span>
+                  )}
                   <p className="text-hot-pink text-xs font-display font-bold">
                     {song.matchScore}%
                   </p>
                 </div>
-              </motion.a>
+              </motion.div>
               );
             })}
           </div>
+          </>
         )}
       </div>
 
