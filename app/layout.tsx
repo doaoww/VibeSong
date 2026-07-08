@@ -1,17 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { Space_Grotesk, DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import LocaleInit from "../components/LocaleInit";
 import AmplitudeInit from "../components/AmplitudeInit";
 import "./globals.css";
 
-// Single family for both display and body roles, on every locale — Cyrillic
-// glyphs come from the same font instead of a separate face swapped in for
-// :lang(ru), which previously read as two different fonts pasted together.
-const manrope = Manrope({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-manrope",
-  weight: ["400", "500", "600", "700", "800"],
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  weight: ["400", "500", "600", "700"],
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -41,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body
-        className={`${manrope.variable} font-sans min-h-full bg-background text-on-surface antialiased`}
+        className={`${spaceGrotesk.variable} ${dmSans.variable} font-sans min-h-full bg-background text-on-surface antialiased`}
       >
         <LocaleInit />
         <AmplitudeInit />
