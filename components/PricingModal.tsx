@@ -9,6 +9,7 @@ interface PricingModalProps {
   currentCredits: number;
   onAddCredits: (amount: number) => Promise<void>;
   onRefreshCredits: () => Promise<number | null>;
+  reason?: "out-of-credits";
 }
 
 function getPackages(t: ReturnType<typeof useTranslation>) {
@@ -58,6 +59,7 @@ export default function PricingModal({
   currentCredits,
   onAddCredits,
   onRefreshCredits,
+  reason,
 }: PricingModalProps) {
   const t = useTranslation();
   const PACKAGES = useMemo(() => getPackages(t), [t]);
@@ -121,7 +123,7 @@ export default function PricingModal({
                 <span className="material-symbols-outlined">close</span>
               </button>
               <h2 className="font-display font-bold text-lg text-ink">
-                {t.pricing.getCredits}
+                {reason === "out-of-credits" ? t.pricing.outOfCreditsHeading : t.pricing.getCredits}
               </h2>
               <div className="bg-hot-pink text-white rounded-full px-3 py-1 text-xs font-semibold flex items-center gap-1 font-display">
                 <span>✦</span>

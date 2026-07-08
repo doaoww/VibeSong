@@ -27,6 +27,7 @@ export default function AppUploadPage() {
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
   const [showPricing, setShowPricing] = useState(false);
+  const [pricingReason, setPricingReason] = useState<"out-of-credits" | undefined>(undefined);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   useEffect(() => {
@@ -257,6 +258,7 @@ export default function AppUploadPage() {
     async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData, thumbnailDataUrl: string) => {
       if (credits <= 0) {
         setPendingImage({ base64, mimeType, objectUrl, exifData, thumbnailDataUrl });
+        setPricingReason("out-of-credits");
         setShowPricing(true);
         return;
       }
@@ -267,6 +269,7 @@ export default function AppUploadPage() {
         if (!ok) {
           setPageState("idle");
           setPendingImage({ base64, mimeType, objectUrl, exifData, thumbnailDataUrl });
+          setPricingReason("out-of-credits");
           setShowPricing(true);
         }
       });
@@ -384,7 +387,10 @@ export default function AppUploadPage() {
       header={
         <AppHeader
           credits={credits}
-          onCreditsClick={() => setShowPricing(true)}
+          onCreditsClick={() => {
+            setPricingReason(undefined);
+            setShowPricing(true);
+          }}
         />
       }
     >
@@ -553,6 +559,7 @@ export default function AppUploadPage() {
         currentCredits={credits}
         onAddCredits={handleCreditsAdded}
         onRefreshCredits={refresh}
+        reason={pricingReason}
       />
       {effectiveShowOnboarding && (
         <OnboardingFlow
