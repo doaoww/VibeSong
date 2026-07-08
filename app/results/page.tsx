@@ -12,11 +12,13 @@ function VibeHero({
   imageUrl,
   caption,
   tags,
+  vibeIntent,
   t,
 }: {
   imageUrl: string;
   caption?: string;
   tags?: string[];
+  vibeIntent?: string | null;
   t: ReturnType<typeof useTranslation>;
 }) {
   return (
@@ -33,11 +35,16 @@ function VibeHero({
         />
       </div>
 
-      {(caption || tags?.length) && (
+      {(caption || tags?.length || vibeIntent) && (
         <div className="space-y-2 px-0.5">
           {caption && (
             <p className="text-white italic text-base leading-relaxed line-clamp-2">
               {caption}
+            </p>
+          )}
+          {vibeIntent && (
+            <p className="text-on-surface-variant text-sm">
+              {t.results.youToldUs(vibeIntent)}
             </p>
           )}
           {tags && tags.length > 0 && <VibeTags tags={tags} />}
@@ -124,6 +131,7 @@ export default function ResultsPage() {
   const {
     tracks,
     vibeProfile,
+    vibeIntent,
     uploadedImageUrl,
     saveTrack,
     skipTrack,
@@ -308,6 +316,7 @@ export default function ResultsPage() {
               imageUrl={uploadedImageUrl}
               caption={vibeProfile?.vibeCaption}
               tags={vibeProfile?.vibeTags}
+              vibeIntent={vibeIntent}
               t={t}
             />
           </aside>
