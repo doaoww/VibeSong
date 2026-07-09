@@ -1,5 +1,5 @@
 import { autoTagSong } from "./autoTag";
-import { findSongByTitleArtist, insertSong } from "./db/songs";
+import { findSongByTitleArtist, insertSong, DuplicateSongError } from "./db/songs";
 
 export const TRENDING_COUNTRIES = ["us", "ru", "fr", "es", "gb"];
 export const MAX_NEW_SONGS_PER_RUN = 15;
@@ -82,7 +82,11 @@ export async function curateCatalog(options: CurateCatalogOptions = {}): Promise
         const { id } = await insertSong(tagged);
         inserted.push({ title: candidate.title, artist: candidate.artist, id });
       } catch (err) {
-        failed.push({ ...candidate, error: err instanceof Error ? err.message : String(err) });
+        if (err instanceof DuplicateSongError) {
+          skipped += 1;
+        } else {
+          failed.push({ ...candidate, error: err instanceof Error ? err.message : String(err) });
+        }
       }
       const elapsed = Date.now() - before;
       const wait = Math.max(0, minIntervalMs - elapsed);

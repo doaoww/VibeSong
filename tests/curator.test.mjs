@@ -7,6 +7,8 @@ import vm from "node:vm";
 const baseRequire = createRequire(import.meta.url);
 const ts = baseRequire("typescript");
 
+class StubDuplicateSongError extends Error {}
+
 const stubState = {
   fetchImpl: (..._args) => {
     throw new Error("fetch not stubbed for this test");
@@ -24,6 +26,7 @@ function stubRequire(id) {
     return {
       findSongByTitleArtist: (...args) => stubState.findSongByTitleArtist(...args),
       insertSong: (...args) => stubState.insertSong(...args),
+      DuplicateSongError: StubDuplicateSongError,
     };
   }
   return baseRequire(id);
@@ -167,6 +170,29 @@ test("curateCatalog records a failed candidate and continues with the rest", asy
   assert.match(result.failed[0].error, /iTunes lookup failed/);
   assert.equal(result.inserted.length, 1);
   assert.equal(result.inserted[0].title, "Fine Song");
+});
+
+test("curateCatalog counts a DuplicateSongError from insertSong as skipped, not failed", async () => {
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) {
+      return jsonResponse({ feed: { results: [candidateResult("Chart Display Name (feat. Someone)", "Some Artist")] } });
+    }
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async () => null; // raw chart string doesn't match the already-stored canonical string
+  let taggedCount = 0;
+  stubState.autoTagSong = async () => {
+    taggedCount += 1;
+    return { title: "Canonical Song Name", artist: "Some Artist" }; // autoTagSong rewrote it to the canonical form
+  };
+  stubState.insertSong = async () => {
+    throw new StubDuplicateSongError('"Canonical Song Name" by "Some Artist" is already in the catalog');
+  };
+
+  const result = await curator.curateCatalog({ minIntervalMs: 0 });
+  assert.equal(result.skipped, 1, "a duplicate-key error from insertSong should count as skipped");
+  assert.equal(result.failed.length, 0, "a duplicate should not be reported as a failure");
+  assert.equal(taggedCount, 1, "autoTagSong still runs before the duplicate is discovered — this documents the known cost, not something this fix addresses");
 });
 
 test("curateCatalog continues with remaining countries if one country's feed fetch fails", async () => {
