@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/curate-catalog",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

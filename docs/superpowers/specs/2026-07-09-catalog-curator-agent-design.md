@@ -85,6 +85,14 @@ Vercel Cron (daily)
 - Unit test for `curateCatalog`'s cap/dedupe/error-isolation logic, with `findSongByTitleArtist`, `autoTagSong`, and `insertSong` mocked — verifying: cap stops further processing, a `findSongByTitleArtist` hit increments `skipped` without calling `autoTagSong`, and a thrown error from one candidate doesn't stop later candidates in the same run.
 - No new tests needed for `autoTagSong`/`insertSong` themselves — unchanged, already covered.
 
+## Addendum (post-implementation review, 2026-07-09): confidence gate before insert
+
+The final whole-branch review (after all four implementation tasks) surfaced that `curateCatalog` had no quality gate: `autoTagSong` rarely throws (it falls back internally on iTunes/Last.fm/GPT failures rather than raising), so an unresolvable or low-confidence chart entry was inserted anyway, straight into `needs_review = true` territory, with no human review step to catch it — unlike manual seeding, where a human picks the title/artist pairs in the first place. `lib/recommend.ts` already hard-filters `final_confidence < 0.35` out of recommendations and soft-penalizes `needs_review = true`, so this wasn't a raw-garbage-in-results risk, but it meant the autonomous agent could freely add rows a human would never have chosen to seed.
+
+Decision (confirmed with the user): `curateCatalog` now checks `tagged.needs_review` (the same boolean `autoTagSong` already computes as `final_confidence < 0.6`, `lib/autoTag.ts:406`) immediately after tagging, before calling `insertSong`. If `needs_review` is true, the candidate is **not inserted** — it's counted in `skipped`, not `failed` (it's not an error, just a "not confident enough to auto-add" outcome), and the throttle still applies (the `autoTagSong` call already happened, so the rate-limit cost was already spent). This means the autonomous agent only ever inserts songs `autoTagSong` is confident about — the same bar a human curator would implicitly apply by only seeding songs they recognize.
+
+This does not reduce the GPT-cost-leak finding from the same review (a `needs_review` rejection still spent a real `autoTagSong` call, same as a `DuplicateSongError` rejection does) — that remains a known, accepted cost characteristic of a fully-autonomous agent with no pre-tagging dedupe-by-canonical-name check, deferred as before.
+
 ## Open Questions Deferred to Future Work
 
 - Retiring/deprioritizing stale catalog entries that never get saved — not addressed here, catalog is append-only.
