@@ -187,6 +187,9 @@ test("curateCatalog continues with remaining countries if one country's feed fet
 });
 
 test("curateCatalog throttles calls that reach autoTagSong to at least minIntervalMs apart", async () => {
+  // Helper to create a real delay in the stub (simulates slow autoTagSong)
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   stubState.fetchImpl = async (url) => {
     if (url.includes("/us/")) {
       return jsonResponse({ feed: { results: [candidateResult("Song One", "Artist One"), candidateResult("Song Two", "Artist Two")] } });
@@ -195,7 +198,12 @@ test("curateCatalog throttles calls that reach autoTagSong to at least minInterv
   };
   stubState.findSongByTitleArtist = async () => null;
   const callTimestamps = [];
+  // Make the stub itself take 60ms (longer than the 50ms throttle floor).
+  // With correct floor logic: elapsed (60ms) >= minIntervalMs (50ms), so wait = 0, gap ≈ 60ms.
+  // With flat delay bug: gap would be 60ms (stub) + 50ms (flat sleep) ≈ 110ms minimum.
+  // This test discriminates between the two by asserting gap < 100ms.
   stubState.autoTagSong = async (title, artist) => {
+    await sleep(60);
     callTimestamps.push(Date.now());
     return { title, artist };
   };
@@ -203,5 +211,6 @@ test("curateCatalog throttles calls that reach autoTagSong to at least minInterv
 
   await curator.curateCatalog({ minIntervalMs: 50 });
   assert.equal(callTimestamps.length, 2);
-  assert.ok(callTimestamps[1] - callTimestamps[0] >= 45, "second autoTagSong call should wait for the throttle floor");
+  const gap = callTimestamps[1] - callTimestamps[0];
+  assert.ok(gap < 100, `gap of ${gap}ms should be ~60ms (correct elapsed-aware floor), not ~110ms (flat delay bug)`);
 });
