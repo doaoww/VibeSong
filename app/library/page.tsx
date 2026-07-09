@@ -185,9 +185,11 @@ export default function LibraryPage() {
                       {isPlaying ? "pause_circle" : "play_circle"}
                     </span>
                   )}
-                  <p className="text-hot-pink text-xs font-display font-bold">
-                    {song.matchScore}%
-                  </p>
+                  {song.matchScore > 0 && (
+                    <p className="text-hot-pink text-xs font-display font-bold">
+                      {song.matchScore}%
+                    </p>
+                  )}
                 </div>
               </motion.div>
               );

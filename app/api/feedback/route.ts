@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUser } from "../../../lib/supabase/server";
-import { getFeedback, insertFeedback, type FeedbackAction } from "../../../lib/db/trackFeedback";
+import { getAllFeedback, insertFeedback, type FeedbackAction, type FeedbackRowWithAction } from "../../../lib/db/trackFeedback";
 import type { Track } from "../../../store/useAppStore";
 
 export const runtime = "nodejs";
@@ -9,10 +9,8 @@ function isFeedbackAction(value: unknown): value is FeedbackAction {
   return value === "saved" || value === "skipped";
 }
 
-function toTrack(
-  row: Awaited<ReturnType<typeof getFeedback>>[number],
-  action: FeedbackAction
-): Track {
+function toTrack(row: FeedbackRowWithAction): Track {
+  const action = row.action;
   const timestamp = new Date(row.createdAt).getTime();
   return {
     title: row.title,
@@ -32,18 +30,29 @@ function toTrack(
   };
 }
 
+function feedbackKey(title: string, artist: string): string {
+  return `${title.trim().toLowerCase()}|||${artist.trim().toLowerCase()}`;
+}
+
 export async function GET() {
   const user = await getSupabaseUser();
   if (!user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
-  const [savedRows, skippedRows] = await Promise.all([
-    getFeedback(user.id, "saved", 200),
-    getFeedback(user.id, "skipped", 200),
-  ]);
+
+  // Rows come back newest-first, so the first row seen per title+artist is
+  // the most recent action for that song — that's the one that should win.
+  const rows = await getAllFeedback(user.id, 400);
+  const latestByTrack = new Map<string, FeedbackRowWithAction>();
+  for (const row of rows) {
+    const key = feedbackKey(row.title, row.artist);
+    if (!latestByTrack.has(key)) latestByTrack.set(key, row);
+  }
+  const latest = [...latestByTrack.values()];
+
   return NextResponse.json({
-    saved: savedRows.map((row) => toTrack(row, "saved")),
-    skipped: skippedRows.map((row) => toTrack(row, "skipped")),
+    saved: latest.filter((r) => r.action === "saved").map(toTrack),
+    skipped: latest.filter((r) => r.action === "skipped").map(toTrack),
   });
 }
 

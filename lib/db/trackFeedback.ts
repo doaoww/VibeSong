@@ -101,3 +101,29 @@ export async function getFeedback(
   if (error) throw error;
   return ((data ?? []) as FeedbackRowRaw[]).map(mapRow);
 }
+
+export interface FeedbackRowWithAction extends FeedbackRow {
+  action: FeedbackAction;
+}
+
+// track_feedback is append-only (no unique constraint on title+artist), so the
+// same song can accumulate both a "saved" row (e.g. from the onboarding taste
+// quiz) and a later "skipped" row (from an actual swipe session). Returning
+// every row split by action would let a stale save outlive a later reject —
+// callers should keep only the most recent row per song.
+export async function getAllFeedback(
+  userId: string,
+  limit = 400
+): Promise<FeedbackRowWithAction[]> {
+  const { data, error } = await supabase
+    .from("track_feedback")
+    .select(`action, ${SELECT_COLUMNS}`)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as (FeedbackRowRaw & { action: FeedbackAction })[]).map((row) => ({
+    ...mapRow(row),
+    action: row.action,
+  }));
+}

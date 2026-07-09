@@ -186,7 +186,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       skippedAt: Date.now(),
       sourceImage: get().uploadedThumbnail || undefined,
     };
-    set((s) => ({ skippedSongs: [...s.skippedSongs, withMeta].slice(-50) }));
+    set((s) => {
+      // A reject should retract an earlier save of the same song (e.g. liked
+      // during the onboarding taste quiz, then rejected in a real match session)
+      // instead of leaving it stuck in the library until the next server sync.
+      const key = (t: Track) => `${t.title.trim().toLowerCase()}|||${t.artist.trim().toLowerCase()}`;
+      const skipKey = key(track);
+      const savedSongs = s.savedSongs.filter((t) => key(t) !== skipKey);
+      if (savedSongs.length !== s.savedSongs.length) {
+        try { localStorage.setItem("vs_saved", JSON.stringify(savedSongs.slice(-200))); } catch {}
+      }
+      return { savedSongs, skippedSongs: [...s.skippedSongs, withMeta].slice(-50) };
+    });
     fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
