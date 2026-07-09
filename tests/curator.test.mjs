@@ -195,6 +195,33 @@ test("curateCatalog counts a DuplicateSongError from insertSong as skipped, not 
   assert.equal(taggedCount, 1, "autoTagSong still runs before the duplicate is discovered — this documents the known cost, not something this fix addresses");
 });
 
+test("curateCatalog skips a needs_review candidate without inserting it", async () => {
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) {
+      return jsonResponse({ feed: { results: [candidateResult("Obscure Song", "Unknown Artist")] } });
+    }
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async () => null;
+  let taggedCount = 0;
+  stubState.autoTagSong = async (title, artist) => {
+    taggedCount += 1;
+    return { title, artist, needs_review: true, final_confidence: 0.25 };
+  };
+  let insertCalled = false;
+  stubState.insertSong = async (data) => {
+    insertCalled = true;
+    return { id: `id-${data.title}` };
+  };
+
+  const result = await curator.curateCatalog({ minIntervalMs: 0 });
+  assert.equal(result.skipped, 1, "a needs_review candidate should count as skipped");
+  assert.equal(result.inserted.length, 0, "a needs_review candidate must not be inserted");
+  assert.equal(result.failed.length, 0, "a needs_review candidate is not an error");
+  assert.equal(taggedCount, 1, "autoTagSong still runs — the gate applies after tagging, not before");
+  assert.equal(insertCalled, false, "insertSong must never be called for a needs_review candidate");
+});
+
 test("curateCatalog continues with remaining countries if one country's feed fetch fails", async () => {
   stubState.fetchImpl = async (url) => {
     if (url.includes("/us/")) throw new Error("network error");

@@ -79,8 +79,12 @@ export async function curateCatalog(options: CurateCatalogOptions = {}): Promise
       const before = Date.now();
       try {
         const tagged = await autoTagSong(candidate.title, candidate.artist);
-        const { id } = await insertSong(tagged);
-        inserted.push({ title: candidate.title, artist: candidate.artist, id });
+        if (tagged.needs_review) {
+          skipped += 1;
+        } else {
+          const { id } = await insertSong(tagged);
+          inserted.push({ title: candidate.title, artist: candidate.artist, id });
+        }
       } catch (err) {
         if (err instanceof DuplicateSongError) {
           skipped += 1;
