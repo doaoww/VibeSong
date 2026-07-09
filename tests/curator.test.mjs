@@ -4,14 +4,30 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 import vm from "node:vm";
 
-const require = createRequire(import.meta.url);
-const ts = require("typescript");
+const baseRequire = createRequire(import.meta.url);
+const ts = baseRequire("typescript");
 
 const stubState = {
   fetchImpl: (..._args) => {
     throw new Error("fetch not stubbed for this test");
   },
+  autoTagSong: async (title, artist) => ({ title, artist }),
+  findSongByTitleArtist: async () => null,
+  insertSong: async (data) => ({ id: `id-${data.title}` }),
 };
+
+function stubRequire(id) {
+  if (id.includes("autoTag")) {
+    return { autoTagSong: (...args) => stubState.autoTagSong(...args) };
+  }
+  if (id.includes("db/songs")) {
+    return {
+      findSongByTitleArtist: (...args) => stubState.findSongByTitleArtist(...args),
+      insertSong: (...args) => stubState.insertSong(...args),
+    };
+  }
+  return baseRequire(id);
+}
 
 function loadTsModule(path) {
   const source = readFileSync(path, "utf8");
@@ -22,9 +38,10 @@ function loadTsModule(path) {
   const context = vm.createContext({
     exports: cjsModule.exports,
     module: cjsModule,
-    require,
+    require: stubRequire,
     console,
     process,
+    setTimeout,
     fetch: (...args) => stubState.fetchImpl(...args),
   });
   vm.runInContext(output, context, { filename: path });
@@ -78,4 +95,113 @@ test("fetchTrendingTracks caps results at 25 even if the feed returns more", asy
 test("fetchTrendingTracks throws a descriptive error on a non-ok response", async () => {
   stubState.fetchImpl = async () => jsonResponse({}, false, 503);
   await assert.rejects(() => curator.fetchTrendingTracks("us"), /fetchTrendingTracks failed for us: 503/);
+});
+
+function candidateResult(title, artist) {
+  return { name: title, artistName: artist };
+}
+
+test("curateCatalog stops inserting once MAX_NEW_SONGS_PER_RUN is reached", async () => {
+  const many = Array.from({ length: 20 }, (_, i) => candidateResult(`Song ${i}`, `Artist ${i}`));
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) return jsonResponse({ feed: { results: many } });
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async () => null;
+  let taggedCount = 0;
+  stubState.autoTagSong = async (title, artist) => {
+    taggedCount += 1;
+    return { title, artist };
+  };
+  stubState.insertSong = async (data) => ({ id: `id-${data.title}` });
+
+  const result = await curator.curateCatalog({ minIntervalMs: 0 });
+  assert.equal(result.inserted.length, curator.MAX_NEW_SONGS_PER_RUN);
+  assert.equal(taggedCount, curator.MAX_NEW_SONGS_PER_RUN);
+});
+
+test("curateCatalog skips existing songs without calling autoTagSong", async () => {
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) {
+      return jsonResponse({ feed: { results: [candidateResult("Existing Song", "Existing Artist")] } });
+    }
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async (title, artist) => {
+    if (title === "Existing Song" && artist === "Existing Artist") {
+      return { id: "already-there", title, artist };
+    }
+    return null;
+  };
+  let taggedCount = 0;
+  stubState.autoTagSong = async (title, artist) => {
+    taggedCount += 1;
+    return { title, artist };
+  };
+
+  const result = await curator.curateCatalog({ minIntervalMs: 0 });
+  assert.equal(result.skipped, 1);
+  assert.equal(result.inserted.length, 0);
+  assert.equal(taggedCount, 0, "autoTagSong should never be called for a candidate already in the catalog");
+});
+
+test("curateCatalog records a failed candidate and continues with the rest", async () => {
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) {
+      return jsonResponse({
+        feed: { results: [candidateResult("Broken Song", "Broken Artist"), candidateResult("Fine Song", "Fine Artist")] },
+      });
+    }
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async () => null;
+  stubState.autoTagSong = async (title, artist) => {
+    if (title === "Broken Song") throw new Error("iTunes lookup failed");
+    return { title, artist };
+  };
+  stubState.insertSong = async (data) => ({ id: `id-${data.title}` });
+
+  const result = await curator.curateCatalog({ minIntervalMs: 0 });
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0].title, "Broken Song");
+  assert.match(result.failed[0].error, /iTunes lookup failed/);
+  assert.equal(result.inserted.length, 1);
+  assert.equal(result.inserted[0].title, "Fine Song");
+});
+
+test("curateCatalog continues with remaining countries if one country's feed fetch fails", async () => {
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) throw new Error("network error");
+    if (url.includes("/ru/")) {
+      return jsonResponse({ feed: { results: [candidateResult("Russian Hit", "Russian Artist")] } });
+    }
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async () => null;
+  stubState.autoTagSong = async (title, artist) => ({ title, artist });
+  stubState.insertSong = async (data) => ({ id: `id-${data.title}` });
+
+  const result = await curator.curateCatalog({ minIntervalMs: 0 });
+  assert.equal(result.inserted.length, 1);
+  assert.equal(result.inserted[0].title, "Russian Hit");
+});
+
+test("curateCatalog throttles calls that reach autoTagSong to at least minIntervalMs apart", async () => {
+  stubState.fetchImpl = async (url) => {
+    if (url.includes("/us/")) {
+      return jsonResponse({ feed: { results: [candidateResult("Song One", "Artist One"), candidateResult("Song Two", "Artist Two")] } });
+    }
+    return jsonResponse({ feed: { results: [] } });
+  };
+  stubState.findSongByTitleArtist = async () => null;
+  const callTimestamps = [];
+  stubState.autoTagSong = async (title, artist) => {
+    callTimestamps.push(Date.now());
+    return { title, artist };
+  };
+  stubState.insertSong = async (data) => ({ id: `id-${data.title}` });
+
+  await curator.curateCatalog({ minIntervalMs: 50 });
+  assert.equal(callTimestamps.length, 2);
+  assert.ok(callTimestamps[1] - callTimestamps[0] >= 45, "second autoTagSong call should wait for the throttle floor");
 });
