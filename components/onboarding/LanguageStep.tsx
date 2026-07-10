@@ -7,7 +7,7 @@ import { useTranslation } from "../../lib/translations/useTranslation";
 // button text is translated (see displayLanguage/displayOpenness below).
 const LANGUAGES = [
   "Russian", "English", "Korean", "Spanish", "Arabic", "French",
-  "Turkish", "Uzbek", "Hindi", "Japanese",
+  "Turkish", "Uzbek", "Hindi", "Japanese", "Kazakh",
 ];
 
 const OPENNESS_OPTIONS: Array<{ value: "strict" | "flexible" | "open" }> = [
@@ -38,6 +38,7 @@ export default function LanguageStep({ languages, openness, onChange, onNext }: 
       case "Uzbek": return t.onboarding.language.uzbek;
       case "Hindi": return t.onboarding.language.hindi;
       case "Japanese": return t.onboarding.language.japanese;
+      case "Kazakh": return t.onboarding.language.kazakh;
       default: return lang;
     }
   };

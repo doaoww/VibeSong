@@ -273,6 +273,7 @@ export const ru: Translation = {
       uzbek: "Узбекский",
       hindi: "Хинди",
       japanese: "Японский",
+      kazakh: "Казахский",
       onlySelected: "Только то, что выбрал(а)",
       mostlyMine: "В основном мои, иногда другие",
       openToAnything: "Годится всё, если вайб подходит",

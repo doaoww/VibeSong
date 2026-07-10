@@ -269,6 +269,7 @@ export const en = {
       uzbek: "Uzbek",
       hindi: "Hindi",
       japanese: "Japanese",
+      kazakh: "Kazakh",
       onlySelected: "Only what I selected",
       mostlyMine: "Mostly mine, sometimes others",
       openToAnything: "Open to anything if the vibe fits",

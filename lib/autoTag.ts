@@ -187,7 +187,7 @@ Last.fm community tags: ${lastfmTags.length > 0 ? lastfmTags.join(", ") : "none"
 
 Return ONLY valid JSON (no markdown) with this exact structure:
 {
-  "language": "the actual vocal language (e.g. Russian, English, Korean, Kazakh) ONLY if you recognize this specific track well enough to know it; use \"Instrumental\" only if you are confident it has no vocals; if you do not actually know this song, use \"Unknown\" — never guess Instrumental as a default for an unfamiliar track",
+  "language": "the actual vocal language (e.g. Russian, English, Korean, Kazakh). You don't need to recognize this exact track to answer this field — if you don't know the specific song but you do know this artist's primary/usual singing language from their general body of work, use that language; that is reliable evidence, not a guess, and matters most for artists from smaller or regional scenes (e.g. Kazakh, Uzbek) who are otherwise well-attested by name. Use \"Instrumental\" only if you are confident it has no vocals. Use \"Unknown\" only when you have no reasonable basis for the language from either the specific track or the artist's known usual language — never guess Instrumental as a default for an unfamiliar track",
   "popularity_tier": 1-5 where 1=underground/niche, 3=moderate, 5=mainstream/globally known,
   "emotional_vector": {
     "dreamy": 0.0-1.0,
