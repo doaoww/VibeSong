@@ -13,7 +13,7 @@ export function getProductConfig(productId: string): ProductConfig | null {
   const map: Record<string, ProductConfig> = {
     [process.env.POLAR_PRODUCT_STARTER ?? "__missing__"]: { credits: 10, isSubscription: false },
     [process.env.POLAR_PRODUCT_POPULAR ?? "__missing__"]: { credits: 50, isSubscription: false },
-    [process.env.POLAR_PRODUCT_PRO ?? "__missing__"]: { credits: 500, isSubscription: true },
+    [process.env.POLAR_PRODUCT_PRO ?? "__missing__"]: { credits: 500, isSubscription: false },
   };
   return map[productId] ?? null;
 }

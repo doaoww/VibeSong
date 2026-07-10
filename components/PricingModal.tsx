@@ -43,12 +43,12 @@ function getPackages(t: ReturnType<typeof useTranslation>) {
       label: t.pricing.proLabel,
       credits: 500,
       price: "$19.99",
-      priceNote: t.pricing.perMonth,
+      priceNote: t.pricing.oneTime,
       perMatch: t.pricing.proPerMatch,
       badge: t.pricing.bestValue,
       saveBadge: null as string | null,
       popular: false,
-      isSubscription: true,
+      isSubscription: false,
     },
   ];
 }

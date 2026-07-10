@@ -502,7 +502,7 @@ function Pricing() {
   const plans = [
     { name: t.landing.starterLabel, price: "$1.99", credits: t.landing.starterCredits, per: t.landing.starterPrice, popular: false, isSubscription: false },
     { name: t.landing.popularLabel, price: "$6.99", credits: t.landing.popularCredits, per: t.landing.popularPrice, popular: true, isSubscription: false },
-    { name: t.landing.proLabel, price: "$19.99", credits: t.landing.proCredits, per: t.landing.proPrice, popular: false, isSubscription: true },
+    { name: t.landing.proLabel, price: "$19.99", credits: t.landing.proCredits, per: t.landing.proPrice, popular: false, isSubscription: false },
   ];
 
   return (
