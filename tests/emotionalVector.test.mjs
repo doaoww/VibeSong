@@ -35,14 +35,14 @@ test("buildTasteVector: all skipped still no negative values", () => {
 test("blendVectors: low confidence leans on taste", () => {
   const taste = { ...ZERO_VECTOR, dreamy: 1.0 };
   const photo = { ...ZERO_VECTOR, energy: 1.0 };
-  const r = blendVectors(taste, photo, 0.0); // photoWeight=0.2
+  const r = blendVectors(taste, photo, 0.0); // photoWeight=0.4
   assert.ok(r.dreamy > r.energy); // taste dominates
 });
 
 test("blendVectors: high confidence leans on photo", () => {
   const taste = { ...ZERO_VECTOR, dreamy: 1.0 };
   const photo = { ...ZERO_VECTOR, energy: 1.0 };
-  const r = blendVectors(taste, photo, 1.0); // photoWeight=0.7
+  const r = blendVectors(taste, photo, 1.0); // photoWeight=0.9
   assert.ok(r.energy > r.dreamy); // photo dominates
 });
 

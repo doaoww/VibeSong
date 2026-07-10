@@ -62,12 +62,12 @@ test("applyVibeCap clamps within photo_dim ±0.35 / -0.25", () => {
   assert.equal(vm2.applyVibeCap(0.5, -0.5), 0.25);
 });
 
-test("blendQueryVector at photoConfidence 0.7 reproduces the legacy 0.55/0.45 split", () => {
+test("blendQueryVector at photoConfidence 0.7 gives photo a 0.75/0.25 split", () => {
   const photo = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   const taste = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
   const result = vm2.blendQueryVector(photo, taste, null, {}, 0.7);
-  assert.ok(Math.abs(result[0] - 0.55) < 0.001);
-  assert.ok(Math.abs(result[1] - 0.45) < 0.001);
+  assert.ok(Math.abs(result[0] - 0.75) < 0.001);
+  assert.ok(Math.abs(result[1] - 0.25) < 0.001);
 });
 
 test("blendQueryVector gives the photo more weight as confidence rises", () => {
@@ -75,15 +75,15 @@ test("blendQueryVector gives the photo more weight as confidence rises", () => {
   const taste = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
   const low = vm2.blendQueryVector(photo, taste, null, {}, 0.0);
   const high = vm2.blendQueryVector(photo, taste, null, {}, 1.0);
-  assert.ok(Math.abs(low[0] - 0.2) < 0.001);
-  assert.ok(Math.abs(high[0] - 0.7) < 0.001);
+  assert.ok(Math.abs(low[0] - 0.4) < 0.001);
+  assert.ok(Math.abs(high[0] - 0.9) < 0.001);
 });
 
 test("blendQueryVector clamps out-of-range photoConfidence", () => {
   const photo = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   const taste = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
   const result = vm2.blendQueryVector(photo, taste, null, {}, 5);
-  assert.ok(Math.abs(result[0] - 0.7) < 0.001); // clamped to confidence=1
+  assert.ok(Math.abs(result[0] - 0.9) < 0.001); // clamped to confidence=1
 });
 
 test("blendQueryVector weights photo 0.40 + taste 0.25 + vibe 0.35 when vibe provided", () => {

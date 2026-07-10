@@ -99,7 +99,7 @@ export function blendVectors(
   photoVec: EmotionalVector,
   photoConfidence: number
 ): EmotionalVector {
-  const photoWeight = 0.2 + Math.min(1, Math.max(0, photoConfidence)) * 0.5;
+  const photoWeight = 0.4 + Math.min(1, Math.max(0, photoConfidence)) * 0.5;
   const tasteWeight = 1 - photoWeight;
   const result = { ...ZERO_VECTOR };
   for (const key of VECTOR_KEYS) {

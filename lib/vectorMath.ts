@@ -30,9 +30,14 @@ export function applyVibeCap(photoDim: number, vibeBoost: number): number {
  * Build the final query vector from photo + taste + optional vibe signals.
  * boosts: partial map of dimension name → boost value from vibe parsing.
  * If vibeVec is null, uses a confidence-weighted 2-signal blend (photoWeight
- * ranges 0.2-0.7 as photoConfidence goes 0-1, mirroring blendVectors in
+ * ranges 0.4-0.9 as photoConfidence goes 0-1, mirroring blendVectors in
  * lib/emotionalVector.ts so the query vector and the persisted taste profile
- * use the same trust-the-photo-more-when-confident principle).
+ * use the same trust-the-photo-more-when-confident principle). taste here is
+ * the user's one-time onboarding-quiz vector, not feedback from swipes, so it
+ * must never be allowed to swamp what THIS photo actually looks like — the
+ * previous 0.2-0.7 range let a routine, moderately-confident photo read (e.g.
+ * confidence 0.3) end up majority-taste (65%), which is why matches felt off
+ * whenever the user didn't also type an explicit vibe to compensate.
  * With vibeVec, uses the fixed 3-signal blend (photoConfidence unused there —
  * the requested-vibe feature is not yet live).
  */
@@ -44,7 +49,7 @@ export function blendQueryVector(
   photoConfidence: number
 ): number[] {
   if (!vibeArr) {
-    const photoWeight = 0.2 + Math.max(0, Math.min(1, photoConfidence)) * 0.5;
+    const photoWeight = 0.4 + Math.max(0, Math.min(1, photoConfidence)) * 0.5;
     const tasteWeight = 1 - photoWeight;
     return photoArr.map((p, i) => p * photoWeight + tasteArr[i] * tasteWeight);
   }
