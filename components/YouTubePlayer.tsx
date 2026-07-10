@@ -27,7 +27,11 @@ export default function YouTubePlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [playerReady, setPlayerReady] = useState(Boolean(previewUrl));
-  const prevVisibleRef = useRef(visible);
+  // Starts false regardless of the initial `visible` value so that a card
+  // mounted already-visible (the very first card of a stack) still counts
+  // as "just became visible" on its first effect run and autoplays, instead
+  // of only autoplaying for cards reached later via swipe.
+  const prevVisibleRef = useRef(false);
 
   const start = Math.max(0, Math.floor(startSeconds));
   const origin =
@@ -49,6 +53,17 @@ export default function YouTubePlayer({
     if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
     readyTimerRef.current = setTimeout(() => setPlayerReady(true), 900);
   }, []);
+
+  const playYouTube = useCallback(() => {
+    if (!iframeRef.current || !youtubeId) return;
+    if (playerReady) {
+      sendCommand("playVideo");
+    } else {
+      iframeRef.current.src = `https://www.youtube.com/embed/${youtubeId}?enablejsapi=1&origin=${origin}&autoplay=1&controls=0&start=${start}&rel=0&playsinline=1&modestbranding=1`;
+      setPlayerReady(true);
+    }
+    setIsPlaying(true);
+  }, [youtubeId, playerReady, origin, start, sendCommand]);
 
   // Scoped to this instance's own iframe: an unscoped `message` listener would
   // also react to postMessages from the sibling mobile/desktop YouTubePlayer's
@@ -107,6 +122,8 @@ export default function YouTubePlayer({
       if (hasAudioPreview && audioRef.current) {
         audioRef.current.currentTime = 0;
         audioRef.current.play().catch(() => {}); // Browser may block autoplay silently
+      } else if (hasYouTube) {
+        playYouTube();
       }
     } else if (!visible && wasVisible) {
       // setIsPlaying(false) here is optimistic for the YouTube path (no
@@ -122,7 +139,7 @@ export default function YouTubePlayer({
       setIsPlaying(false);
       setProgress(0);
     }
-  }, [visible, hasAudioPreview, hasYouTube, sendCommand]);
+  }, [visible, hasAudioPreview, hasYouTube, sendCommand, playYouTube]);
 
   const handleToggle = () => {
     const next = !isPlaying;
@@ -141,18 +158,13 @@ export default function YouTubePlayer({
     if (!iframeRef.current || !youtubeId) return;
 
     if (next) {
-      if (playerReady) {
-        sendCommand("playVideo");
-      } else {
-        iframeRef.current.src = `https://www.youtube.com/embed/${youtubeId}?enablejsapi=1&origin=${origin}&autoplay=1&controls=0&start=${start}&rel=0&playsinline=1&modestbranding=1`;
-        setPlayerReady(true);
-      }
-    } else {
-      sendCommand("pauseVideo");
+      playYouTube();
+      return;
     }
 
-    setIsPlaying(next);
-    if (!next) setProgress(0);
+    sendCommand("pauseVideo");
+    setIsPlaying(false);
+    setProgress(0);
   };
 
   const audio = previewUrl ? (
