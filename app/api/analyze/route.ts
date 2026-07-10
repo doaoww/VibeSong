@@ -338,9 +338,14 @@ export async function POST(req: NextRequest) {
     const musicBrief = parseMusicSupervisorBrief(result.musicBrief);
     const whyThisPhotoNeedsMusic =
       typeof result.whyThisPhotoNeedsMusic === "string" ? result.whyThisPhotoNeedsMusic.trim().slice(0, 300) : "";
+    // Only pay for the embeddings round-trip when the downstream consumer
+    // (ENABLE_BRIEF_POOL in /api/recommend) can actually use it — otherwise
+    // this was a full sequential OpenAI call on every request whose result
+    // /api/recommend discards. Gate matches recommend/route.ts's own check.
+    const briefPoolEnabled = process.env.ENABLE_BRIEF_POOL === "true";
     const hasMusicBrief = result.musicBrief && typeof result.musicBrief === "object";
     const briefText = hasMusicBrief ? buildBriefText(musicBrief) : "";
-    const photoBriefEmbedding = briefText
+    const photoBriefEmbedding = briefPoolEnabled && briefText
       ? await embedText(briefText).catch((embedErr) => {
           console.error("[analyze] embedText failed:", embedErr);
           return [];
