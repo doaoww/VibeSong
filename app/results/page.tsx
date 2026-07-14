@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import AppShell from "../../components/AppShell";
 import SwipeCard from "../../components/SwipeCard";
 import VibeTags from "../../components/VibeTags";
-import ShareSheet from "../../components/ShareSheet";
 import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
 
@@ -142,8 +141,6 @@ export default function ResultsPage() {
   const [gone, setGone] = useState<Set<number>>(new Set());
   const [savedTracks, setSavedTracks] = useState<Track[]>([]);
   const [done, setDone] = useState(false);
-  const [shareTrack, setShareTrack] = useState<Track | null>(null);
-  const [shareSheetOpen, setShareSheetOpen] = useState(false);
 
   const displayTracks = tracks;
 
@@ -165,8 +162,6 @@ export default function ResultsPage() {
     setGone(newGone);
     nextCard();
     if (getTopIndex(newGone) === -1) setDone(true);
-    setShareTrack(track);
-    setShareSheetOpen(true);
   };
 
   const handleSkip = (idx: number, track: Track) => {
@@ -177,19 +172,9 @@ export default function ResultsPage() {
     if (getTopIndex(newGone) === -1) setDone(true);
   };
 
-  const shareSheet = (
-    <ShareSheet
-      isOpen={shareSheetOpen}
-      onClose={() => setShareSheetOpen(false)}
-      track={shareTrack}
-      photoUrl={uploadedImageUrl}
-    />
-  );
-
   if (done) {
     return (
-      <>
-        <div className="min-h-screen bg-background flex flex-col overflow-y-auto">
+      <div className="min-h-screen bg-background flex flex-col overflow-y-auto">
         <div className="max-w-sm mx-auto w-full px-5 pt-14 pb-10 space-y-7">
           {/* Photo thumbnail */}
           {uploadedImageUrl && (
@@ -293,15 +278,12 @@ export default function ResultsPage() {
           </motion.div>
         </div>
       </div>
-        {shareSheet}
-      </>
     );
   }
 
   const topIdx = getTopIndex(gone);
 
   return (
-    <>
     <AppShell
       header={
         <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-outline-variant/20 lg:left-64">
@@ -317,15 +299,7 @@ export default function ResultsPage() {
             <h1 className="font-display font-bold text-hot-pink text-sm md:text-base">
               {t.results.tracksLeft(displayTracks.length - gone.size, displayTracks.length)}
             </h1>
-            <button
-              onClick={() => {
-                if (topIdx < 0) return;
-                setShareTrack(displayTracks[topIdx]);
-                setShareSheetOpen(true);
-              }}
-              aria-label={t.share.openAria}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
-            >
+            <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors">
               <span className="material-symbols-outlined text-hot-pink">
                 share
               </span>
@@ -396,7 +370,5 @@ export default function ResultsPage() {
         </div>
       </div>
     </AppShell>
-      {shareSheet}
-    </>
   );
 }

@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
-import ShareSheet from "../../components/ShareSheet";
 import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
 import { en } from "../../lib/translations/en";
@@ -36,8 +35,6 @@ export default function LibraryPage() {
   const t = useTranslation();
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [shareTrack, setShareTrack] = useState<Track | null>(null);
-  const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -72,7 +69,6 @@ export default function LibraryPage() {
   };
 
   return (
-    <>
     <AppShell
       bottomPad="large"
       decor
@@ -175,19 +171,6 @@ export default function LibraryPage() {
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                   {song.sourceImage && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShareTrack(song);
-                        setShareSheetOpen(true);
-                      }}
-                      aria-label={t.share.rowAria(song.title, song.artist)}
-                      className="text-hot-pink/70 hover:text-hot-pink transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-xl">share</span>
-                    </button>
-                  )}
-                  {song.sourceImage && (
                     <img
                       src={song.sourceImage}
                       alt=""
@@ -217,12 +200,5 @@ export default function LibraryPage() {
       </div>
 
     </AppShell>
-      <ShareSheet
-        isOpen={shareSheetOpen}
-        onClose={() => setShareSheetOpen(false)}
-        track={shareTrack}
-        photoUrl={shareTrack?.sourceImage}
-      />
-    </>
   );
 }

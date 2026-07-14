@@ -182,17 +182,6 @@ export const ru: Translation = {
     emptyTitle: "Пока нет сохранённых песен.",
     emptyBody: "Загрузи фото, чтобы начать.",
   },
-  share: {
-    heading: "Поделись своим вайбом",
-    generating: "Готовим карточку…",
-    error: "Не получилось создать картинку. Попробуй ещё раз.",
-    previewAlt: "Карточка для истории VibeSong",
-    addToStory: "Добавить в Историю Instagram",
-    download: "Скачать фото",
-    closeAria: "Закрыть",
-    openAria: "Поделиться подбором",
-    rowAria: (title: string, artist: string) => `Поделиться: ${title} — ${artist}`,
-  },
   explore: {
     heading: "Обзор",
     realMatches: "Реальные мэтчи",
