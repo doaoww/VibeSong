@@ -26,6 +26,7 @@ export default function AppUploadPage() {
   const { credits, loaded, deduct, add, refresh } = useCredits();
   const [pageState, setPageState] = useState<HomeState>("idle");
   const [analyzeTextIdx, setAnalyzeTextIdx] = useState(0);
+  const [showStillWorking, setShowStillWorking] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [pricingReason, setPricingReason] = useState<"out-of-credits" | undefined>(undefined);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -141,6 +142,15 @@ export default function AppUploadPage() {
     }, 1500);
     return () => clearInterval(interval);
   }, [pageState, t]);
+
+  useEffect(() => {
+    if (pageState !== "analyzing") {
+      setShowStillWorking(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowStillWorking(true), 8000);
+    return () => clearTimeout(timer);
+  }, [pageState]);
 
   const runAnalysis = useCallback(
     async (base64: string, mimeType: string, objectUrl: string, exifData: ExifData, thumbnailDataUrl: string) => {
@@ -372,6 +382,16 @@ export default function AppUploadPage() {
             <p className="text-on-surface-variant text-sm">
               {t.home.analyzingSubtext}
             </p>
+
+            {showStillWorking && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-on-surface-variant/70 text-xs text-center max-w-xs"
+              >
+                {t.home.stillWorkingText}
+              </motion.p>
+            )}
           </div>
         </div>
       </div>
