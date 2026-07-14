@@ -509,6 +509,9 @@ export default function AppUploadPage() {
             <p className="text-center text-xs text-on-surface-variant">
               <span className="text-hot-pink">✦</span> {t.home.freeMatches(credits)}
             </p>
+            <p className="text-center text-[11px] text-on-surface-variant/60">
+              {t.home.catalogFreshness}
+            </p>
           </section>
         </div>
 
