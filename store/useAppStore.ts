@@ -64,6 +64,8 @@ export interface Track {
   finalScore?: number;
   photoFitScore?: number;
   tasteFitScore?: number;
+  storyFitScore?: number;
+  emotionalVector?: number[] | null;
   discoveryFitScore?: number;
   obviousnessPenalty?: number;
   youtubeId?: string;

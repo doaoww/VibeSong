@@ -208,6 +208,7 @@ export default function AppUploadPage() {
           scoreComponents: { finalScore: number; photoFit: number; tasteFit: number; storyFit: number };
           artwork_url: string | null; itunes_preview_url: string | null;
           apple_music_url: string | null; youtube_id: string | null;
+          emotional_vector: number[] | null;
         }) => ({
           title: s.title,
           artist: s.artist,
@@ -217,6 +218,8 @@ export default function AppUploadPage() {
           finalScore: s.scoreComponents.finalScore,
           photoFitScore: s.scoreComponents.photoFit,
           tasteFitScore: s.scoreComponents.tasteFit,
+          storyFitScore: s.scoreComponents.storyFit,
+          emotionalVector: s.emotional_vector,
           thumbnail: s.artwork_url || "",
           artwork: s.artwork_url || undefined,
           previewUrl: s.itunes_preview_url || undefined,
