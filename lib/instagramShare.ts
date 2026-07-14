@@ -32,3 +32,39 @@ export function getFacebookAppId(envValue: string | undefined): string | null {
   const trimmed = envValue?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
+
+// Instagram-documented pasteboard type for the Stories composer's background
+// image — works from mobile Safari with no OAuth/API, provided
+// source_application is a real registered Meta App ID (see
+// getFacebookAppId's doc comment above for why this matters).
+const INSTAGRAM_STORIES_PASTEBOARD_TYPE = "com.instagram.sharedSticker.backgroundImage";
+
+export type ShareOutcome = "ios-deep-link" | "web-share" | "unsupported";
+
+export async function shareToInstagramStory(
+  imageBlob: Blob,
+  facebookAppId: string
+): Promise<ShareOutcome> {
+  if (typeof navigator === "undefined" || typeof window === "undefined") return "unsupported";
+
+  if (isIOSSafari(navigator.userAgent) && typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ [INSTAGRAM_STORIES_PASTEBOARD_TYPE]: imageBlob }),
+      ]);
+      window.location.href = `instagram-stories://share?source_application=${facebookAppId}`;
+      return "ios-deep-link";
+    } catch {
+      // Clipboard write can fail on some WebKit versions outside a direct
+      // user-gesture call stack — fall through to Web Share API below.
+    }
+  }
+
+  const file = new File([imageBlob], "vibesong-story.png", { type: "image/png" });
+  if (canUseWebShareFiles(navigator, file)) {
+    await navigator.share({ files: [file] });
+    return "web-share";
+  }
+
+  return "unsupported";
+}
