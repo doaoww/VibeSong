@@ -58,3 +58,131 @@ export function truncateToWidth(text: string, maxWidth: number, measure: (s: str
   }
   return text.slice(0, end) + "…";
 }
+
+export async function generateShareCardImage(
+  track: { title: string; artist: string; artwork?: string; thumbnail: string },
+  photoUrl: string
+): Promise<Blob> {
+  const layout = computeShareCardLayout();
+  const photo = await loadImage(photoUrl, false);
+
+  const blob = await renderCard(layout, track, photo, true);
+  if (blob) return blob;
+
+  // Cross-origin artwork tainted the canvas (CDN didn't send CORS headers) —
+  // redraw without it instead of failing the whole share flow.
+  const fallbackBlob = await renderCard(layout, track, photo, false);
+  if (!fallbackBlob) throw new Error("Canvas toBlob failed");
+  return fallbackBlob;
+}
+
+async function renderCard(
+  layout: ShareCardLayout,
+  track: { title: string; artist: string; artwork?: string; thumbnail: string },
+  photo: HTMLImageElement,
+  includeArtwork: boolean
+): Promise<Blob | null> {
+  const canvas = document.createElement("canvas");
+  canvas.width = layout.width;
+  canvas.height = layout.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable");
+
+  drawCover(ctx, photo, layout.width, layout.height);
+
+  const gradient = ctx.createLinearGradient(0, layout.gradientStartY, 0, layout.gradientEndY);
+  gradient.addColorStop(0, "rgba(0,0,0,0)");
+  gradient.addColorStop(1, "rgba(0,0,0,0.85)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, layout.gradientStartY, layout.width, layout.gradientEndY - layout.gradientStartY);
+
+  drawRoundedRectPath(ctx, layout.plate.x, layout.plate.y, layout.plate.width, layout.plate.height, layout.plate.radius);
+  ctx.fillStyle = "rgba(17, 17, 17, 0.72)";
+  ctx.fill();
+
+  const artUrl = track.artwork || track.thumbnail;
+  if (includeArtwork && artUrl) {
+    try {
+      const art = await loadImage(artUrl, true);
+      ctx.save();
+      drawRoundedRectPath(ctx, layout.artwork.x, layout.artwork.y, layout.artwork.size, layout.artwork.size, 16);
+      ctx.clip();
+      ctx.drawImage(art, layout.artwork.x, layout.artwork.y, layout.artwork.size, layout.artwork.size);
+      ctx.restore();
+    } catch {
+      // Artwork failed to load at all (network error/404) — the plate still
+      // renders fine with just the title/artist text.
+    }
+  }
+
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#F5F5F5";
+  ctx.font = "700 44px Inter, sans-serif";
+  ctx.fillText(
+    truncateToWidth(track.title, layout.title.maxWidth, (s) => ctx.measureText(s).width),
+    layout.title.x,
+    layout.title.y
+  );
+
+  ctx.fillStyle = "#888888";
+  ctx.font = "400 34px Inter, sans-serif";
+  ctx.fillText(
+    truncateToWidth(track.artist, layout.artist.maxWidth, (s) => ctx.measureText(s).width),
+    layout.artist.x,
+    layout.artist.y
+  );
+
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((blob) => resolve(blob), "image/png");
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function loadImage(src: string, crossOrigin: boolean): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (crossOrigin) img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.src = src;
+  });
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, width: number, height: number) {
+  const imgRatio = img.width / img.height;
+  const targetRatio = width / height;
+  let drawWidth = width;
+  let drawHeight = height;
+  let offsetX = 0;
+  let offsetY = 0;
+  if (imgRatio > targetRatio) {
+    drawHeight = height;
+    drawWidth = height * imgRatio;
+    offsetX = (width - drawWidth) / 2;
+  } else {
+    drawWidth = width;
+    drawHeight = width / imgRatio;
+    offsetY = (height - drawHeight) / 2;
+  }
+  ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+}
+
+function drawRoundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
