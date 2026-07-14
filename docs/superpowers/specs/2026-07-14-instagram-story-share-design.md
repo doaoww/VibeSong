@@ -23,9 +23,9 @@ offscreen `<canvas>` and resolves a `Blob`:
 - A rounded "music sticker" plate near the bottom, styled like Instagram's
   native music sticker: track artwork thumbnail (`track.artwork ||
   track.thumbnail`), track title (bold), artist (muted) below it.
-- Small "VibeSong" wordmark watermark in a corner.
-- No other text, decoration, or UI chrome — just photo + song + watermark, as
-  confirmed with the user.
+- No watermark, logo, or other branding — just photo + song, as confirmed
+  with the user.
+- No other text, decoration, or UI chrome.
 
 Pure function signature: `generateShareCard(track: Track, photoUrl: string) =>
 Promise<Blob>`. No network calls, no server round-trip — everything needed
