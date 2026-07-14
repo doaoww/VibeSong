@@ -178,14 +178,9 @@ export default function SwipeCard({
 
   return (
     <motion.div
-      style={{
-        x,
-        rotate,
-        opacity: cardOpacity,
-        zIndex: 10 - stackIndex,
-        scale: isTop ? 1 : 1 - stackIndex * 0.04,
-        y: stackIndex * 8,
-      }}
+      style={{ x, rotate, opacity: cardOpacity, zIndex: 10 - stackIndex }}
+      animate={{ scale: isTop ? 1 : 1 - stackIndex * 0.04, y: stackIndex * 8 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
       drag={isTop ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.85}

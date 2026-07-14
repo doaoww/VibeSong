@@ -8,6 +8,7 @@ import VibeTags from "../../components/VibeTags";
 import ShareSheet from "../../components/ShareSheet";
 import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
+import { computeSessionTasteVector, scoreRemainingTracks } from "../../lib/sessionTaste";
 
 function VibeHero({
   imageUrl,
@@ -141,11 +142,36 @@ export default function ResultsPage() {
 
   const [gone, setGone] = useState<Set<number>>(new Set());
   const [savedTracks, setSavedTracks] = useState<Track[]>([]);
+  const [skippedThisSession, setSkippedThisSession] = useState<Track[]>([]);
+  const [remainingOrder, setRemainingOrder] = useState<number[] | null>(null);
+  const [liveScores, setLiveScores] = useState<Record<number, number>>({});
+  const [justLearned, setJustLearned] = useState(false);
   const [done, setDone] = useState(false);
   const [shareTrack, setShareTrack] = useState<Track | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
 
   const displayTracks = tracks;
+
+  type IndexedTrack = Track & { __idx: number };
+
+  const recomputeOrder = (newGone: Set<number>, saved: Track[], skipped: Track[]) => {
+    const sessionVector = computeSessionTasteVector(saved, skipped);
+    if (!sessionVector) {
+      setRemainingOrder(null);
+      setLiveScores({});
+      return;
+    }
+    const indexed: IndexedTrack[] = displayTracks
+      .map((track, i) => ({ ...track, __idx: i }))
+      .filter((track) => !newGone.has(track.__idx));
+    const scored = scoreRemainingTracks(indexed, sessionVector);
+    setRemainingOrder(scored.map((track) => track.__idx));
+    const scoresByIdx: Record<number, number> = {};
+    for (const track of scored) scoresByIdx[track.__idx] = track.liveScore;
+    setLiveScores(scoresByIdx);
+    setJustLearned(true);
+    setTimeout(() => setJustLearned(false), 1500);
+  };
 
   useEffect(() => {
     if (tracks.length === 0) router.replace("/app");
@@ -160,10 +186,12 @@ export default function ResultsPage() {
 
   const handleSave = (idx: number, track: Track) => {
     saveTrack(track);
-    setSavedTracks((p) => [...p, track]);
+    const newSaved = [...savedTracks, track];
+    setSavedTracks(newSaved);
     const newGone = new Set(gone).add(idx);
     setGone(newGone);
     nextCard();
+    recomputeOrder(newGone, newSaved, skippedThisSession);
     if (getTopIndex(newGone) === -1) setDone(true);
     setShareTrack(track);
     setShareSheetOpen(true);
@@ -171,9 +199,12 @@ export default function ResultsPage() {
 
   const handleSkip = (idx: number, track: Track) => {
     skipTrack(track);
+    const newSkipped = [...skippedThisSession, track];
+    setSkippedThisSession(newSkipped);
     const newGone = new Set(gone).add(idx);
     setGone(newGone);
     nextCard();
+    recomputeOrder(newGone, savedTracks, newSkipped);
     if (getTopIndex(newGone) === -1) setDone(true);
   };
 
@@ -298,7 +329,9 @@ export default function ResultsPage() {
     );
   }
 
-  const topIdx = getTopIndex(gone);
+  const orderedIndices =
+    remainingOrder ?? displayTracks.map((_, i) => i).filter((i) => !gone.has(i));
+  const topIdx = orderedIndices.length > 0 ? orderedIndices[0] : -1;
 
   return (
     <>
@@ -357,19 +390,32 @@ export default function ResultsPage() {
             {t.results.swipeHint}
           </p>
 
+          <AnimatePresence>
+            {justLearned && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mx-auto w-fit bg-hot-pink/15 border border-hot-pink/30 text-hot-pink text-xs font-semibold px-3 py-1.5 rounded-full"
+              >
+                {t.swipe.learningYourVibe}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Mobile: tall combined swipe stack; desktop: song card only */}
           <div className="relative flex-1 min-h-[min(560px,calc(100dvh-13.5rem))] lg:h-[540px] lg:flex-none -mx-1 px-1">
             <AnimatePresence>
-              {displayTracks.map((track, idx) => {
-                if (gone.has(idx)) return null;
-                const isTop = idx === topIdx;
-                const stackIndex = idx - (topIdx === -1 ? 0 : topIdx);
+              {orderedIndices.map((idx, position) => {
+                const track = displayTracks[idx];
+                const liveScore = liveScores[idx];
+                const cardTrack = liveScore !== undefined ? { ...track, matchScore: liveScore } : track;
                 return (
                   <SwipeCard
                     key={`${track.previewUrl || track.youtubeId || track.title}-${idx}`}
-                    track={track}
-                    isTop={isTop}
-                    stackIndex={Math.max(0, stackIndex)}
+                    track={cardTrack}
+                    isTop={position === 0}
+                    stackIndex={position}
                     onSave={() => handleSave(idx, track)}
                     onSkip={() => handleSkip(idx, track)}
                     vibeImageUrl={uploadedImageUrl ?? undefined}
