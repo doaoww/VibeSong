@@ -174,17 +174,19 @@ export default function LibraryPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShareTrack(song);
-                      setShareSheetOpen(true);
-                    }}
-                    aria-label={t.share.rowAria(song.title, song.artist)}
-                    className="text-hot-pink/70 hover:text-hot-pink transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-xl">share</span>
-                  </button>
+                  {song.sourceImage && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShareTrack(song);
+                        setShareSheetOpen(true);
+                      }}
+                      aria-label={t.share.rowAria(song.title, song.artist)}
+                      className="text-hot-pink/70 hover:text-hot-pink transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-xl">share</span>
+                    </button>
+                  )}
                   {song.sourceImage && (
                     <img
                       src={song.sourceImage}
