@@ -178,6 +178,17 @@ export const en = {
     emptyTitle: "No saved songs yet.",
     emptyBody: "Upload a photo to get started.",
   },
+  share: {
+    heading: "Share your vibe",
+    generating: "Creating your card…",
+    error: "Couldn't create the image. Try again.",
+    previewAlt: "Your VibeSong story card",
+    addToStory: "Add to Instagram Story",
+    download: "Download photo",
+    closeAria: "Close",
+    openAria: "Share this match",
+    rowAria: (title: string, artist: string) => `Share ${title} by ${artist}`,
+  },
   explore: {
     heading: "Explore",
     realMatches: "Real matches",
