@@ -181,6 +181,7 @@ export default function LibraryPage() {
                         setShareTrack(song);
                         setShareSheetOpen(true);
                       }}
+                      onKeyDown={(e) => e.stopPropagation()}
                       aria-label={t.share.rowAria(song.title, song.artist)}
                       className="text-hot-pink/70 hover:text-hot-pink transition-colors"
                     >
