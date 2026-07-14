@@ -1,7 +1,7 @@
-﻿import type { EmotionalVector } from "./emotionalVector";
-import { VECTOR_KEYS as _VECTOR_KEYS } from "./emotionalVector";
+﻿import type { EmotionalVector } from "./emotionalVector.ts";
+import { VECTOR_KEYS as _VECTOR_KEYS } from "./emotionalVector.ts";
 
-export { VECTOR_KEYS } from "./emotionalVector";
+export { VECTOR_KEYS } from "./emotionalVector.ts";
 
 const VECTOR_KEYS = _VECTOR_KEYS;
 
