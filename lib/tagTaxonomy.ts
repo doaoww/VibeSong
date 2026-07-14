@@ -54,6 +54,8 @@ export const MOOD_TAGS = [
   "cozy",
   "nostalgic",
   "dreamy",
+  "calm",
+  "serene",
 ] as const;
 
 export const STORY_CONTEXT_TAGS = [

@@ -34,9 +34,15 @@ export function confidenceFactor(photoConfidence: number): number {
   return 0.5 + clamp01(photoConfidence) * 0.5;
 }
 
-/** Anti-tags are a hard filter - only trusted when GPT itself was reasonably confident. */
-export function gateAntiTags(antiTags: string[], photoConfidence: number): string[] {
-  return photoConfidence >= 0.4 ? antiTags : [];
+/**
+ * Photo-derived anti-tags are never hard-blocked purely on confidence anymore —
+ * a moderate-confidence "calm" read used to have its anti-tags (e.g. euphoric,
+ * chaotic) wiped entirely below 0.4, silently letting hype/party songs back in.
+ * They're passed through unconditionally now; recommend.ts applies them as a
+ * soft, confidence-scaled penalty instead of gating them at the source.
+ */
+export function gateAntiTags(antiTags: string[], _photoConfidence: number): string[] {
+  return antiTags;
 }
 
 /**

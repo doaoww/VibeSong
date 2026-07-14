@@ -12,7 +12,8 @@ export interface RecommendRequest {
   genreScores: Record<string, number>;
   likedArtists: string[];
   storyIntentTags: string[];       // from photo matchSignals + (future) requested vibe
-  antiTags: string[];              // from photo matchSignals (confidence-gated) + requested vibe + onboarding avoid-list
+  hardAntiTags: string[];          // requested vibe + onboarding avoid-list — always excludes, never confidence-gated
+  softAntiTags: string[];          // from photo matchSignals — confidence-scaled penalty, not a hard block
   photoConfidence: number;         // gates contextFit/vibeAestheticFit/storyFit contributions
   sceneContextTags: string[];      // from photo matchSignals.scene_context_tags
   aestheticTags: string[];         // from photo matchSignals.modern_aesthetic_tags
@@ -35,6 +36,7 @@ export interface ScoreComponents {
   freshnessPenalty: number;
   mainstreamPenalty: number;
   needsReviewPenalty: number;
+  softAntiTagPenalty: number;
   finalScore: number;
 }
 
@@ -282,17 +284,17 @@ export function buildRecommendations(
       continue;
     }
 
-    // 5. Anti-tags from requested vibe
-    if (req.antiTags.length > 0) {
-      const allTags = [
-        ...song.story_intent_tags,
-        ...song.mood_tags,
-        ...song.aesthetic_tags,
-      ].map((t) => t.toLowerCase());
-      const hasAntiTag = req.antiTags.some((at) =>
-        allTags.some((t) => t.includes(at.toLowerCase()))
+    // 5. Hard anti-tags — explicit requested-vibe/onboarding avoid-list, never confidence-gated
+    const songTagPool = [
+      ...song.story_intent_tags,
+      ...song.mood_tags,
+      ...song.aesthetic_tags,
+    ].map((t) => t.toLowerCase());
+    if (req.hardAntiTags.length > 0) {
+      const hasHardAntiTag = req.hardAntiTags.some((at) =>
+        songTagPool.some((t) => t.includes(at.toLowerCase()))
       );
-      if (hasAntiTag) {
+      if (hasHardAntiTag) {
         debugLog.push({
           id: song.id,
           title: song.title,
@@ -363,11 +365,22 @@ export function buildRecommendations(
             : 0
         : 0;
     const needsReviewPenalty = song.needs_review ? -12 : 0;
+    // Photo-derived anti-tags (e.g. "euphoric"/"chaotic" flagged against a calm
+    // photo) are a soft, confidence-scaled penalty rather than a hard block —
+    // GPT's read can be wrong, so a moderate-confidence anti-tag should nudge
+    // scoring, not silently disqualify the song outright.
+    const softAntiTagMatches = req.softAntiTags.filter((at) =>
+      songTagPool.some((t) => t.includes(at.toLowerCase()))
+    ).length;
+    const softAntiTagPenalty = -Math.min(2, softAntiTagMatches) * 15 * confFactor;
 
     const raw = photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + briefFit + noveltyFit + qualityBonus;
     const finalScore = Math.max(
       0,
-      Math.min(100, raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty)
+      Math.min(
+        100,
+        raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty + softAntiTagPenalty
+      )
     );
 
     const components: ScoreComponents = {
@@ -384,6 +397,7 @@ export function buildRecommendations(
       freshnessPenalty,
       mainstreamPenalty,
       needsReviewPenalty,
+      softAntiTagPenalty: Math.round(softAntiTagPenalty * 10) / 10,
       finalScore: Math.round(finalScore * 10) / 10,
     };
 

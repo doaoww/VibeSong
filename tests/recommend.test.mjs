@@ -76,7 +76,8 @@ function makeRequest(overrides = {}) {
     genreScores: {},
     likedArtists: [],
     storyIntentTags: [],
-    antiTags: [],
+    hardAntiTags: [],
+    softAntiTags: [],
     photoConfidence: 1.0,
     sceneContextTags: [],
     aestheticTags: [],
@@ -175,6 +176,32 @@ test("manual review does not bypass the language_unknown guard on its own", () =
   const song = makeSong({ id: "unknown-lang-reviewed", language: "Unknown", tag_source: "auto_plus_manual" });
   const { results } = rec.buildRecommendations(makeRequest({ languageOpenness: "open" }), [song]);
   assert.equal(results.length, 0, "approving tags does not fix an unset language");
+});
+
+test("hardAntiTags (explicit avoid-list) hard-removes a matching song regardless of confidence", () => {
+  const song = makeSong({ id: "hyped", mood_tags: ["euphoric"] });
+  const req = makeRequest({ hardAntiTags: ["euphoric"], photoConfidence: 0.1 });
+  const { results, debugLog } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 0);
+  const entry = debugLog.find((e) => e.id === "hyped");
+  assert.equal(entry.removedReason, "anti_tag");
+});
+
+test("softAntiTags (photo-derived) never hard-removes a song — it only applies a scoring penalty", () => {
+  const song = makeSong({ id: "hyped", mood_tags: ["euphoric"] });
+  const req = makeRequest({ softAntiTags: ["euphoric"], photoConfidence: 0.1 });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 1, "a low-confidence photo anti-tag must not silently disqualify the song");
+  assert.ok(results[0].scoreComponents.softAntiTagPenalty < 0);
+});
+
+test("softAntiTagPenalty scales with photoConfidence — a confident 'calm' read pushes back harder against a euphoric song than an unsure one", () => {
+  const song = makeSong({ id: "hyped", mood_tags: ["euphoric"] });
+  const unsure = rec.buildRecommendations(makeRequest({ softAntiTags: ["euphoric"], photoConfidence: 0 }), [song]);
+  const confident = rec.buildRecommendations(makeRequest({ softAntiTags: ["euphoric"], photoConfidence: 1 }), [song]);
+  const unsurePenalty = unsure.results[0].scoreComponents.softAntiTagPenalty;
+  const confidentPenalty = confident.results[0].scoreComponents.softAntiTagPenalty;
+  assert.ok(confidentPenalty < unsurePenalty, "higher confidence should apply a stronger (more negative) penalty");
 });
 
 test("needs_review song still appears but with a scoring penalty, not full hiding", () => {

@@ -127,7 +127,8 @@ NUMBER RULES:
 - photoVector fields: all floats 0.0–1.0
 - vibeTags: exactly 3
 - energy_bounds: floats 0.0-1.0 describing how tightly a fitting song's energy should match this specific photo. Narrow (e.g. min 0.15 / max 0.30) for a still, unambiguous moment; wider (e.g. min 0.2 / max 0.55) if the photo's energy is more open to interpretation.
-- scene_context_tags: closed vocabulary is deliberately narrow — when a photo doesn't cleanly match any listed category (e.g. a landscape with no person, an object close-up), map it to the nearest listed category instead of inventing a new word, and prefer an empty array over a made-up tag.`;
+- scene_context_tags: closed vocabulary is deliberately narrow — when a photo doesn't cleanly match any listed category (e.g. a landscape with no person, an object close-up), map it to the nearest listed category instead of inventing a new word, and prefer an empty array over a made-up tag.
+- story_intent_tags / modern_aesthetic_tags: several list entries are explicitly feminine-coded (e.g. "she'll regret losing you", "clean girl morning", "Slavic sad girl", "hot girl summer", "dark feminine", "cool girl car selfie", "coquette", "clean girl", "mob wife", "pinterest girl", "alt girl"). Only pick one of these when the photo's subject genuinely reads as feminine. For a masculine-presenting or gender-neutral subject (or no person at all), pick from the remaining neutral tags instead — do not force a feminine-coded tag just because it's the closest thematic fit.`;
 
 function buildPrompt(exifBlock: string, vibeIntentBlock: string): string {
   return BASE_SYSTEM_PROMPT + exifBlock + vibeIntentBlock;

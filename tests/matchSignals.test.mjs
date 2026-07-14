@@ -146,13 +146,10 @@ test("confidenceFactor clamps out-of-range input", () => {
   assert.equal(ms.confidenceFactor(2), 1.0);
 });
 
-test("gateAntiTags passes tags through at or above the 0.4 threshold", () => {
-  assert.deepEqual(plain(ms.gateAntiTags(["euphoric"], 0.4)), ["euphoric"]);
+test("gateAntiTags passes tags through regardless of confidence — recommend.ts applies them as a soft, confidence-scaled penalty instead of gating at the source", () => {
   assert.deepEqual(plain(ms.gateAntiTags(["euphoric"], 0.9)), ["euphoric"]);
-});
-
-test("gateAntiTags drops tags below the 0.4 threshold", () => {
-  assert.deepEqual(plain(ms.gateAntiTags(["euphoric"], 0.39)), []);
+  assert.deepEqual(plain(ms.gateAntiTags(["euphoric"], 0.4)), ["euphoric"]);
+  assert.deepEqual(plain(ms.gateAntiTags(["euphoric"], 0.05)), ["euphoric"]);
 });
 
 test("gateEnergyBounds passes bounds through unchanged at or above confidence 0.6", () => {
