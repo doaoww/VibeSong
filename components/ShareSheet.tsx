@@ -77,8 +77,8 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
   };
 
   const handleOpenInstagram = async () => {
-    if (!cardBlob || !FACEBOOK_APP_ID) return;
-    await shareToInstagramStory(cardBlob, FACEBOOK_APP_ID);
+    if (!cardBlob) return;
+    await shareToInstagramStory(cardBlob, FACEBOOK_APP_ID ?? "");
   };
 
   const handleDownload = () => {
