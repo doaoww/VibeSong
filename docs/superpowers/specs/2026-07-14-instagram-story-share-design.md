@@ -68,10 +68,12 @@ in the codebase) that:
   underneath.
 - **Confirmation step before handoff:** tapping "Добавить в историю" does
   NOT immediately navigate to Instagram. It first (synchronously, in the
-  same tap so clipboard-write permissions stay tied to the user gesture):
-  writes the card image to the pasteboard (§3) **and** copies the plain
-  text `"{track.title} — {track.artist}"` to the clipboard, then swaps the
-  sheet's content to a confirmation view:
+  same tap so clipboard-write permissions stay tied to the user gesture)
+  copies the plain text `"{track.title} — {track.artist}"` to the
+  clipboard via the standard, universally-supported `navigator.clipboard.
+  writeText` — this is the one step common to both platforms, and it's
+  what the confirmation message below is about. It then swaps the sheet's
+  content to a confirmation view:
   - "✓ Скопировано: **{title} — {artist}**"
   - "В Instagram: Стикеры → Музыка → Вставить"
   - A single button, **"Открыть Instagram →"**, which is the only thing
@@ -89,7 +91,11 @@ in the codebase) that:
 
 ### 3. "Add to Story" behavior (platform feature-detected)
 
-No Instagram Graph API, no OAuth, no Meta app review — all client-side:
+No Instagram Graph API, no OAuth, no Meta app review — all client-side.
+The plain-text clipboard copy (§2) happens uniformly on the first tap; the
+platform-specific mechanics below all happen on the second tap ("Открыть
+Instagram →"), since that tap is itself a fresh user gesture and each of
+these APIs needs to be invoked directly within a gesture handler:
 
 - **iOS Safari**: on the confirmation-step tap ("Открыть Instagram →"),
   write the PNG to the clipboard as a `ClipboardItem` tagged with
