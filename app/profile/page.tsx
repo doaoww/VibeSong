@@ -78,6 +78,7 @@ export default function ProfilePage() {
           credits={credits}
           onCreditsClick={() => setShowPricing(true)}
           center={t.profile.heading}
+          showLanguageToggle
           left={
             <button
               onClick={() => history.back()}

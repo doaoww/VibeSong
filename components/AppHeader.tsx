@@ -11,6 +11,7 @@ interface AppHeaderProps {
   center?: string;
   left?: React.ReactNode;
   right?: React.ReactNode;
+  showLanguageToggle?: boolean;
 }
 
 export default function AppHeader({
@@ -20,6 +21,7 @@ export default function AppHeader({
   center,
   left,
   right,
+  showLanguageToggle = false,
 }: AppHeaderProps) {
   const t = useTranslation();
 
@@ -38,7 +40,7 @@ export default function AppHeader({
 
         {/* Desktop page title */}
         {center ? (
-          <span className="font-display font-bold text-sm text-white lg:text-lg lg:flex-1 lg:ml-0">
+          <span className="min-w-0 flex-1 truncate font-display font-bold text-sm text-white lg:text-lg">
             {center}
           </span>
         ) : (
@@ -48,7 +50,7 @@ export default function AppHeader({
         )}
 
         <div className="flex items-center gap-2">
-          <LanguageToggle />
+          {showLanguageToggle && <LanguageToggle />}
           {right ?? (
             showCredits ? (
               <CreditBadge credits={credits} onClick={onCreditsClick} />
