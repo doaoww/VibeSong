@@ -1,8 +1,9 @@
-import type { Metadata, Viewport } from "next";
+import type { Viewport } from "next";
 import { Space_Grotesk, DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import LocaleInit from "../components/LocaleInit";
 import AmplitudeInit from "../components/AmplitudeInit";
+import { seoMetadata } from "../lib/seo";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -17,17 +18,7 @@ const dmSans = DM_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  title: "VibeSong AI — Your photo. Your soundtrack.",
-  description:
-    "Drop any photo. Our AI reads the vibe and finds songs that just fit.",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "VibeSong",
-  },
-};
+export const metadata = seoMetadata;
 
 export const viewport: Viewport = {
   width: "device-width",

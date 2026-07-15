@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local git worktrees (see .gitignore) shouldn't be linted from the
     // main checkout.
+    ".claude/**",
+    ".gstack/**",
     ".worktrees/**",
   ]),
 ]);
