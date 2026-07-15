@@ -39,99 +39,24 @@ function useIsDesktopViewport() {
   );
 }
 
-// Max possible contribution of each score component, mirroring the weights
-// in lib/recommend.ts's scoring layer: photoFit = cosine * 40, tasteFit =
-// genreScore*15 + artistScore*10 + aestheticMatch*5 (max 30), storyFit =
-// min(3, matches) * 7 * confFactor (max 3*7*1 = 21). Bars show each
-// component as a % of its own max so they're visually comparable even
-// though the raw point scales differ.
-const PHOTO_FIT_MAX = 40;
-const TASTE_FIT_MAX = 30;
-const STORY_FIT_MAX = 21;
-
-function pctOfMax(score: number | undefined, max: number): number {
-  if (typeof score !== "number") return 0;
-  return Math.max(0, Math.min(100, Math.round((score / max) * 100)));
-}
-
-function BreakdownBar({ label, pct }: { label: string; pct: number }) {
+function MatchScore({ score, t }: { score: number; t: ReturnType<typeof useTranslation> }) {
   return (
-    <div className="space-y-0.5">
-      <div className="flex justify-between items-baseline">
-        <span className="text-on-surface-variant text-[9px] uppercase tracking-wide">
-          {label}
+    <div className="space-y-1">
+      <div className="flex justify-between items-end">
+        <span className="text-lime text-[10px] font-semibold uppercase tracking-widest">
+          {t.swipe.matchScore}
         </span>
-        <span className="text-white text-[10px] font-semibold tabular-nums">
-          {pct}%
+        <span className="text-white font-display font-bold text-base lg:text-lg">
+          {score}%
         </span>
       </div>
-      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-        <div className="h-full rounded-full bg-hot-pink" style={{ width: `${pct}%` }} />
+      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full bg-hot-pink"
+          style={{ width: `${score}%` }}
+        />
       </div>
     </div>
-  );
-}
-
-function MatchBreakdown({
-  track,
-  t,
-}: {
-  track: Track;
-  t: ReturnType<typeof useTranslation>;
-}) {
-  const hasBreakdown =
-    typeof track.photoFitScore === "number" &&
-    typeof track.tasteFitScore === "number" &&
-    typeof track.storyFitScore === "number";
-
-  if (!hasBreakdown) {
-    // Fallback for any track without a breakdown (e.g. older cached data) —
-    // shows just the overall score, same as the previous single-bar UI.
-    return (
-      <div className="space-y-1">
-        <div className="flex justify-between items-end">
-          <span className="text-lime text-[10px] font-semibold uppercase tracking-widest">
-            {t.swipe.matchScore}
-          </span>
-          <span className="text-white font-display font-bold text-base lg:text-lg">
-            {track.matchScore}%
-          </span>
-        </div>
-        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-hot-pink" style={{ width: `${track.matchScore}%` }} />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-1.5 w-full">
-      <BreakdownBar label={t.swipe.photoFitLabel} pct={pctOfMax(track.photoFitScore, PHOTO_FIT_MAX)} />
-      <BreakdownBar label={t.swipe.tasteFitLabel} pct={pctOfMax(track.tasteFitScore, TASTE_FIT_MAX)} />
-      <BreakdownBar label={t.swipe.storyFitLabel} pct={pctOfMax(track.storyFitScore, STORY_FIT_MAX)} />
-    </div>
-  );
-}
-
-function CompactBreakdown({
-  track,
-  t,
-}: {
-  track: Track;
-  t: ReturnType<typeof useTranslation>;
-}) {
-  const hasBreakdown =
-    typeof track.photoFitScore === "number" &&
-    typeof track.tasteFitScore === "number" &&
-    typeof track.storyFitScore === "number";
-  if (!hasBreakdown) return null;
-
-  return (
-    <p className="text-on-surface-variant text-[10px] truncate">
-      {t.swipe.photoFitLabel} {pctOfMax(track.photoFitScore, PHOTO_FIT_MAX)}% ·{" "}
-      {t.swipe.tasteFitLabel} {pctOfMax(track.tasteFitScore, TASTE_FIT_MAX)}% ·{" "}
-      {t.swipe.storyFitLabel} {pctOfMax(track.storyFitScore, STORY_FIT_MAX)}%
-    </p>
   );
 }
 
@@ -265,7 +190,6 @@ export default function SwipeCard({
               {track.reason}
             </p>
           )}
-          <CompactBreakdown track={track} t={t} />
 
           {(isTop || stackIndex === 1) && (
             <YouTubePlayer
@@ -312,7 +236,7 @@ export default function SwipeCard({
               {track.reason}
             </p>
 
-            <MatchBreakdown track={track} t={t} />
+            <MatchScore score={track.matchScore} t={t} />
           </div>
         </div>
 
