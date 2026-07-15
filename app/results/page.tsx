@@ -208,8 +208,6 @@ export default function ResultsPage() {
       setDone(true);
       persistSessionTaste(newSaved, skippedThisSession);
     }
-    setShareTrack(track);
-    setShareSheetOpen(true);
   };
 
   const handleSkip = (idx: number, track: Track) => {
@@ -368,19 +366,7 @@ export default function ResultsPage() {
             <h1 className="font-display font-bold text-hot-pink text-sm md:text-base">
               {t.results.tracksLeft(displayTracks.length - gone.size, displayTracks.length)}
             </h1>
-            <button
-              onClick={() => {
-                if (topIdx < 0) return;
-                setShareTrack(displayTracks[topIdx]);
-                setShareSheetOpen(true);
-              }}
-              aria-label={t.share.openAria}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
-            >
-              <span className="material-symbols-outlined text-hot-pink">
-                share
-              </span>
-            </button>
+            <div className="w-10 h-10" />
           </div>
         </header>
       }
