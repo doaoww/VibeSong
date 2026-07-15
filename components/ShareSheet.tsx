@@ -159,7 +159,10 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
                 <img src={photoUrl} alt={t.share.previewAlt} className="w-full h-full object-contain" />
               )}
               {videoStatus === "generating" && (
-                <p className="absolute bottom-2 inset-x-0 text-center text-on-surface-variant text-xs bg-black/60 py-1">
+                <p className="absolute bottom-2 inset-x-0 flex items-center justify-center gap-1.5 text-center text-hot-pink text-xs font-semibold bg-black/60 py-1.5">
+                  <span className="material-symbols-outlined animate-spin text-sm leading-none">
+                    progress_activity
+                  </span>
                   {t.share.generating}
                 </p>
               )}
@@ -185,26 +188,30 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
               </div>
             ) : (
               <div className="space-y-2">
+                {videoStatus === "ready" && (
+                  <button
+                    onClick={handleDownloadVideo}
+                    className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+                  >
+                    {t.share.downloadVideo}
+                  </button>
+                )}
                 <button
                   onClick={handleAddToStoryTap}
-                  className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+                  className={
+                    videoStatus === "ready"
+                      ? "w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all"
+                      : "w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+                  }
                 >
                   {t.share.addToStory}
                 </button>
-                {showPhotoFallback ? (
+                {showPhotoFallback && (
                   <button
                     onClick={handleDownloadPhoto}
                     className="w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all"
                   >
                     {t.share.downloadPhoto}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleDownloadVideo}
-                    disabled={videoStatus !== "ready"}
-                    className="w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {t.share.downloadVideo}
                   </button>
                 )}
               </div>
