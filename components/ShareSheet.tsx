@@ -18,6 +18,7 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
   const t = useTranslation();
   const [videoStatus, setVideoStatus] = useState<VideoStatus>("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [phase, setPhase] = useState<SheetPhase>("preview");
 
   useEffect(() => {
@@ -43,9 +44,10 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
 
         const res = await fetch("/api/share-video", { method: "POST", body: formData });
         if (!res.ok) throw new Error("Video generation failed");
-        const videoBlob = await res.blob();
+        const blob = await res.blob();
         if (cancelled) return;
-        setVideoUrl(URL.createObjectURL(videoBlob));
+        setVideoBlob(blob);
+        setVideoUrl(URL.createObjectURL(blob));
         setVideoStatus("ready");
       } catch {
         if (!cancelled) setVideoStatus("error");
@@ -60,6 +62,7 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
   useEffect(() => {
     if (!isOpen) {
       setVideoStatus("idle");
+      setVideoBlob(null);
       setPhase("preview");
     }
   }, [isOpen]);
@@ -85,20 +88,39 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
     window.location.href = "https://www.instagram.com/";
   };
 
-  const handleDownloadVideo = () => {
-    if (!videoUrl) return;
+  // Mobile browsers (iOS Safari in particular) frequently ignore a plain
+  // <a download> click on a blob: URL — nothing visibly happens. The native
+  // share sheet's "Save Video"/"Save Image" action is the reliable way to
+  // get a file onto the device from a web page, so try that first and only
+  // fall back to the anchor-click approach where Web Share's file support
+  // isn't available (mainly desktop browsers, where the anchor does work).
+  const shareOrDownloadFile = async (file: File, fallbackUrl: string, fallbackName: string) => {
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return;
+      } catch {
+        // User cancelled the share sheet, or it failed — fall through to a
+        // direct download link rather than leaving the tap silent.
+      }
+    }
     const a = document.createElement("a");
-    a.href = videoUrl;
-    a.download = "vibesong-story.mp4";
+    a.href = fallbackUrl;
+    a.download = fallbackName;
     a.click();
   };
 
-  const handleDownloadPhoto = () => {
+  const handleDownloadVideo = () => {
+    if (!videoBlob || !videoUrl) return;
+    const file = new File([videoBlob], "vibesong-story.mp4", { type: "video/mp4" });
+    void shareOrDownloadFile(file, videoUrl, "vibesong-story.mp4");
+  };
+
+  const handleDownloadPhoto = async () => {
     if (!photoUrl) return;
-    const a = document.createElement("a");
-    a.href = photoUrl;
-    a.download = "vibesong-story.jpg";
-    a.click();
+    const blob = await fetch(photoUrl).then((r) => r.blob());
+    const file = new File([blob], "vibesong-story.jpg", { type: blob.type || "image/jpeg" });
+    void shareOrDownloadFile(file, photoUrl, "vibesong-story.jpg");
   };
 
   const showPhotoFallback = videoStatus === "unavailable" || videoStatus === "error";
@@ -132,7 +154,7 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
               </button>
             </div>
 
-            <div className="rounded-xl overflow-hidden bg-black/40 aspect-[9/16] flex items-center justify-center relative">
+            <div className="mx-auto w-full max-w-[220px] rounded-xl overflow-hidden bg-black/40 aspect-[9/16] flex items-center justify-center relative">
               {photoUrl && (
                 <img src={photoUrl} alt={t.share.previewAlt} className="w-full h-full object-contain" />
               )}
