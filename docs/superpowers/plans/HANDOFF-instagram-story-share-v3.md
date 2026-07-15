@@ -51,6 +51,28 @@ whole file first, then follow "Immediate next step" below.
   the plan file (`docs/superpowers/plans/2026-07-15-instagram-story-share-v3.md`),
   under "### Task 4", "### Task 5", etc.
 
+## Exact stopping point
+
+Work stopped mid-fix on Task 3, at the very last verification step before
+a commit. As of right now:
+
+- `next.config.ts` has an **uncommitted** change adding
+  `serverExternalPackages: ["ffmpeg-static", "fluent-ffmpeg"]` (run
+  `git diff next.config.ts` to see it — it's a 6-line addition, nothing
+  else touched). This was mid-verification (re-running the curl test
+  below) when the session ended — it may or may not have been confirmed
+  working yet. Re-verify it yourself before committing, don't assume it's
+  already proven.
+- Also noteworthy: a separate, already-completed commit (`f6ec35f`, "Hide
+  Instagram share entry points from swipe/library UI") has temporarily
+  removed the share button from `app/results/page.tsx`'s header and the
+  per-row share button from `app/library/page.tsx`, so the half-built
+  feature doesn't show to real users mid-rebuild. **This is intentional
+  and out of scope for the v3 plan** — do not re-add those buttons; that
+  commit's own message says they get re-wired "once the feature is
+  ready," which is a deliberate later step, not something Tasks 4-7 ask
+  for.
+
 ## Immediate next step
 
 1. Handle the Task 3 fix above (verify + commit `next.config.ts`).
