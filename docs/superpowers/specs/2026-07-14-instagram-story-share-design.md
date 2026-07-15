@@ -36,7 +36,114 @@ attached element. Root-caused to two things, both corrected in v2 below:
 
 v2 (below) fixes #1 and redesigns around #2 instead of masking it.
 
-## Change (v2)
+**v3 (current):** before v2 could be verified on a real device, the user
+hit an external blocker — registering the required Meta App ID
+(developers.facebook.com) failed for reasons outside this app's control.
+Rather than debug third-party account/registration issues, v3 drops the
+pasteboard/App-ID mechanism entirely and pivots to something that doesn't
+depend on Instagram's cooperation at all:
+
+3. Instead of trying to pre-fill Instagram's Stories background (which
+   needs the App ID) or its Music sticker (which is impossible per #2
+   above), v3 generates a real 15-second **video** — the photo, full-bleed,
+   with 15 seconds of the track's actual audio baked in — server-side via
+   ffmpeg. A video with real audio already encoded into it doesn't need
+   Instagram's Music sticker or any pasteboard trick to "have the song
+   attached": when the user posts this video anywhere (Instagram Story,
+   feed, any other platform), the audio just plays, because it's genuinely
+   part of the file. "Open Instagram" becomes a plain link/app-open (no
+   App ID, no pasteboard) with the track name copied to the clipboard as a
+   convenience, and the user downloads the video and posts it themselves.
+
+v3 (below) replaces v2's client-side canvas card + pasteboard/Web-Share
+hand-off with server-side video generation + a plain Instagram-opener.
+
+## Change (v3)
+
+### 1. Video generation endpoint (`app/api/share-video/route.ts`, new)
+
+A Node-runtime API route (ffmpeg needs a real child process, not Edge) that
+combines a user's photo with 15 seconds of a track's preview audio into an
+MP4, sized for Stories (1080×1920):
+
+- **Input**: `multipart/form-data` POST with `photo` (the image file) and
+  `previewUrl` (the track's existing preview-audio URL — the same
+  `Track.previewUrl` field already used for in-app playback) and an
+  optional `startSeconds` (from `Track.viralMomentSeconds`, the same field
+  `YouTubePlayer` already uses to start playback at the track's most
+  "grabby" moment — reused here as the trim start point; defaults to `0`
+  if absent).
+- **Processing**: ffmpeg (via the `ffmpeg-static` binary + `fluent-ffmpeg`,
+  or an equivalent spawn wrapper) takes the photo as a looped still image,
+  the audio trimmed to `[startSeconds, startSeconds + 15]` directly from
+  `previewUrl` (ffmpeg reads network URLs as input directly — no separate
+  download step needed), scales/crops the photo to 1080×1920 (cover-fit,
+  same crop semantics as v2's now-removed `computeCoverFit`, just done by
+  ffmpeg's `scale`+`crop` filters instead of canvas), and encodes to H.264
+  video + AAC audio, exactly 15 seconds (`-shortest -t 15`).
+- **Output**: the resulting MP4 streamed back as the response
+  (`Content-Type: video/mp4`), not stored anywhere server-side —
+  generated and discarded per request, consistent with this feature's
+  existing "no persistence" principle.
+- **No text, logo, or watermark drawn onto the video** — same as v2's
+  photo-only card, just now a photo-plus-audio video instead of a
+  photo-only image.
+- If a track has no `previewUrl` at all, this endpoint is never called —
+  the client falls back to offering a plain photo download instead (see
+  §2).
+- **Known infrastructure risk, called out explicitly rather than assumed
+  away** (this app has been burned twice now by assumptions that looked
+  fine on paper and failed in the real deployed environment): Vercel
+  serverless functions have execution-time limits that vary by plan
+  (typically short by default unless `export const maxDuration = ...` is
+  set, and even then capped by the plan tier), and bundling the `ffmpeg`
+  binary adds real deployment size. The implementation plan's first task
+  is a minimal smoke test — deploy the simplest possible version of this
+  endpoint and confirm it actually produces a valid video on Vercel —
+  before building the rest of the UI around it, specifically so this risk
+  surfaces immediately rather than after another full build-and-ship
+  cycle.
+
+### 2. `components/ShareSheet.tsx` (rewritten)
+
+Same bottom-sheet shell as v2, different content and mechanism:
+
+- On open, immediately shows the user's plain photo as a preview (no
+  canvas processing needed client-side anymore — v2's `lib/shareCard.ts`
+  is removed entirely).
+- In the background, if the track has a `previewUrl`, kicks off a request
+  to `/api/share-video` and shows "Генерируем видео…"; once it resolves,
+  enables **"Скачать видео"** ("Download video") — this **replaces**
+  "Скачать фото" entirely, per the user's explicit choice. If the track
+  has no `previewUrl`, no video request is made at all, and the sheet
+  falls back to offering a plain **"Скачать фото"** button instead (the
+  one exception to "replaces entirely" — there's nothing to generate a
+  video from).
+- **"Открыть Instagram"** button: tapping it (a) copies
+  `"{track.title} — {track.artist}"` to the clipboard via
+  `navigator.clipboard.writeText`, (b) shows the same confirmation view as
+  v2 ("✓ Скопировано: ...", "В Instagram: Стикеры → Музыка → Вставить"),
+  then (c) a single further tap simply opens Instagram (e.g. navigating to
+  a plain `https://www.instagram.com/` link, or the OS handling an
+  `instagram://` scheme if installed) — no pasteboard write, no App ID, no
+  platform branching. The user is expected to post the already-downloaded
+  video themselves and paste the song name into Instagram's own Music
+  sticker search, same manual step as v2 (this app still cannot drive taps
+  inside Instagram's UI — that constraint hasn't changed, see Revision
+  history #2).
+- No platform feature-detection is needed anymore for the Instagram button
+  itself (opening a link/app works everywhere) — `lib/instagramShare.ts`'s
+  `isIOSSafari`/`canUseWebShareFiles`/`getFacebookAppId`/
+  `shareToInstagramStory` and all of `lib/shareCard.ts` become unused and
+  are removed.
+
+### 3. Entry points
+
+Unchanged from v2 — still `app/results/page.tsx` (`handleSave` + header
+icon) and `app/library/page.tsx` (per-row icon, still gated on
+`song.sourceImage`, since a video/photo still needs a photo to start from).
+
+## Superseded (v2, kept for history — do not implement)
 
 ### 1. Shareable card image (`lib/shareCard.ts`, new)
 
@@ -148,12 +255,16 @@ these APIs needs to be invoked directly within a gesture handler:
   Explicitly deferred — "Download photo" is the fallback for manual feed
   posting.
 - No Instagram account linking/login anywhere in this feature.
-- No server-side image generation or storage — cards are generated and
-  discarded client-side, never uploaded or persisted.
+- No server-side **storage** — the v3 video endpoint generates and streams
+  the MP4 back per-request with no database row, blob store, or file left
+  behind; "no server round-trip" from v1/v2 is revised in v3 specifically
+  for video generation (ffmpeg cannot run in-browser reliably enough to
+  trust for this), but the "nothing persisted" principle still holds.
 - No changes to credits, matching, or the swipe/save data model
   (`store/useAppStore.ts`) beyond reading existing `Track` fields.
-- No video story support — photo only, matching the rest of the current
-  product surface.
+- No video **animation/Ken Burns effect** — the photo is static for the
+  full 15 seconds; no zoom/pan, matching the "no decoration" principle
+  carried over from v2's card.
 - No attempt to auto-open Instagram's Music sticker panel, auto-focus its
   search field, or auto-fill/auto-submit a search inside Instagram's UI —
   there is no API, deep-link parameter, or accessibility hook that allows
