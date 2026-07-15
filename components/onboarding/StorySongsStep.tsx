@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useTranslation } from "../../lib/translations/useTranslation";
+import PlaylistImport from "../PlaylistImport";
 
 interface PickedSong {
   title: string;
@@ -14,9 +15,11 @@ interface Props {
 
 export default function StorySongsStep({ onNext, onSkip }: Props) {
   const t = useTranslation();
+  const [entryMode, setEntryMode] = useState<"manual" | "playlist">("manual");
   const [artist, setArtist] = useState("");
   const [title, setTitle] = useState("");
   const [picked, setPicked] = useState<PickedSong[]>([]);
+  const [playlistImported, setPlaylistImported] = useState(false);
   const [showFillHint, setShowFillHint] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +81,41 @@ export default function StorySongsStep({ onNext, onSkip }: Props) {
       </div>
 
       <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-1 rounded-full bg-white/5 border border-white/10 p-1">
+          <button
+            type="button"
+            onClick={() => setEntryMode("manual")}
+            className={`py-2.5 rounded-full text-xs font-semibold transition-all ${
+              entryMode === "manual"
+                ? "bg-hot-pink text-white"
+                : "text-white/45 hover:text-white/70"
+            }`}
+          >
+            {t.onboarding.storySongs.manualToggle}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEntryMode("playlist")}
+            className={`py-2.5 rounded-full text-xs font-semibold transition-all ${
+              entryMode === "playlist"
+                ? "bg-hot-pink text-white"
+                : "text-white/45 hover:text-white/70"
+            }`}
+          >
+            {t.onboarding.storySongs.playlistToggle}
+          </button>
+        </div>
+
+        {entryMode === "playlist" && (
+          <PlaylistImport
+            compact
+            onImported={() => setPlaylistImported(true)}
+            onManualFallback={() => setEntryMode("manual")}
+          />
+        )}
+
+        {entryMode === "manual" && (
+          <>
         {picked.length > 0 && (
           <div className="flex items-center justify-end">
             <span className="text-white/35 text-xs font-semibold">
@@ -146,6 +184,8 @@ export default function StorySongsStep({ onNext, onSkip }: Props) {
             {t.onboarding.storySongs.maxReached}
           </p>
         )}
+          </>
+        )}
       </div>
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -153,11 +193,21 @@ export default function StorySongsStep({ onNext, onSkip }: Props) {
       <div className="space-y-2 pt-1">
         <button
           type="button"
-          onClick={handleContinue}
-          disabled={resolving}
+          onClick={
+            entryMode === "playlist"
+              ? playlistImported
+                ? onNext
+                : onSkip
+              : handleContinue
+          }
+          disabled={entryMode === "manual" && resolving}
           className="w-full py-3.5 rounded-xl bg-hot-pink text-white font-display font-bold text-base active:scale-95 transition-all disabled:opacity-60"
         >
-          {primaryLabel}
+          {entryMode === "playlist"
+            ? playlistImported
+              ? t.onboarding.storySongs.continueLabel
+              : t.onboarding.storySongs.continueWithoutSongs
+            : primaryLabel}
         </button>
         <p className="text-center text-white/30 text-xs">
           {t.onboarding.storySongs.optionalNote}

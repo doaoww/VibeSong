@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import AppShell from "../../components/AppShell";
 import AppHeader from "../../components/AppHeader";
+import PlaylistImport from "../../components/PlaylistImport";
 import { useAppStore } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import { useAccountSync } from "../../lib/useAccountSync";
@@ -24,19 +26,24 @@ export default function ProfilePage() {
   const { savedSongs, loadFeedback } = useAppStore();
   const { credits, add, refresh } = useCredits();
   const [showPricing, setShowPricing] = useState(false);
+  const [showPlaylistImport, setShowPlaylistImport] = useState(false);
   const [learnedTaste, setLearnedTaste] = useState<LearnedTaste | null>(null);
 
   useEffect(() => {
     loadFeedback();
   }, [loadFeedback]);
 
-  useEffect(() => {
+  const refreshLearnedTaste = useCallback(() => {
     if (!user) return;
     fetch("/api/taste/learned")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setLearnedTaste(data))
       .catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    refreshLearnedTaste();
+  }, [refreshLearnedTaste]);
 
   const handleSignOut = async () => {
     const supabase = createSupabaseBrowserClient();
@@ -152,6 +159,13 @@ export default function ProfilePage() {
               </button>
 
               <button
+                onClick={() => setShowPlaylistImport(true)}
+                className="w-full border border-hot-pink text-hot-pink font-display font-bold py-3 rounded-xl hover:bg-hot-pink/10 active:scale-95 transition-all"
+              >
+                {t.profile.importPlaylist}
+              </button>
+
+              <button
                 onClick={handleRetakeQuiz}
                 className="w-full border border-white/10 text-white/50 font-semibold text-sm py-3 rounded-xl hover:border-white/20 hover:text-white/70 active:scale-95 transition-all"
               >
@@ -228,6 +242,48 @@ export default function ProfilePage() {
         onAddCredits={add}
         onRefreshCredits={refresh}
       />
+
+      <AnimatePresence>
+        {showPlaylistImport && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 backdrop-blur-sm lg:items-center lg:p-4"
+            onClick={() => setShowPlaylistImport(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-md max-h-[92dvh] overflow-y-auto bg-surface-container rounded-t-2xl lg:rounded-2xl p-6 space-y-4 pb-[max(2.5rem,env(safe-area-inset-bottom))]"
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="font-display font-bold text-lg text-white">
+                  {t.profile.importPlaylist}
+                </h2>
+                <button
+                  onClick={() => setShowPlaylistImport(false)}
+                  aria-label={t.share.closeAria}
+                  className="text-white/50 hover:text-white transition-colors"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <PlaylistImport
+                compact
+                onImported={() => refreshLearnedTaste()}
+                onManualFallback={() => {
+                  setShowPlaylistImport(false);
+                  void handleRetakeQuiz();
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AppShell>
   );
 }

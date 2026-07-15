@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Apple Music Playlist</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "MusicPlaylist",
+        "name": "Golden Hour Stories",
+        "numTracks": 3,
+        "track": [
+          { "@type": "MusicRecording", "name": "Pink + White" },
+          { "@type": "MusicRecording", "name": "Sweet Disposition" },
+          { "@type": "MusicRecording", "name": "Midnight City" }
+        ]
+      }
+    </script>
+    <script type="application/json" id="serialized-server-data">
+      {
+        "data": {
+          "sections": [
+            {
+              "items": [
+                {
+                  "playAction": { "$kind": "playAction" },
+                  "composer": "Frank Ocean",
+                  "title": "Pink + White",
+                  "artistName": "Frank Ocean"
+                },
+                {
+                  "playAction": { "$kind": "playAction" },
+                  "title": "Album Title Only",
+                  "isDisabled": false
+                },
+                {
+                  "playAction": { "$kind": "playAction" },
+                  "composer": "The Temper Trap",
+                  "title": "Sweet Disposition",
+                  "artistName": "The Temper Trap"
+                },
+                {
+                  "playAction": { "$kind": "playAction" },
+                  "composer": "M83",
+                  "title": "Midnight City",
+                  "artistName": "M83"
+                }
+              ]
+            }
+          ]
+        },
+        "userTokenHash": "abc123"
+      }
+    </script>
+  </head>
+  <body></body>
+</html>
