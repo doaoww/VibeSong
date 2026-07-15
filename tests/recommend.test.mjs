@@ -75,6 +75,7 @@ function makeRequest(overrides = {}) {
     recentlyShownSongIds: [],
     genreScores: {},
     likedArtists: [],
+    favoriteSongIds: [],
     storyIntentTags: [],
     hardAntiTags: [],
     softAntiTags: [],
@@ -304,21 +305,11 @@ test("briefFit scales down for a dissimilar brief embedding", () => {
   assert.equal(results[0].scoreComponents.briefFit, 0);
 });
 
-test("flexible language penalty is strong enough to rank a matching-language song above an equally-strong mismatched one", () => {
-  const matched = makeSong({ id: "en", language: "English" });
-  const mismatched = makeSong({ id: "ru", language: "Russian" });
-  const req = makeRequest({ languages: ["English"], languageOpenness: "flexible" });
-  const { results } = rec.buildRecommendations(req, [matched, mismatched]);
-  assert.equal(results[0].id, "en", "explicitly preferred language should outrank an equally-strong mismatch");
-  assert.ok(
-    results[0].scoreComponents.finalScore > results[1].scoreComponents.finalScore,
-    "matched-language song should score strictly higher"
-  );
-});
-
-test("flexible language penalty outweighs a max-strength taste-fit boost, so an explicit language preference isn't drowned out", () => {
+test("flexible language filter hard-removes a mismatched-language song even when it's a much stronger overall match", () => {
   // mismatched song is a perfect taste match (liked artist + liked genre + aesthetic tag)
   // but wrong language; matched song has none of those boosts but is the right language.
+  // A pure scoring penalty was reliably beaten by strong-enough matches elsewhere
+  // (e.g. "Satranga" outranking matched-language songs), so this must be a hard block.
   const mismatched = makeSong({
     id: "ru",
     language: "Russian",
@@ -333,24 +324,32 @@ test("flexible language penalty outweighs a max-strength taste-fit boost, so an 
     likedArtists: ["Loved Artist"],
     genreScores: { pop: 1 },
   });
-  const { results } = rec.buildRecommendations(req, [matched, mismatched]);
-  const en = results.find((r) => r.id === "en");
-  const ru = results.find((r) => r.id === "ru");
-  assert.ok(
-    en.scoreComponents.finalScore > ru.scoreComponents.finalScore,
-    "explicit language preference should outweigh a same-song-otherwise max tasteFit boost (max +30)"
-  );
+  const { results, debugLog } = rec.buildRecommendations(req, [matched, mismatched]);
+  const ids = results.map((r) => r.id);
+  assert.ok(ids.includes("en"), "matched-language song should be kept");
+  assert.ok(!ids.includes("ru"), "mismatched-language song should be removed even with a strong taste-fit boost");
+  const entry = debugLog.find((e) => e.id === "ru");
+  assert.equal(entry.removedReason, "language_mismatch");
 });
 
-test("no language penalty is applied when the user has no language preference set", () => {
+test("open language openness lets a mismatched-language song through untouched", () => {
+  const song = makeSong({ id: "ru", language: "Russian" });
+  const req = makeRequest({ languages: ["English"], languageOpenness: "open" });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 1, "open mode should not filter by language at all");
+  assert.equal(results[0].scoreComponents.languagePenalty, 0);
+});
+
+test("no language filtering is applied when the user has no language preference set", () => {
   const song = makeSong({ id: "ru", language: "Russian" });
   const req = makeRequest({ languages: [], languageOpenness: "flexible" });
   const { results } = rec.buildRecommendations(req, [song]);
   assert.equal(
-    results[0].scoreComponents.languagePenalty,
-    0,
-    "empty languages means no preference was expressed, so nothing should be penalized"
+    results.length,
+    1,
+    "empty languages means no preference was expressed, so nothing should be filtered or penalized"
   );
+  assert.equal(results[0].scoreComponents.languagePenalty, 0);
 });
 
 test("mainstreamPenalty applies at reduced weight for balanced discoveryStyle", () => {
@@ -450,6 +449,58 @@ test("artistProximityScore does not give partial credit to an unrelated artist w
   const req = makeRequest({ likedArtists: ["Cat"] });
   const { results } = rec.buildRecommendations(req, [unrelated]);
   assert.equal(results[0].scoreComponents.tasteFit, 0, "'Bad Cats' must not match liked artist 'Cat'");
+});
+
+test("favoriteSongBonus is applied to a song whose id is in favoriteSongIds", () => {
+  const favorite = makeSong({ id: "fav" });
+  const req = makeRequest({ favoriteSongIds: ["fav"] });
+  const { results } = rec.buildRecommendations(req, [favorite]);
+  assert.equal(results[0].scoreComponents.favoriteSongBonus, 8);
+});
+
+test("favoriteSongBonus is 0 for a song not in favoriteSongIds", () => {
+  const other = makeSong({ id: "other" });
+  const req = makeRequest({ favoriteSongIds: ["some-other-id"] });
+  const { results } = rec.buildRecommendations(req, [other]);
+  assert.equal(results[0].scoreComponents.favoriteSongBonus, 0);
+});
+
+test("favoriteSongBonus boosts a favorited song above an otherwise-identical non-favorited one", () => {
+  const favorite = makeSong({ id: "fav" });
+  const other = makeSong({ id: "other" });
+  const req = makeRequest({ favoriteSongIds: ["fav"] });
+  const { results } = rec.buildRecommendations(req, [favorite, other]);
+  const fav = results.find((r) => r.id === "fav");
+  const rest = results.find((r) => r.id === "other");
+  assert.ok(fav.scoreComponents.finalScore > rest.scoreComponents.finalScore);
+});
+
+test("favoriteSongBonus does not override a hard filter — a favorited song with the wrong language is still removed", () => {
+  const favorite = makeSong({ id: "fav", language: "Russian" });
+  const req = makeRequest({ favoriteSongIds: ["fav"], languages: ["English"], languageOpenness: "strict" });
+  const { results } = rec.buildRecommendations(req, [favorite]);
+  assert.equal(results.length, 0, "favoriting a song must not bypass the language hard filter");
+});
+
+test("favoriteSongBonus alone does not outrank a much stronger photo/mood match", () => {
+  // favorited song is a near-total vector mismatch; the competing song is a
+  // near-perfect vector match with no favorite bonus at all — the +8 flat
+  // bonus (comparable to noveltyFit's max) should not be enough to overturn
+  // a large photoFit gap on its own.
+  const favoritedButMismatched = makeSong({
+    id: "fav-bad-fit",
+    emotional_vector: [0.05, 0.05, 0.5, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+  });
+  const greatFitNotFavorited = makeSong({
+    id: "great-fit",
+    emotional_vector: [0.9, 0.9, 0.5, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+  });
+  const req = makeRequest({
+    queryVector: [0.9, 0.9, 0.5, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+    favoriteSongIds: ["fav-bad-fit"],
+  });
+  const { results } = rec.buildRecommendations(req, [favoritedButMismatched, greatFitNotFavorited]);
+  assert.equal(results[0].id, "great-fit", "a great photo/mood fit should still win over a favorited-but-mismatched song");
 });
 
 test("emotional_vector stored as an empty array is treated the same as missing (no NaN scores)", () => {

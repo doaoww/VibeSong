@@ -3,7 +3,7 @@ import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getUserTaste, getEmotionalVector } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
-import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, type CatalogSong } from "../../../lib/db/songs";
+import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, getSongsByIds, type CatalogSong } from "../../../lib/db/songs";
 import { blendQueryVector } from "../../../lib/vectorMath";
 import { buildRecommendations, resolveRecentlyShownSongIds, applyArtistDiversityCap } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       .filter(([, score]) => score > 0.3)
       .map(([genre]) => genre);
 
-    const [vectorPool, storyPool, contextPool, tastePool, briefPool, languagePool] = await Promise.all([
+    const [vectorPool, storyPool, contextPool, tastePool, briefPool, languagePool, favoriteSongPool] = await Promise.all([
       searchCatalog(queryVector, 25),
       searchCatalogByTags({ intentTags: storyIntentTags, aestheticTags, moodTags }, 25),
       searchCatalogByTags({ contextTags: sceneContextTags }, 20),
@@ -130,10 +130,13 @@ export async function POST(req: NextRequest) {
       taste.languages.length > 0
         ? searchCatalogByLanguage(taste.languages, queryVector, 25)
         : Promise.resolve([] as CatalogSong[]),
+      taste.favoriteStorySongs.length > 0
+        ? getSongsByIds(taste.favoriteStorySongs)
+        : Promise.resolve([] as CatalogSong[]),
     ]);
 
     const poolMap = new Map<string, CatalogSong>();
-    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool, ...languagePool]) {
+    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool, ...languagePool, ...favoriteSongPool]) {
       if (!poolMap.has(song.id)) poolMap.set(song.id, song);
     }
     const candidates = Array.from(poolMap.values());
@@ -156,6 +159,7 @@ export async function POST(req: NextRequest) {
         recentlyShownSongIds,
         genreScores: mergedGenreScores,
         likedArtists: mergedLikedArtists,
+        favoriteSongIds: taste.favoriteStorySongs,
         storyIntentTags,
         hardAntiTags: [...antiTags, ...taste.avoidedStoryTags],
         softAntiTags: gatedPhotoAntiTags,
@@ -177,6 +181,7 @@ export async function POST(req: NextRequest) {
       briefPoolCount: briefPool.length,
       briefPoolEnabled,
       languagePoolCount: languagePool.length,
+      favoriteSongPoolCount: favoriteSongPool.length,
       mergedCandidateCount: candidates.length,
       removedByRulesCount: debugLog.filter((e) => e.rulesRemoved).length,
     };

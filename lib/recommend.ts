@@ -11,6 +11,7 @@ export interface RecommendRequest {
   recentlyShownSongIds: string[];  // freshness — don't repeat last 5 sessions
   genreScores: Record<string, number>;
   likedArtists: string[];
+  favoriteSongIds: string[];       // taste.favoriteStorySongs — user's own picked/imported songs
   storyIntentTags: string[];       // from photo matchSignals + (future) requested vibe
   hardAntiTags: string[];          // requested vibe + onboarding avoid-list — always excludes, never confidence-gated
   softAntiTags: string[];          // from photo matchSignals — confidence-scaled penalty, not a hard block
@@ -30,6 +31,7 @@ export interface ScoreComponents {
   vibeAestheticFit: number;
   noveltyFit: number;
   qualityBonus: number;
+  favoriteSongBonus: number;
   briefFit: number;
   briefSimilarity: number;
   languagePenalty: number;
@@ -235,8 +237,17 @@ export function buildRecommendations(
       continue;
     }
 
-    // 1. Language filter (strict)
-    if (req.languageOpenness === "strict" && !languageMatches(song.language, req.languages)) {
+    // 1. Language filter — hard block for both "strict" and "flexible" so a
+    // song in a language the user never selected can't slip through just by
+    // scoring well on everything else (a -30 penalty alone was reliably beaten
+    // by strong photoFit/tasteFit/qualityBonus combinations, e.g. "Satranga"
+    // repeatedly outranking matched-language songs for users who never picked
+    // Hindi). Only "open" (explicit opt-in to any language) skips this.
+    if (
+      req.languageOpenness !== "open" &&
+      req.languages.length > 0 &&
+      !languageMatches(song.language, req.languages)
+    ) {
       debugLog.push({
         id: song.id,
         title: song.title,
@@ -337,21 +348,18 @@ export function buildRecommendations(
     const briefFit = briefSimilarity * 20;
     const noveltyFit = discoveryScore(song.popularity_tier, req.discoveryStyle) * 10;
     const qualityBonus = song.quality_score * 5;
+    // Flat, not dominant: a favorited/imported song still has to clear the hard
+    // filters above (language, energy, anti-tags) like any other candidate, and
+    // this alone shouldn't let a poor photo/mood fit always win — it's sized
+    // similarly to noveltyFit's max, well under a strong photoFit/tasteFit swing.
+    const favoriteSongBonus = req.favoriteSongIds.includes(song.id) ? 8 : 0;
 
     // Penalties
-    // -30 (not a lighter value) because it must outweigh a max-strength tasteFit
-    // boost (genre+artist+aesthetic, ~27.5) — otherwise an explicit language
-    // preference gets silently drowned out by an otherwise-great match. Guarded
-    // by req.languages.length > 0 so a user with no stated preference (empty
-    // languages, e.g. taste row missing/not yet onboarded) isn't penalized on
-    // every non-instrumental song uniformly — that provided zero discrimination
-    // and just added noise to the score.
-    const languagePenalty =
-      req.languages.length > 0 &&
-      req.languageOpenness === "flexible" &&
-      !languageMatches(song.language, req.languages)
-        ? -30
-        : 0;
+    // languagePenalty is always 0 now: mismatches are hard-filtered above
+    // (rule 1) for "strict"/"flexible", and "open" means no preference to
+    // penalize against. Field kept in ScoreComponents for debug-log shape
+    // stability.
+    const languagePenalty = 0;
     const freshnessPenalty = req.recentlyShownSongIds.includes(song.id) ? -20 : 0;
     // "balanced" still mildly deprioritizes mainstream (users never opted into it
     // either), just lighter than the niche/hidden-gems penalty; "popular-ok" opts
@@ -374,7 +382,8 @@ export function buildRecommendations(
     ).length;
     const softAntiTagPenalty = -Math.min(2, softAntiTagMatches) * 15 * confFactor;
 
-    const raw = photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + briefFit + noveltyFit + qualityBonus;
+    const raw =
+      photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + briefFit + noveltyFit + qualityBonus + favoriteSongBonus;
     const finalScore = Math.max(
       0,
       Math.min(
@@ -391,6 +400,7 @@ export function buildRecommendations(
       vibeAestheticFit: Math.round(vibeAestheticFit * 10) / 10,
       noveltyFit: Math.round(noveltyFit * 10) / 10,
       qualityBonus: Math.round(qualityBonus * 10) / 10,
+      favoriteSongBonus: Math.round(favoriteSongBonus * 10) / 10,
       briefFit: Math.round(briefFit * 10) / 10,
       briefSimilarity: Math.round(briefSimilarity * 1000) / 1000,
       languagePenalty,

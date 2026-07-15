@@ -136,6 +136,44 @@ test("searchCatalogByBrief throws with a descriptive message on RPC error", asyn
   await assert.rejects(() => songsLib.searchCatalogByBrief([0.1]), /searchCatalogByBrief failed: boom/);
 });
 
+test("getSongsByIds calls get_songs_by_ids with the given ids", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => {
+    captured = { name, args };
+    return { data: [{ id: "1" }, { id: "2" }], error: null };
+  };
+  const result = await songsLib.getSongsByIds(["1", "2"]);
+  assert.equal(captured.name, "get_songs_by_ids");
+  assert.deepEqual(plain(captured.args), { p_song_ids: ["1", "2"] });
+  assert.deepEqual(plain(result), [
+    { id: "1", emotional_vector: null },
+    { id: "2", emotional_vector: null },
+  ]);
+});
+
+test("getSongsByIds returns [] without calling the RPC when given an empty array", async () => {
+  let called = false;
+  mockSupabase.rpc = async () => { called = true; return { data: [], error: null }; };
+  const result = await songsLib.getSongsByIds([]);
+  assert.equal(Array.isArray(result), true);
+  assert.equal(result.length, 0);
+  assert.equal(called, false, "should short-circuit before hitting the RPC");
+});
+
+test("getSongsByIds throws with a descriptive message on RPC error", async () => {
+  mockSupabase.rpc = async () => ({ data: null, error: { message: "boom" } });
+  await assert.rejects(() => songsLib.getSongsByIds(["1"]), /getSongsByIds failed: boom/);
+});
+
+test("getSongsByIds parses a string-form emotional_vector the same way as the other pool functions", async () => {
+  mockSupabase.rpc = async () => ({
+    data: [{ id: "1", emotional_vector: "[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]" }],
+    error: null,
+  });
+  const [song] = await songsLib.getSongsByIds(["1"]);
+  assert.deepEqual(plain(song.emotional_vector), [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]);
+});
+
 test("updateSong forwards music_supervisor_summary and brief_embedding to update_song", async () => {
   let captured = null;
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };

@@ -204,6 +204,15 @@ export async function searchCatalog(
   return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
+export async function getSongsByIds(ids: string[]): Promise<CatalogSong[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.rpc("get_songs_by_ids", {
+    p_song_ids: ids,
+  });
+  if (error) throw new Error(`getSongsByIds failed: ${error.message}`);
+  return normalizeSongs((data ?? []) as CatalogSong[]);
+}
+
 export interface TagPoolArgs {
   contextTags?: string[];
   intentTags?: string[];
