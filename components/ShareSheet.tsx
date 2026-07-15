@@ -101,14 +101,17 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
   };
 
   const handleOpenInstagram = () => {
-    const fallbackUrl = "https://www.instagram.com/";
     // Try the app's custom URL scheme first so the OS opens the native app
     // instead of a browser tab. If Instagram isn't installed (or the scheme
     // doesn't fire), the page stays visible and this timer falls back to
     // the plain web URL — cleared if the app actually took over, since the
     // tab gets backgrounded in that case and this timer never fires.
+    // Crucially, the fallback opens in a NEW tab rather than navigating this
+    // one away — this tab is the whole VibeSong session (matched songs,
+    // this sheet); replacing it with instagram.com would strand the user
+    // with no way back except losing all of that.
     const fallbackTimer = setTimeout(() => {
-      window.location.href = fallbackUrl;
+      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
     }, 1500);
     document.addEventListener(
       "visibilitychange",
@@ -154,8 +157,6 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
     const file = new File([blob], "vibesong-story.jpg", { type: blob.type || "image/jpeg" });
     void shareOrDownloadFile(file, photoUrl, "vibesong-story.jpg");
   };
-
-  const showPhotoFallback = videoStatus === "unavailable" || videoStatus === "error";
 
   return (
     <AnimatePresence>
@@ -205,49 +206,51 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
               )}
             </div>
 
-            {phase === "confirmed" && track ? (
-              <div className="space-y-3">
-                <p className="text-white text-sm font-semibold">
-                  {t.share.copiedConfirmation(track.title, track.artist)}
-                </p>
-                <p className="text-on-surface-variant text-sm">{t.share.pasteInstructions}</p>
-                <button
-                  onClick={handleOpenInstagram}
-                  className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
-                >
-                  {t.share.openInstagram}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {videoStatus === "ready" && (
+            <div className="space-y-2">
+              {phase === "confirmed" && track ? (
+                <div className="space-y-3">
+                  <p className="text-white text-sm font-semibold">
+                    {t.share.copiedConfirmation(track.title, track.artist)}
+                  </p>
+                  <p className="text-on-surface-variant text-sm">{t.share.pasteInstructions}</p>
                   <button
-                    onClick={handleDownloadVideo}
+                    onClick={handleOpenInstagram}
                     className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
                   >
-                    {t.share.downloadVideo}
+                    {t.share.openInstagram}
                   </button>
-                )}
-                <button
-                  onClick={handleAddToStoryTap}
-                  className={
-                    videoStatus === "ready"
-                      ? "w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all"
-                      : "w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
-                  }
-                >
-                  {t.share.addToStory}
-                </button>
-                {showPhotoFallback && (
+                </div>
+              ) : (
+                <>
+                  {videoStatus === "ready" && (
+                    <button
+                      onClick={handleDownloadVideo}
+                      className="w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+                    >
+                      {t.share.downloadVideo}
+                    </button>
+                  )}
                   <button
-                    onClick={handleDownloadPhoto}
-                    className="w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all"
+                    onClick={handleAddToStoryTap}
+                    className={
+                      videoStatus === "ready"
+                        ? "w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all"
+                        : "w-full bg-hot-pink text-white font-display font-bold py-4 rounded-full text-base hover:bg-[#ff4488] active:scale-95 transition-all glow-pink"
+                    }
                   >
-                    {t.share.downloadPhoto}
+                    {t.share.addToStory}
                   </button>
-                )}
-              </div>
-            )}
+                </>
+              )}
+              {/* Always available regardless of phase or video status — never
+                  leave the user without a way to get the photo itself. */}
+              <button
+                onClick={handleDownloadPhoto}
+                className="w-full border border-white/10 text-white/80 font-semibold text-sm py-3.5 rounded-full hover:border-white/20 hover:text-white active:scale-95 transition-all"
+              >
+                {t.share.downloadPhoto}
+              </button>
+            </div>
           </motion.div>
         </motion.div>
       )}
