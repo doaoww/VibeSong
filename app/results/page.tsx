@@ -181,6 +181,21 @@ export default function ResultsPage() {
     return -1;
   };
 
+  // Persists this session's revealed taste into the user's long-term taste
+  // vector (blended server-side, not overwritten) so future sessions start
+  // pre-tuned to it — fire-and-forget, same pattern as saveTrack/skipTrack's
+  // own /api/feedback calls.
+  const persistSessionTaste = (saved: Track[], skipped: Track[]) => {
+    fetch("/api/taste/session-vector", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        saved: saved.map((t) => ({ emotionalVector: t.emotionalVector })),
+        skipped: skipped.map((t) => ({ emotionalVector: t.emotionalVector })),
+      }),
+    }).catch(() => {});
+  };
+
   const handleSave = (idx: number, track: Track) => {
     saveTrack(track);
     const newSaved = [...savedTracks, track];
@@ -189,7 +204,10 @@ export default function ResultsPage() {
     setGone(newGone);
     nextCard();
     recomputeOrder(newGone, newSaved, skippedThisSession);
-    if (getTopIndex(newGone) === -1) setDone(true);
+    if (getTopIndex(newGone) === -1) {
+      setDone(true);
+      persistSessionTaste(newSaved, skippedThisSession);
+    }
     setShareTrack(track);
     setShareSheetOpen(true);
   };
@@ -202,7 +220,10 @@ export default function ResultsPage() {
     setGone(newGone);
     nextCard();
     recomputeOrder(newGone, savedTracks, newSkipped);
-    if (getTopIndex(newGone) === -1) setDone(true);
+    if (getTopIndex(newGone) === -1) {
+      setDone(true);
+      persistSessionTaste(savedTracks, newSkipped);
+    }
   };
 
   const shareSheet = (
