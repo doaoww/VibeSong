@@ -133,6 +133,7 @@ export const ru: Translation = {
     nowPlayingMatch: "Сейчас играет",
     swipeHint: "Свайп вправо — сохранить, влево — пропустить",
     youToldUs: (text: string) => `Ты хотел(а): «${text}»`,
+    finishEarly: "Готово",
   },
   swipe: {
     dnaDreamy: "Мечтательность",

@@ -129,6 +129,7 @@ export const en = {
     nowPlayingMatch: "Now playing match",
     swipeHint: "Swipe right to save · left to skip",
     youToldUs: (text: string) => `You told us: "${text}"`,
+    finishEarly: "Done",
   },
   swipe: {
     dnaDreamy: "Dreamy",

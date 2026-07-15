@@ -224,6 +224,11 @@ export default function ResultsPage() {
     }
   };
 
+  const handleFinishEarly = () => {
+    setDone(true);
+    persistSessionTaste(savedTracks, skippedThisSession);
+  };
+
   const shareSheet = (
     <ShareSheet
       isOpen={shareSheetOpen}
@@ -378,7 +383,12 @@ export default function ResultsPage() {
             <h1 className="font-display font-bold text-hot-pink text-sm md:text-base">
               {t.results.tracksLeft(displayTracks.length - gone.size, displayTracks.length)}
             </h1>
-            <div className="w-10 h-10" />
+            <button
+              onClick={handleFinishEarly}
+              className="h-10 px-3 flex items-center justify-center rounded-full text-hot-pink text-sm font-display font-semibold hover:bg-white/5 transition-colors"
+            >
+              {t.results.finishEarly}
+            </button>
           </div>
         </header>
       }
