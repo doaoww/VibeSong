@@ -145,8 +145,8 @@ export default function AppUploadPage() {
 
   useEffect(() => {
     if (pageState !== "analyzing") {
-      setShowStillWorking(false);
-      return;
+      const resetTimer = setTimeout(() => setShowStillWorking(false), 0);
+      return () => clearTimeout(resetTimer);
     }
     const timer = setTimeout(() => setShowStillWorking(true), 8000);
     return () => clearTimeout(timer);
