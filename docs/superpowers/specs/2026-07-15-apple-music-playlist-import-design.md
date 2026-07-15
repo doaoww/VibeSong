@@ -88,19 +88,26 @@ playlist and later adds manual songs keeps accumulating normally.
 `StorySongsStep` is onboarding-only (`components/OnboardingFlow.tsx`) —
 there's currently no post-onboarding place to add favorite songs at all.
 Since playlist import is exactly the kind of thing an existing user wants to
-do later (not just at signup), this ships as a new
-`components/PlaylistImport.tsx`:
+do later (not just at signup), the input + submit + result-state logic lives
+in one new `components/PlaylistImport.tsx` (URL input, submit button, states:
+idle → resolving ("Reading your playlist…") → success, matching the
+`pickedCount`/tag-pill visual language already in `StorySongsStep` → error
+with a 422 message and a way to jump to manual entry), rendered in two
+different shells:
 
-- A single URL input + submit button, with inline states: idle → resolving
-  ("Reading your playlist…") → success (shows resolved count, matches the
-  `pickedCount`/tag-pill visual language already in `StorySongsStep`) → error
-  (422 message + a way to jump to manual entry).
-- Rendered in two places:
-  - Inside `StorySongsStep`, above the existing manual artist/title inputs,
-    as an alternate path during onboarding.
-  - On the profile screen (`app/profile/page.tsx`), as a new section, so
-    returning users can import a playlist any time — this is the gap that
-    makes the feature actually useful beyond signup.
+- **Profile page** (`app/profile/page.tsx`): a new "Import a playlist" button
+  in the existing left-column action stack, between "Manage credits"
+  (`:147-152`) and "Retake quiz" (`:154-159`), same outline-button styling
+  (`border border-hot-pink text-hot-pink`). Tapping it opens `PlaylistImport`
+  inside a bottom sheet, reusing the sheet pattern already built for
+  `components/ShareSheet.tsx` rather than adding a permanently-visible input
+  to an already busy page. This is the primary entry point for returning
+  users — the gap that makes the feature useful beyond signup.
+- **Onboarding** (`components/onboarding/StorySongsStep.tsx`): no sheet
+  needed since the step is already a dedicated full-screen surface. A "or
+  paste an Apple Music playlist link" toggle above the manual artist/title
+  inputs (`:106-142`) swaps in `PlaylistImport` inline, so the two entry
+  methods don't compete for space simultaneously.
 
 ### Error handling summary
 
