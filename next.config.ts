@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "img.youtube.com" },
     ],
   },
+  // ffmpeg-static resolves its bundled ffmpeg binary via a __dirname-based
+  // path, which Turbopack's server-route bundler rewrites to a virtual path
+  // that doesn't resolve to a real file at runtime, causing fluent-ffmpeg's
+  // spawn call to fail with ENOENT. Opt both packages out of the server
+  // bundle so they load via native `require` instead.
+  serverExternalPackages: ["ffmpeg-static", "fluent-ffmpeg"],
 };
 
 export default nextConfig;
