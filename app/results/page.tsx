@@ -145,7 +145,6 @@ export default function ResultsPage() {
   const [skippedThisSession, setSkippedThisSession] = useState<Track[]>([]);
   const [remainingOrder, setRemainingOrder] = useState<number[] | null>(null);
   const [liveScores, setLiveScores] = useState<Record<number, number>>({});
-  const [justLearned, setJustLearned] = useState(false);
   const [done, setDone] = useState(false);
   const [shareTrack, setShareTrack] = useState<Track | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
@@ -169,8 +168,6 @@ export default function ResultsPage() {
     const scoresByIdx: Record<number, number> = {};
     for (const track of scored) scoresByIdx[track.__idx] = track.liveScore;
     setLiveScores(scoresByIdx);
-    setJustLearned(true);
-    setTimeout(() => setJustLearned(false), 1500);
   };
 
   useEffect(() => {
@@ -389,19 +386,6 @@ export default function ResultsPage() {
           <p className="lg:hidden text-center text-on-surface-variant/60 text-[11px]">
             {t.results.swipeHint}
           </p>
-
-          <AnimatePresence>
-            {justLearned && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="mx-auto w-fit bg-hot-pink/15 border border-hot-pink/30 text-hot-pink text-xs font-semibold px-3 py-1.5 rounded-full"
-              >
-                {t.swipe.learningYourVibe}
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Mobile: tall combined swipe stack; desktop: song card only */}
           <div className="relative flex-1 min-h-[min(560px,calc(100dvh-13.5rem))] lg:h-[540px] lg:flex-none -mx-1 px-1">
