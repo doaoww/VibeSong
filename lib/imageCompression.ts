@@ -72,25 +72,42 @@ function drawAtDimension(img: HTMLImageElement, maxDimension: number): HTMLCanva
   return canvas;
 }
 
-/** Compresses an image file client-side, iterating quality/dimension until under TARGET_BYTES. */
-export async function compressImageFile(file: File): Promise<CompressionResult> {
+export interface CompressOptions {
+  /** Longest edge in pixels. Defaults to 1600 (tuned for GPT-4o vision, not display). */
+  maxDimension?: number;
+  /** Byte ceiling to stop iterating quality/dimension steps. Defaults to 1.5MB. */
+  targetBytes?: number;
+  /** JPEG quality values tried in order at each dimension. Defaults to [0.82, 0.7, 0.6, 0.5]. */
+  qualitySteps?: number[];
+}
+
+/** Compresses an image file client-side, iterating quality/dimension until under targetBytes. */
+export async function compressImageFile(
+  file: File,
+  options: CompressOptions = {}
+): Promise<CompressionResult> {
+  const {
+    maxDimension: startDimension = MAX_DIMENSION,
+    targetBytes = TARGET_BYTES,
+    qualitySteps = QUALITY_STEPS,
+  } = options;
   const img = await loadImage(file);
   const originalWidth = img.naturalWidth;
   const originalHeight = img.naturalHeight;
 
-  let maxDimension = MAX_DIMENSION;
+  let maxDimension = startDimension;
   let bestBlob: Blob | null = null;
   let bestWidth = originalWidth;
   let bestHeight = originalHeight;
 
   outer: while (maxDimension >= MIN_DIMENSION) {
     const canvas = drawAtDimension(img, maxDimension);
-    for (const quality of QUALITY_STEPS) {
+    for (const quality of qualitySteps) {
       const blob = await canvasToBlob(canvas, quality);
       bestBlob = blob;
       bestWidth = canvas.width;
       bestHeight = canvas.height;
-      if (blob.size <= TARGET_BYTES) break outer;
+      if (blob.size <= targetBytes) break outer;
     }
     maxDimension = Math.round(maxDimension * 0.8);
   }

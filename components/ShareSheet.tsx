@@ -39,12 +39,19 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
       try {
         // The original upload can be several MB straight off a phone camera —
         // Vercel's serverless functions hard-reject request bodies over
-        // 4.5MB before our route handler even runs (same constraint
-        // documented in lib/imageCompression.ts for /api/analyze). Reuse
-        // that same compression here rather than sending the raw photo.
+        // 4.5MB before our route handler even runs. /api/analyze's default
+        // compression profile targets 1.5MB because it JSON/base64-encodes
+        // the photo (~33% inflation) — this upload is a raw multipart Blob
+        // with no such inflation, so we can afford a much gentler profile:
+        // 1920px matches the share video's own height (buildShareVideoPlan),
+        // so a portrait photo needs little to no upscaling during encode.
         const rawBlob = await fetch(photoUrl).then((r) => r.blob());
         const rawFile = new File([rawBlob], "photo.jpg", { type: rawBlob.type || "image/jpeg" });
-        const { base64, mimeType } = await compressImageFile(rawFile);
+        const { base64, mimeType } = await compressImageFile(rawFile, {
+          maxDimension: 1920,
+          targetBytes: 4 * 1024 * 1024,
+          qualitySteps: [0.9, 0.85, 0.75, 0.65],
+        });
         const photoBlob = base64ToBlob(base64, mimeType);
         const formData = new FormData();
         formData.append("photo", photoBlob, "photo.jpg");
