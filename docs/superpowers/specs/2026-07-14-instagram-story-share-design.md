@@ -119,18 +119,20 @@ Same bottom-sheet shell as v2, different content and mechanism:
   falls back to offering a plain **"Скачать фото"** button instead (the
   one exception to "replaces entirely" — there's nothing to generate a
   video from).
-- **"Открыть Instagram"** button: tapping it (a) copies
-  `"{track.title} — {track.artist}"` to the clipboard via
-  `navigator.clipboard.writeText`, (b) shows the same confirmation view as
-  v2 ("✓ Скопировано: ...", "В Instagram: Стикеры → Музыка → Вставить"),
-  then (c) a single further tap simply opens Instagram (e.g. navigating to
-  a plain `https://www.instagram.com/` link, or the OS handling an
-  `instagram://` scheme if installed) — no pasteboard write, no App ID, no
-  platform branching. The user is expected to post the already-downloaded
-  video themselves and paste the song name into Instagram's own Music
-  sticker search, same manual step as v2 (this app still cannot drive taps
-  inside Instagram's UI — that constraint hasn't changed, see Revision
-  history #2).
+- Same two-button flow as v2, same labels: tapping **"Добавить в историю"**
+  copies `"{track.title} — {track.artist}"` to the clipboard via
+  `navigator.clipboard.writeText` and swaps to the confirmation view
+  ("✓ Скопировано: ...", "В Instagram: Стикеры → Музыка → Вставить"), which
+  shows a single **"Открыть Instagram →"** button. What changes in v3 is
+  only what that second button *does*: instead of v2's pasteboard write +
+  `instagram-stories://` deep link, it simply opens Instagram (e.g.
+  navigating to a plain `https://www.instagram.com/` link, or the OS
+  handling an `instagram://` scheme if installed) — no pasteboard write, no
+  App ID, no platform branching. The user is expected to post the
+  already-downloaded video themselves and paste the song name into
+  Instagram's own Music sticker search, same manual step as v2 (this app
+  still cannot drive taps inside Instagram's UI — that constraint hasn't
+  changed, see Revision history #2).
 - No platform feature-detection is needed anymore for the Instagram button
   itself (opening a link/app works everywhere) — `lib/instagramShare.ts`'s
   `isIOSSafari`/`canUseWebShareFiles`/`getFacebookAppId`/
