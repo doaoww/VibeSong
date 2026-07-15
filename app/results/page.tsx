@@ -309,8 +309,20 @@ export default function ResultsPage() {
                     <p className="text-white font-semibold text-sm truncate">{track.title}</p>
                     <p className="text-white/50 text-xs truncate">{track.artist}</p>
                   </div>
-                  <span className="material-symbols-outlined text-hot-pink text-lg flex-shrink-0"
-                    style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        setShareTrack(track);
+                        setShareSheetOpen(true);
+                      }}
+                      aria-label={t.share.rowAria(track.title, track.artist)}
+                      className="text-hot-pink/70 hover:text-hot-pink transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-xl">share</span>
+                    </button>
+                    <span className="material-symbols-outlined text-hot-pink text-lg"
+                      style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                  </div>
                 </motion.div>
               ))}
             </div>

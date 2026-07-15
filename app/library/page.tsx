@@ -175,6 +175,20 @@ export default function LibraryPage() {
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                   {song.sourceImage && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShareTrack(song);
+                        setShareSheetOpen(true);
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      aria-label={t.share.rowAria(song.title, song.artist)}
+                      className="text-hot-pink/70 hover:text-hot-pink transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-xl">share</span>
+                    </button>
+                  )}
+                  {song.sourceImage && (
                     <img
                       src={song.sourceImage}
                       alt=""
