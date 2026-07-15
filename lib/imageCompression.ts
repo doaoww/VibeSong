@@ -111,6 +111,14 @@ export async function compressImageFile(file: File): Promise<CompressionResult> 
   };
 }
 
+/** Reverses blobToBase64 — turns compressImageFile's output back into a Blob for upload. */
+export function base64ToBlob(base64: string, mimeType: string): Blob {
+  const byteChars = atob(base64);
+  const byteNumbers = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+  return new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+}
+
 /**
  * Small, self-contained thumbnail for saved/skipped song history
  * (`Track.sourceImage`). Deliberately separate from compressImageFile()'s

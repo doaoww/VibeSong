@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Track } from "../store/useAppStore";
 import { useTranslation } from "../lib/translations/useTranslation";
+import { base64ToBlob, compressImageFile } from "../lib/imageCompression";
 
 interface ShareSheetProps {
   isOpen: boolean;
@@ -36,7 +37,15 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
 
     (async () => {
       try {
-        const photoBlob = await fetch(photoUrl).then((r) => r.blob());
+        // The original upload can be several MB straight off a phone camera —
+        // Vercel's serverless functions hard-reject request bodies over
+        // 4.5MB before our route handler even runs (same constraint
+        // documented in lib/imageCompression.ts for /api/analyze). Reuse
+        // that same compression here rather than sending the raw photo.
+        const rawBlob = await fetch(photoUrl).then((r) => r.blob());
+        const rawFile = new File([rawBlob], "photo.jpg", { type: rawBlob.type || "image/jpeg" });
+        const { base64, mimeType } = await compressImageFile(rawFile);
+        const photoBlob = base64ToBlob(base64, mimeType);
         const formData = new FormData();
         formData.append("photo", photoBlob, "photo.jpg");
         formData.append("previewUrl", previewUrl);
