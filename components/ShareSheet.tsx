@@ -85,7 +85,23 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
   };
 
   const handleOpenInstagram = () => {
-    window.location.href = "https://www.instagram.com/";
+    const fallbackUrl = "https://www.instagram.com/";
+    // Try the app's custom URL scheme first so the OS opens the native app
+    // instead of a browser tab. If Instagram isn't installed (or the scheme
+    // doesn't fire), the page stays visible and this timer falls back to
+    // the plain web URL — cleared if the app actually took over, since the
+    // tab gets backgrounded in that case and this timer never fires.
+    const fallbackTimer = setTimeout(() => {
+      window.location.href = fallbackUrl;
+    }, 1500);
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.hidden) clearTimeout(fallbackTimer);
+      },
+      { once: true }
+    );
+    window.location.href = "instagram://app";
   };
 
   // Mobile browsers (iOS Safari in particular) frequently ignore a plain
