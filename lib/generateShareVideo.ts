@@ -43,3 +43,54 @@ export function buildShareVideoPlan(startSeconds: number): ShareVideoPlan {
     ],
   };
 }
+
+import ffmpegPath from "ffmpeg-static";
+import ffmpeg from "fluent-ffmpeg";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+
+export interface GenerateShareVideoInput {
+  photoBytes: Buffer;
+  previewUrl: string;
+  startSeconds: number;
+}
+
+/**
+ * Combines a still photo with a trimmed audio clip into an MP4 sized for
+ * Instagram Stories, via a temporary directory and a spawned ffmpeg
+ * process. Requires a real ffmpeg binary — no automated test; verified
+ * manually (Step 4 below) and again against the deployed route in Task 7.
+ */
+export async function generateShareVideo({
+  photoBytes,
+  previewUrl,
+  startSeconds,
+}: GenerateShareVideoInput): Promise<Buffer> {
+  const plan = buildShareVideoPlan(startSeconds);
+  const dir = await mkdtemp(join(tmpdir(), "vibesong-share-"));
+  const photoPath = join(dir, "photo.jpg");
+  const outputPath = join(dir, "output.mp4");
+
+  try {
+    await writeFile(photoPath, photoBytes);
+
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg()
+        .input(photoPath)
+        .inputOptions(plan.photoInputOptions)
+        .input(previewUrl)
+        .inputOptions(plan.audioInputOptions)
+        .outputOptions(plan.outputOptions)
+        .on("end", () => resolve())
+        .on("error", (err) => reject(err instanceof Error ? err : new Error(String(err))))
+        .save(outputPath);
+    });
+
+    return await readFile(outputPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
