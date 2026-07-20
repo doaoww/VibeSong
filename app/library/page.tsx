@@ -6,30 +6,8 @@ import AppHeader from "../../components/AppHeader";
 import ShareSheet from "../../components/ShareSheet";
 import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
-import { en } from "../../lib/translations/en";
 import { resolveSongLink } from "../../lib/songLink";
-
-const FILTERS = ["All", "This Week", "Moody", "Hype"] as const;
-type Filter = (typeof FILTERS)[number];
-
-function filterSongs(songs: Track[], filter: Filter): Track[] {
-  if (filter === "All") return songs;
-  if (filter === "This Week") {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return songs.filter((s) => (s.savedAt || 0) > weekAgo);
-  }
-  return songs;
-}
-
-function getFilterLabel(filter: Filter, t: typeof en): string {
-  switch (filter) {
-    case "All": return t.library.filterAll;
-    case "This Week": return t.library.filterThisWeek;
-    case "Moody": return t.library.filterMoody;
-    case "Hype": return t.library.filterHype;
-    default: return filter;
-  }
-}
+import { FILTERS, filterSongs, getFilterLabel, type Filter } from "../../lib/libraryFilters";
 
 export default function LibraryPage() {
   const { savedSongs, loadFeedback } = useAppStore();
