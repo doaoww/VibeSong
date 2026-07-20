@@ -380,7 +380,17 @@ export function buildRecommendations(
     const genreScore = genreOverlapScore(song.genre_tags, req.genreScores);
     const artistScore = artistProximityScore(song.artist, req.likedArtists);
     const aestheticMatch = song.aesthetic_tags.length > 0 ? 0.5 : 0; // basic presence signal
-    const tasteFit = genreScore * 15 + artistScore * 10 + aestheticMatch * 5;
+    // genreScore was *15 (tasteFit max 30) — within an already photo-vetted
+    // candidate set, photoFit barely varies (they're all top-N nearest
+    // neighbors already), so genre overlap with the user's *historical*
+    // swipe-learned genre_scores ended up deciding the ranking more than the
+    // photo did. Reproduced directly: for a cozy/dreamy photo, mainstream
+    // picks matching the user's general r&b/dance/synthpop taste (Justin
+    // Bieber, Benson Boone, Kacey Musgraves) outranked genuinely on-vibe
+    // folk/indie-folk picks (Iron & Wine, Clairo, Gregory Alan Isakov) whose
+    // specific genres just weren't in that taste history. Lowered so genre
+    // still nudges ranking without outweighing what THIS photo looks like.
+    const tasteFit = genreScore * 8 + artistScore * 10 + aestheticMatch * 5;
 
     const storyTagMatches = req.storyIntentTags.filter((t) =>
       song.story_intent_tags.map((s) => s.toLowerCase()).includes(t.toLowerCase())
