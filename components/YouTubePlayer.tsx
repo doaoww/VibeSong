@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import Icon from "./Icon";
 
 interface YouTubePlayerProps {
   youtubeId?: string;
@@ -224,20 +225,17 @@ export default function YouTubePlayer({
         className={`${btnSize} rounded-full bg-hot-pink flex items-center justify-center text-white active:scale-90 transition-transform flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed`}
         aria-label={isPlaying ? "Pause" : "Play"}
       >
-        <span
-          className={`material-symbols-outlined ${iconSize}`}
+        <Icon
+          name={isPlaying ? "pause" : "play_arrow"}
+          className={iconSize}
           style={{ fontVariationSettings: "'FILL' 1" }}
-        >
-          {isPlaying ? "pause" : "play_arrow"}
-        </span>
+        />
       </button>
 
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex justify-between text-[10px] text-on-surface-variant font-semibold">
           <span className="flex items-center gap-1 truncate">
-            <span className="material-symbols-outlined text-[13px]">
-              {hasAudioPreview ? "graphic_eq" : "bolt"}
-            </span>
+            <Icon name={hasAudioPreview ? "graphic_eq" : "bolt"} className="text-[13px]" />
             <span>{sourceLabel}</span>
           </span>
           {!compact && (

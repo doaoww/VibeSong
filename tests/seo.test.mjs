@@ -18,9 +18,12 @@ test("seoConfig targets the US English canonical homepage", () => {
 });
 
 test("publicSeoRoutes exposes only public indexable routes", () => {
+  // /library and /profile render a signed-in user's own data, not stable
+  // public content, and are excluded here (they set robots noindex instead
+  // — see their respective app/*/layout.tsx).
   assert.deepEqual(
     publicSeoRoutes.map((route) => route.path),
-    ["/", "/app", "/explore", "/library", "/profile"]
+    ["/", "/app", "/explore"]
   );
   assert.equal(publicSeoRoutes[0].priority, 1);
 });

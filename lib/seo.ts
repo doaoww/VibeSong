@@ -75,12 +75,15 @@ export const seoMetadata: Metadata = {
   },
 };
 
+// /library and /profile are deliberately excluded: they render a signed-in
+// user's own data (saved songs, credits, account settings), not content
+// that's useful or stable for a search index, and both now set
+// `robots: { index: false }` in their own layout.tsx — listing a noindex
+// URL in the sitemap is a wasted crawl budget signal, not just harmless.
 export const publicSeoRoutes = [
   { path: "/", priority: 1, changeFrequency: "weekly" },
   { path: "/app", priority: 0.8, changeFrequency: "weekly" },
   { path: "/explore", priority: 0.7, changeFrequency: "weekly" },
-  { path: "/library", priority: 0.4, changeFrequency: "monthly" },
-  { path: "/profile", priority: 0.3, changeFrequency: "monthly" },
 ] as const;
 
 export const robotsDisallowPaths = ["/api/", "/auth/callback"] as const;
