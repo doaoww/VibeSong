@@ -32,18 +32,21 @@ test("buildTasteVector: all skipped still no negative values", () => {
   for (const val of Object.values(v)) assert.ok(val >= 0);
 });
 
-test("blendVectors: low confidence leans on taste", () => {
+test("blendVectors: photo still dominates even at zero confidence", () => {
   const taste = { ...ZERO_VECTOR, dreamy: 1.0 };
   const photo = { ...ZERO_VECTOR, energy: 1.0 };
-  const r = blendVectors(taste, photo, 0.0); // photoWeight=0.4
-  assert.ok(r.dreamy > r.energy); // taste dominates
+  const r = blendVectors(taste, photo, 0.0); // photoWeight=0.65
+  // Low confidence is a hedge, not a license to substitute taste for the
+  // photo — the photo must stay dominant even in the worst case.
+  assert.ok(r.energy > r.dreamy);
 });
 
-test("blendVectors: high confidence leans on photo", () => {
+test("blendVectors: high confidence leans even more on photo", () => {
   const taste = { ...ZERO_VECTOR, dreamy: 1.0 };
   const photo = { ...ZERO_VECTOR, energy: 1.0 };
-  const r = blendVectors(taste, photo, 1.0); // photoWeight=0.9
-  assert.ok(r.energy > r.dreamy); // photo dominates
+  const low = blendVectors(taste, photo, 0.0); // photoWeight=0.65
+  const high = blendVectors(taste, photo, 1.0); // photoWeight=0.95
+  assert.ok(high.energy > low.energy);
 });
 
 test("invertVector flips values", () => {

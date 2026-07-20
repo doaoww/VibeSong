@@ -99,7 +99,11 @@ export function blendVectors(
   photoVec: EmotionalVector,
   photoConfidence: number
 ): EmotionalVector {
-  const photoWeight = 0.4 + Math.min(1, Math.max(0, photoConfidence)) * 0.5;
+  // Mirrors blendQueryVector in lib/vectorMath.ts — see its comment for why
+  // the photo floor was raised from 0.4 to 0.65 (low-confidence photos, e.g.
+  // soft-focus "cozy"/"dreamy" aesthetic shots, must not default to majority
+  // taste-weighted).
+  const photoWeight = 0.65 + Math.min(1, Math.max(0, photoConfidence)) * 0.3;
   const tasteWeight = 1 - photoWeight;
   const result = { ...ZERO_VECTOR };
   for (const key of VECTOR_KEYS) {
