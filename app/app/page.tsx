@@ -13,6 +13,7 @@ import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
 import { useAppStore, ExifData, Track } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
+import { getRecentlyShownSongIds, addRecentlyShownSongIds } from "../../lib/recentlyShownSongs";
 import { useAccountSync } from "../../lib/useAccountSync";
 import ContrastModeToggle from "../../components/ContrastModeToggle";
 import { useTranslation } from "../../lib/translations/useTranslation";
@@ -202,6 +203,7 @@ export default function AppUploadPage() {
             musicDirection,
             energyBounds: matchSignals.energy_bounds,
             photoBriefEmbedding: vibeData.photoBriefEmbedding ?? null,
+            clientSeenSongIds: getRecentlyShownSongIds(),
           }),
         });
         if (!recommendRes.ok) {
@@ -210,6 +212,7 @@ export default function AppUploadPage() {
         }
         const recommendData = await recommendRes.json();
         const recommendedSongs = Array.isArray(recommendData.songs) ? recommendData.songs : [];
+        addRecentlyShownSongIds(recommendedSongs.map((s: { id: string }) => s.id).filter(Boolean));
 
         // Map catalog songs to Track format for the existing swipe UI
         const mappedTracks: Track[] = recommendedSongs.map((s: {

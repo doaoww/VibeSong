@@ -71,6 +71,9 @@ export async function POST(req: NextRequest) {
         ? body.photoBriefEmbedding
         : null;
     const photoBriefEmbedding = briefPoolEnabled ? photoBriefEmbeddingRaw : null;
+    const clientSeenSongIds: string[] = Array.isArray(body.clientSeenSongIds)
+      ? body.clientSeenSongIds.filter((id: unknown): id is string => typeof id === "string")
+      : [];
 
     if (!photoVectorArray || photoVectorArray.length !== 10) {
       return NextResponse.json({ error: "photoVectorArray (10 numbers) required" }, { status: 400 });
@@ -156,7 +159,15 @@ export async function POST(req: NextRequest) {
         languages: taste.languages,
         languageOpenness: taste.languageOpenness,
         discoveryStyle,
-        blockedSongs: [],
+        // Hard-blocked rather than just freshness-penalized: songs with a
+        // near-centroid emotional_vector and broad generic tags can keep
+        // outscoring genuinely photo-specific matches by more than the -20
+        // freshnessPenalty, so a song the client just showed must not be
+        // able to win a slot again purely on structural merit. See
+        // lib/recentlyShownSongs.ts for why this needs client-side tracking
+        // at all — feedback-based recentlyShownSongIds below only covers
+        // songs the user explicitly saved/skipped, not ones just glanced at.
+        blockedSongs: clientSeenSongIds,
         blockedArtists: aggregate.avoidArtists,
         recentlyShownSongIds,
         genreScores: mergedGenreScores,
