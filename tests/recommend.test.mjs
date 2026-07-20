@@ -361,9 +361,26 @@ test("mainstreamPenalty applies at reduced weight for balanced discoveryStyle", 
     "balanced discovery should still mildly deprioritize highly mainstream tracks"
   );
   assert.ok(
-    results[0].scoreComponents.mainstreamPenalty > -10,
-    "balanced penalty should be lighter than the niche/hidden-gems penalty"
+    results[0].scoreComponents.mainstreamPenalty > -22,
+    "balanced penalty should be lighter than the niche/hidden-gems penalty for the same tier"
   );
+});
+
+test("mainstreamPenalty is steeper for tier 5 (globally known) than tier 4 (mainstream), same discoveryStyle", () => {
+  const tier4 = makeSong({ id: "t4", popularity_tier: 4 });
+  const tier5 = makeSong({ id: "t5", popularity_tier: 5 });
+  const balancedReq = makeRequest({ discoveryStyle: "balanced" });
+  const { results: balancedResults } = rec.buildRecommendations(balancedReq, [tier4, tier5]);
+  const balancedByTier = Object.fromEntries(balancedResults.map((r) => [r.id, r.scoreComponents.mainstreamPenalty]));
+  assert.ok(
+    balancedByTier.t5 < balancedByTier.t4,
+    "tier 5 should be penalized more heavily than tier 4 under balanced discovery — global anthems carry broad viral tags that easily outscore a shallow flat penalty"
+  );
+
+  const nicheReq = makeRequest({ discoveryStyle: "niche" });
+  const { results: nicheResults } = rec.buildRecommendations(nicheReq, [tier4, tier5]);
+  const nicheByTier = Object.fromEntries(nicheResults.map((r) => [r.id, r.scoreComponents.mainstreamPenalty]));
+  assert.ok(nicheByTier.t5 < nicheByTier.t4, "same steeper-for-tier-5 relationship should hold under niche discovery");
 });
 
 test("mainstreamPenalty does not apply for popular-ok discoveryStyle", () => {
@@ -422,6 +439,30 @@ test("applyArtistDiversityCap matches artist names case-insensitively", () => {
   ];
   const result = rec.applyArtistDiversityCap(sorted, 4, 2);
   assert.deepEqual([...result].map((r) => r.id), ["1", "2", "4", "3"]);
+});
+
+test("capFavoriteSongs demotes favorites beyond maxFavorites to the back, preserving relative order otherwise", () => {
+  const sorted = [
+    { id: "f1" }, { id: "n1" }, { id: "f2" }, { id: "f3" }, { id: "n2" }, { id: "f4" },
+  ];
+  const result = rec.capFavoriteSongs(sorted, ["f1", "f2", "f3", "f4"], 2);
+  assert.deepEqual(
+    [...result].map((r) => r.id),
+    ["f1", "n1", "f2", "n2", "f3", "f4"],
+    "first 2 favorites stay in place, the rest are pushed after all non-favorites"
+  );
+});
+
+test("capFavoriteSongs is a no-op when there are no favorite song ids", () => {
+  const sorted = [{ id: "1" }, { id: "2" }];
+  const result = rec.capFavoriteSongs(sorted, [], 2);
+  assert.deepEqual([...result].map((r) => r.id), ["1", "2"]);
+});
+
+test("capFavoriteSongs is a no-op when favorites never exceed maxFavorites", () => {
+  const sorted = [{ id: "f1" }, { id: "n1" }, { id: "f2" }];
+  const result = rec.capFavoriteSongs(sorted, ["f1", "f2"], 2);
+  assert.deepEqual([...result].map((r) => r.id), ["f1", "n1", "f2"]);
 });
 
 test("genreOverlapScore does not match a fused-word genre that merely contains a scored genre as a substring", () => {

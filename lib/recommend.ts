@@ -137,6 +137,41 @@ export function resolveRecentlyShownSongIds(
   return candidates.filter((song) => seen.has(feedbackKey(song.title, song.artist))).map((song) => song.id);
 }
 
+// Guards against a user's favorite/imported songs (see favoriteSongPool in
+// app/api/recommend/route.ts) crowding out photo-relevant results: those
+// songs are unconditionally injected into the candidate pool on *every*
+// request regardless of the photo, plus get a flat +8 favoriteSongBonus, so
+// with enough imported favorites (e.g. a 22-song Apple Music import) they
+// can dominate nearly every result set instead of surfacing occasionally.
+// Demotes excess favorites to the back (not removed) so they can still
+// backfill if there aren't enough other candidates.
+export function capFavoriteSongs<T extends { id: string }>(
+  sorted: T[],
+  favoriteSongIds: string[],
+  maxFavorites = 2
+): T[] {
+  if (favoriteSongIds.length === 0) return sorted;
+  const favoriteSet = new Set(favoriteSongIds);
+  let favoriteCount = 0;
+  const picked: T[] = [];
+  const overflow: T[] = [];
+
+  for (const item of sorted) {
+    if (favoriteSet.has(item.id)) {
+      if (favoriteCount < maxFavorites) {
+        favoriteCount++;
+        picked.push(item);
+      } else {
+        overflow.push(item);
+      }
+    } else {
+      picked.push(item);
+    }
+  }
+
+  return [...picked, ...overflow];
+}
+
 // Guards against an artist that's over-represented in the catalog (broad
 // emotional-vector coverage across many songs) winning most slots in every
 // user's results just by having more chances to be the closest vector match --
@@ -363,13 +398,24 @@ export function buildRecommendations(
     const freshnessPenalty = req.recentlyShownSongIds.includes(song.id) ? -20 : 0;
     // "balanced" still mildly deprioritizes mainstream (users never opted into it
     // either), just lighter than the niche/hidden-gems penalty; "popular-ok" opts
-    // out entirely per its name.
+    // out entirely per its name. Tier 5 ("globally known", not just tier 4's
+    // "mainstream") gets a steeper penalty than tier 4: global anthems (e.g.
+    // Taylor Swift "The Man", Dua Lipa "Dance The Night") reliably carry broad
+    // viral story_intent_tags like "confident comeback"/"main character walk"
+    // that overlap almost any energetic photo's GPT-derived tags, so a flat
+    // -5/-10 was cheap to outscore with a 2-3 tag storyFit hit (up to +21) —
+    // niche photos kept surfacing the same global pop anthems over genuinely
+    // niche tier-1/2 songs with an equally strong but untagged vibe fit.
     const mainstreamPenalty =
       song.popularity_tier > 3
         ? req.discoveryStyle === "niche" || req.discoveryStyle === "hidden-gems"
-          ? -10
+          ? song.popularity_tier === 5
+            ? -22
+            : -10
           : req.discoveryStyle === "balanced"
-            ? -5
+            ? song.popularity_tier === 5
+              ? -13
+              : -5
             : 0
         : 0;
     const needsReviewPenalty = song.needs_review ? -12 : 0;

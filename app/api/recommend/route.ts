@@ -5,7 +5,7 @@ import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
 import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, getSongsByIds, type CatalogSong } from "../../../lib/db/songs";
 import { blendQueryVector } from "../../../lib/vectorMath";
-import { buildRecommendations, resolveRecentlyShownSongIds, applyArtistDiversityCap } from "../../../lib/recommend";
+import { buildRecommendations, resolveRecentlyShownSongIds, applyArtistDiversityCap, capFavoriteSongs } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
 import {
   gateAntiTags,
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     console.log("[recommend] pool stats:", JSON.stringify(poolStats));
 
     return NextResponse.json({
-      songs: applyArtistDiversityCap(recommendations, 12),
+      songs: applyArtistDiversityCap(capFavoriteSongs(recommendations, taste.favoriteStorySongs, 2), 12),
       totalCandidates: candidates.length,
       debugLog,
       poolStats,
