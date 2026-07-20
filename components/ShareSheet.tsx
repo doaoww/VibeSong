@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Track } from "../store/useAppStore";
 import { useTranslation } from "../lib/translations/useTranslation";
 import { base64ToBlob, compressImageFile } from "../lib/imageCompression";
+import Icon from "./Icon";
 
 interface ShareSheetProps {
   isOpen: boolean;
@@ -183,7 +184,7 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
                 aria-label={t.share.closeAria}
                 className="text-white/50 hover:text-white transition-colors"
               >
-                <span className="material-symbols-outlined">close</span>
+                <Icon name="close" />
               </button>
             </div>
 
@@ -193,9 +194,7 @@ export default function ShareSheet({ isOpen, onClose, track, photoUrl }: ShareSh
               )}
               {videoStatus === "generating" && (
                 <p className="absolute bottom-2 inset-x-0 flex items-center justify-center gap-1.5 text-center text-hot-pink text-xs font-semibold bg-black/60 py-1.5">
-                  <span className="material-symbols-outlined animate-spin text-sm leading-none">
-                    progress_activity
-                  </span>
+                  <Icon name="progress_activity" className="animate-spin text-sm leading-none" />
                   {t.share.generating}
                 </p>
               )}

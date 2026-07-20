@@ -8,6 +8,7 @@ import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
 import { resolveSongLink } from "../../lib/songLink";
 import { FILTERS, filterSongs, getFilterLabel, type Filter } from "../../lib/libraryFilters";
+import Icon from "../../components/Icon";
 
 export default function LibraryPage() {
   const { savedSongs, loadFeedback } = useAppStore();
@@ -84,9 +85,7 @@ export default function LibraryPage() {
 
         {displayed.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-            <span className="material-symbols-outlined text-5xl text-on-surface-variant">
-              music_off
-            </span>
+            <Icon name="music_off" className="text-5xl text-on-surface-variant" />
             <p className="text-on-surface-variant">{t.library.emptyTitle}</p>
             <p className="text-on-surface-variant/60 text-sm">
               {t.library.emptyBody}
@@ -163,7 +162,7 @@ export default function LibraryPage() {
                       aria-label={t.share.rowAria(song.title, song.artist)}
                       className="text-hot-pink/70 hover:text-hot-pink transition-colors"
                     >
-                      <span className="material-symbols-outlined text-xl">share</span>
+                      <Icon name="share" className="text-xl" />
                     </button>
                   )}
                   {song.sourceImage && (
@@ -174,12 +173,11 @@ export default function LibraryPage() {
                     />
                   )}
                   {canPlayInline && (
-                    <span
-                      className="material-symbols-outlined text-hot-pink text-2xl"
+                    <Icon
+                      name={isPlaying ? "pause_circle" : "play_circle"}
+                      className="text-hot-pink text-2xl"
                       style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      {isPlaying ? "pause_circle" : "play_circle"}
-                    </span>
+                    />
                   )}
                   {song.matchScore > 0 && (
                     <p className="text-hot-pink text-xs font-display font-bold">

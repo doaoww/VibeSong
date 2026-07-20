@@ -2,12 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "../lib/translations/useTranslation";
+import Icon from "./Icon";
+import type { IconName } from "../lib/materialIconCodepoints";
 
 export default function NavBar() {
   const pathname = usePathname();
   const t = useTranslation();
 
-  const NAV_ITEMS = [
+  const NAV_ITEMS: { href: string; icon: IconName; label: string }[] = [
     { href: "/app", icon: "home", label: t.nav.home },
     { href: "/explore", icon: "explore", label: t.nav.explore },
     { href: "/library", icon: "library_music", label: t.nav.library },
@@ -30,16 +32,11 @@ export default function NavBar() {
                 : "text-on-surface-variant hover:text-white"
             }`}
           >
-            <span
-              className="material-symbols-outlined text-[22px]"
-              style={
-                active
-                  ? { fontVariationSettings: "'FILL' 1" }
-                  : undefined
-              }
-            >
-              {icon}
-            </span>
+            <Icon
+              name={icon}
+              className="text-[22px]"
+              style={active ? { fontVariationSettings: "'FILL' 1" } : undefined}
+            />
             <span className="text-[10px] mt-0.5 font-semibold">{label}</span>
           </Link>
         );

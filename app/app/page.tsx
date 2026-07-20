@@ -11,6 +11,7 @@ import PricingModal from "../../components/PricingModal";
 import OnboardingFlow from "../../components/OnboardingFlow";
 import Star from "../../components/Star";
 import AuthGate from "../../components/AuthGate";
+import Icon from "../../components/Icon";
 import { useAppStore, ExifData, Track } from "../../store/useAppStore";
 import { useCredits } from "../../lib/useCredits";
 import { getRecentlyShownSongIds, addRecentlyShownSongIds } from "../../lib/recentlyShownSongs";
@@ -468,9 +469,7 @@ export default function AppUploadPage() {
           <section className="space-y-4 mt-6 lg:mt-0">
             {errorMsg && (
               <div className="bg-error/10 border border-error/30 rounded-xl px-4 py-3 text-error text-sm flex items-start gap-2">
-                <span className="material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5">
-                  error
-                </span>
+                <Icon name="error" className="text-[18px] flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-semibold">{t.home.errorHeading}</p>
                   <p className="opacity-80 text-xs mt-0.5">{errorMsg}</p>
@@ -492,9 +491,7 @@ export default function AppUploadPage() {
                   onClick={() => { setErrorMsg(null); setFailedUpload(null); }}
                   className="text-error/60 hover:text-error"
                 >
-                  <span className="material-symbols-outlined text-[18px]">
-                    close
-                  </span>
+                  <Icon name="close" className="text-[18px]" />
                 </button>
               </div>
             )}

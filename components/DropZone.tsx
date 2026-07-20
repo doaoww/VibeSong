@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import exifr from "exifr";
 import type { ExifData } from "../store/useAppStore";
 import { compressImageFile, compressThumbnail } from "../lib/imageCompression";
+import Icon from "./Icon";
 
 interface DropZoneProps {
   onImageReady: (
@@ -113,11 +114,10 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
         }`}
       >
         <div className="w-14 h-14 bg-hot-pink/15 rounded-full flex items-center justify-center">
-          <span
-            className={`material-symbols-outlined text-hot-pink text-3xl ${isProcessing ? "animate-spin" : ""}`}
-          >
-            {isProcessing ? "progress_activity" : "add_photo_alternate"}
-          </span>
+          <Icon
+            name={isProcessing ? "progress_activity" : "add_photo_alternate"}
+            className={`text-hot-pink text-3xl ${isProcessing ? "animate-spin" : ""}`}
+          />
         </div>
         <div>
           <p className="font-display font-bold text-white text-base">
@@ -139,9 +139,7 @@ export default function DropZone({ onImageReady, disabled = false }: DropZonePro
             }}
             className="flex-1 flex items-center justify-center gap-2 bg-hot-pink text-white px-4 py-3 rounded-full text-sm font-semibold font-display hover:bg-[#ff4488] active:scale-95 transition-all glow-pink disabled:pointer-events-none"
           >
-            <span className="material-symbols-outlined text-[18px]">
-              photo_camera
-            </span>
+            <Icon name="photo_camera" className="text-[18px]" />
             Photo
           </button>
         </div>

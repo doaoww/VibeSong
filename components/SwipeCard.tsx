@@ -5,6 +5,7 @@ import { Track } from "../store/useAppStore";
 import YouTubePlayer from "./YouTubePlayer";
 import VibeTags from "./VibeTags";
 import { useTranslation } from "../lib/translations/useTranslation";
+import Icon from "./Icon";
 
 interface SwipeCardProps {
   track: Track;
@@ -217,9 +218,7 @@ export default function SwipeCard({
               />
             ) : (
               <div className="w-full h-full bg-surface-container-highest flex items-center justify-center">
-                <span className="material-symbols-outlined text-5xl text-on-surface-variant">
-                  album
-                </span>
+                <Icon name="album" className="text-5xl text-on-surface-variant" />
               </div>
             )}
           </div>

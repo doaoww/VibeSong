@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "../lib/translations/useTranslation";
+import Icon from "./Icon";
 
 interface PricingModalProps {
   isOpen: boolean;
@@ -120,7 +121,7 @@ export default function PricingModal({
                 onClick={onClose}
                 className="text-black/50 hover:text-black transition-colors"
               >
-                <span className="material-symbols-outlined">close</span>
+                <Icon name="close" />
               </button>
               <h2 className="font-display font-bold text-lg text-ink">
                 {reason === "out-of-credits" ? t.pricing.outOfCreditsHeading : t.pricing.getCredits}
@@ -205,15 +206,14 @@ export default function PricingModal({
                       }`}
                     >
                       {selected === pkg.id && (
-                        <span
-                          className="material-symbols-outlined text-white"
+                        <Icon
+                          name="check"
+                          className="text-white"
                           style={{
                             fontSize: "14px",
                             fontVariationSettings: "'FILL' 1, 'wght' 700",
                           }}
-                        >
-                          check
-                        </span>
+                        />
                       )}
                     </div>
                   </div>

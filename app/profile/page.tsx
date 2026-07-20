@@ -11,6 +11,7 @@ import { useAccountSync } from "../../lib/useAccountSync";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import PricingModal from "../../components/PricingModal";
 import { useTranslation } from "../../lib/translations/useTranslation";
+import Icon from "../../components/Icon";
 
 interface LearnedTaste {
   learnedGenres: string[];
@@ -84,9 +85,7 @@ export default function ProfilePage() {
               onClick={() => history.back()}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors lg:hidden"
             >
-              <span className="material-symbols-outlined text-on-surface-variant">
-                arrow_back
-              </span>
+              <Icon name="arrow_back" className="text-on-surface-variant" />
             </button>
           }
         />
@@ -96,9 +95,7 @@ export default function ProfilePage() {
         {!user ? (
           <div className="flex flex-col items-center justify-center py-12 md:py-16 text-center space-y-6">
             <div className="w-24 h-24 rounded-full bg-hot-pink/15 flex items-center justify-center border-2 border-hot-pink/40">
-              <span className="material-symbols-outlined text-5xl text-hot-pink">
-                person
-              </span>
+              <Icon name="person" className="text-5xl text-hot-pink" />
             </div>
             <div>
               <h1 className="font-display font-bold text-2xl md:text-3xl text-white">
@@ -133,9 +130,7 @@ export default function ProfilePage() {
                 />
               ) : (
                 <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-hot-pink/15 border-2 border-hot-pink flex items-center justify-center">
-                  <span className="material-symbols-outlined text-4xl text-hot-pink">
-                    person
-                  </span>
+                  <Icon name="person" className="text-4xl text-hot-pink" />
                 </div>
               )}
               <div className="text-center lg:text-left">
@@ -219,12 +214,11 @@ export default function ProfilePage() {
                           />
                         ) : null}
                         <div className="absolute inset-0 bg-black/30 flex items-end justify-end p-1.5">
-                          <span
-                            className="material-symbols-outlined text-white text-sm"
+                          <Icon
+                            name="music_note"
+                            className="text-white text-sm"
                             style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            music_note
-                          </span>
+                          />
                         </div>
                       </div>
                     ))}
@@ -270,7 +264,7 @@ export default function ProfilePage() {
                   aria-label={t.share.closeAria}
                   className="text-white/50 hover:text-white transition-colors"
                 >
-                  <span className="material-symbols-outlined">close</span>
+                  <Icon name="close" />
                 </button>
               </div>
               <PlaylistImport

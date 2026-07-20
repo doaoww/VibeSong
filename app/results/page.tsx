@@ -6,6 +6,7 @@ import AppShell from "../../components/AppShell";
 import SwipeCard from "../../components/SwipeCard";
 import VibeTags from "../../components/VibeTags";
 import ShareSheet from "../../components/ShareSheet";
+import Icon from "../../components/Icon";
 import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
 import { computeSessionTasteVector, scoreRemainingTracks } from "../../lib/sessionTaste";
@@ -76,7 +77,7 @@ function MatchControls({
         className="flex flex-col items-center gap-1 disabled:opacity-40"
       >
         <span className="w-12 h-12 lg:w-14 lg:h-14 rounded-full border-2 border-error/40 bg-error/10 flex items-center justify-center text-error hover:bg-error/15 transition-colors active:scale-90 shadow-[0_0_20px_-4px_rgba(255,107,107,0.4)]">
-          <span className="material-symbols-outlined text-2xl lg:text-3xl">close</span>
+          <Icon name="close" className="text-2xl lg:text-3xl" />
         </span>
         <span className="text-error/80 text-[10px] lg:text-[11px] font-semibold">{t.common.skip}</span>
       </button>
@@ -87,12 +88,11 @@ function MatchControls({
         className="flex flex-col items-center gap-1 disabled:opacity-40"
       >
         <span className="w-12 h-12 lg:w-14 lg:h-14 rounded-full border-2 border-hot-pink/40 bg-hot-pink/15 flex items-center justify-center text-hot-pink hover:bg-hot-pink/25 transition-colors active:scale-90 glow-pink">
-          <span
-            className="material-symbols-outlined text-2xl lg:text-3xl"
+          <Icon
+            name="favorite"
+            className="text-2xl lg:text-3xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            favorite
-          </span>
+          />
         </span>
         <span className="text-hot-pink/80 text-[10px] lg:text-[11px] font-semibold">{t.results.saveLabel}</span>
       </button>
@@ -306,8 +306,11 @@ export default function ResultsPage() {
                     />
                   ) : (
                     <div className="w-12 h-12 rounded-lg bg-hot-pink/15 flex items-center justify-center flex-shrink-0">
-                      <span className="material-symbols-outlined text-hot-pink text-xl"
-                        style={{ fontVariationSettings: "'FILL' 1" }}>music_note</span>
+                      <Icon
+                        name="music_note"
+                        className="text-hot-pink text-xl"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -323,10 +326,13 @@ export default function ResultsPage() {
                       aria-label={t.share.rowAria(track.title, track.artist)}
                       className="text-hot-pink/70 hover:text-hot-pink transition-colors"
                     >
-                      <span className="material-symbols-outlined text-xl">share</span>
+                      <Icon name="share" className="text-xl" />
                     </button>
-                    <span className="material-symbols-outlined text-hot-pink text-lg"
-                      style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                    <Icon
+                      name="favorite"
+                      className="text-hot-pink text-lg"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    />
                   </div>
                 </motion.div>
               ))}
@@ -376,9 +382,7 @@ export default function ResultsPage() {
               onClick={() => router.back()}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
             >
-              <span className="material-symbols-outlined text-hot-pink">
-                arrow_back
-              </span>
+              <Icon name="arrow_back" className="text-hot-pink" />
             </button>
             <h1 className="font-display font-bold text-hot-pink text-sm md:text-base">
               {t.results.tracksLeft(displayTracks.length - gone.size, displayTracks.length)}

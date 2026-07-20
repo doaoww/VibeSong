@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useInView, useMotionValue, useTransform, anima
 import { useEffect, useRef, useState } from "react";
 import Star from "./Star";
 import LanguageToggle from "./LanguageToggle";
+import Icon from "./Icon";
 import { useTranslation } from "../lib/translations/useTranslation";
 
 function PinkButton({
@@ -137,9 +138,7 @@ function LandingNav() {
           aria-label={mobileMenuOpen ? "Close menu" : "Menu"}
           className="flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/5 transition-colors md:hidden"
         >
-          <span className="material-symbols-outlined text-[24px]">
-            {mobileMenuOpen ? "close" : "menu"}
-          </span>
+          <Icon name={mobileMenuOpen ? "close" : "menu"} className="text-[24px]" />
         </button>
       </div>
       <AnimatePresence>

@@ -8,6 +8,7 @@ import { useAppStore, Track } from "../../store/useAppStore";
 import { useTranslation } from "../../lib/translations/useTranslation";
 import { resolveSongLink } from "../../lib/songLink";
 import { FILTERS, filterSongs, getFilterLabel, type Filter } from "../../lib/libraryFilters";
+import Icon from "../../components/Icon";
 
 export default function MatchesPage() {
   const { savedSongs, loadFeedback } = useAppStore();
@@ -64,9 +65,7 @@ export default function MatchesPage() {
               onClick={() => history.back()}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors lg:hidden"
             >
-              <span className="material-symbols-outlined text-on-surface-variant">
-                arrow_back
-              </span>
+              <Icon name="arrow_back" className="text-on-surface-variant" />
             </button>
           }
         />
@@ -91,9 +90,7 @@ export default function MatchesPage() {
 
         {displayed.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-            <span className="material-symbols-outlined text-5xl text-on-surface-variant">
-              music_off
-            </span>
+            <Icon name="music_off" className="text-5xl text-on-surface-variant" />
             <p className="text-on-surface-variant">{t.matches.emptyTitle}</p>
             <p className="text-on-surface-variant/60 text-sm">
               {t.matches.emptyBody}
@@ -150,16 +147,15 @@ export default function MatchesPage() {
                     aria-label={t.share.rowAria(song.title, song.artist)}
                     className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
                   >
-                    <span className="material-symbols-outlined text-lg">share</span>
+                    <Icon name="share" className="text-lg" />
                   </button>
 
                   {isPlaying && (
-                    <span
-                      className="absolute top-2 left-2 material-symbols-outlined text-white text-2xl"
+                    <Icon
+                      name="pause_circle"
+                      className="absolute top-2 left-2 text-white text-2xl"
                       style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      pause_circle
-                    </span>
+                    />
                   )}
 
                   <div className="absolute inset-x-0 bottom-0 p-2.5 space-y-0.5">

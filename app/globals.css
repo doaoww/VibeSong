@@ -87,6 +87,11 @@
   font-display: block;
 }
 
+/* Icon glyphs are referenced by codepoint (see components/Icon.tsx), not by
+   ligature text — the `liga` OpenType feature that ligatures depend on isn't
+   reliably applied by every mobile browser/WebView (Samsung Internet and
+   some iOS in-app browsers notably), which left raw text like "home"
+   visible instead of the icon even with this font self-hosted. */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
   font-weight: normal;
@@ -99,7 +104,6 @@
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
-  -webkit-font-feature-settings: "liga";
   -webkit-font-smoothing: antialiased;
 }
 
