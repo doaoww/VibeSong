@@ -193,7 +193,7 @@ export default function ProfilePage() {
                       {t.profile.myMatchesHeading}
                     </h2>
                     <a
-                      href="/library"
+                      href="/matches"
                       className="text-hot-pink text-xs font-semibold hover:underline"
                     >
                       {t.profile.viewAll}
