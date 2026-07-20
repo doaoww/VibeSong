@@ -183,6 +183,11 @@ export const ru: Translation = {
     emptyTitle: "Пока нет сохранённых песен.",
     emptyBody: "Загрузи фото, чтобы начать.",
   },
+  matches: {
+    heading: "Мэтчи",
+    emptyTitle: "Пока нет мэтчей с фото.",
+    emptyBody: "Загрузи фото, чтобы начать.",
+  },
   share: {
     heading: "Поделись своим вайбом",
     generating: "Генерируем видео…",

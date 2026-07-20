@@ -179,6 +179,11 @@ export const en = {
     emptyTitle: "No saved songs yet.",
     emptyBody: "Upload a photo to get started.",
   },
+  matches: {
+    heading: "Matches",
+    emptyTitle: "No matches with a photo yet.",
+    emptyBody: "Upload a photo to get started.",
+  },
   share: {
     heading: "Share your vibe",
     generating: "Generating your video…",
