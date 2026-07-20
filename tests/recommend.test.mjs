@@ -465,6 +465,28 @@ test("capFavoriteSongs is a no-op when favorites never exceed maxFavorites", () 
   assert.deepEqual([...result].map((r) => r.id), ["f1", "n1", "f2"]);
 });
 
+test("sampleFavoriteSongIds returns the full list unchanged when it's already at or under maxEligible", () => {
+  assert.deepEqual([...rec.sampleFavoriteSongIds(["a", "b", "c"], 6)], ["a", "b", "c"]);
+  assert.deepEqual([...rec.sampleFavoriteSongIds(["a", "b"], 2)], ["a", "b"]);
+});
+
+test("sampleFavoriteSongIds returns exactly maxEligible distinct ids drawn from the input when the list is larger", () => {
+  const ids = Array.from({ length: 22 }, (_, i) => `id-${i}`);
+  const sample = [...rec.sampleFavoriteSongIds(ids, 6)];
+  assert.equal(sample.length, 6);
+  assert.equal(new Set(sample).size, 6, "sample must not contain duplicates");
+  for (const id of sample) assert.ok(ids.includes(id), `${id} must come from the original list`);
+});
+
+test("sampleFavoriteSongIds does not always return the same subset across calls (rotation, not a fixed favorite)", () => {
+  const ids = Array.from({ length: 22 }, (_, i) => `id-${i}`);
+  const samples = new Set();
+  for (let i = 0; i < 30; i++) {
+    samples.add([...rec.sampleFavoriteSongIds(ids, 6)].sort().join(","));
+  }
+  assert.ok(samples.size > 1, "30 draws of 6-of-22 should not all land on the identical subset");
+});
+
 test("genreOverlapScore does not match a fused-word genre that merely contains a scored genre as a substring", () => {
   // "hyperpop"/"britpop"/"electropop" are distinct genres from mainstream "pop" -
   // raw substring matching wrongly pulled them into any "pop" boost or avoid.

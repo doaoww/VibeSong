@@ -137,6 +137,27 @@ export function resolveRecentlyShownSongIds(
   return candidates.filter((song) => seen.has(feedbackKey(song.title, song.artist))).map((song) => song.id);
 }
 
+// capFavoriteSongs (below) only bounds how many favorite slots land in one
+// response — it doesn't stop the same favorite from winning one of those
+// slots on nearly every request. A song like a 22-track Apple Music import
+// containing one moderate, non-extreme emotional_vector plus broad generic
+// tags ("dreamy", "nostalgic", "modern romantic") will score decently
+// against almost *any* photo, so if all 22 favorites compete every time,
+// that one song wins its slot practically every request regardless of the
+// photo — reproduced directly: "pocket locket" showing up on "almost every
+// photo". Fix: only a random subset of the user's favorites is even
+// eligible to compete on a given request, so a structurally-generic
+// favorite is in the running some of the time, not all of the time.
+export function sampleFavoriteSongIds(favoriteSongIds: string[], maxEligible = 6): string[] {
+  if (favoriteSongIds.length <= maxEligible) return favoriteSongIds;
+  const pool = [...favoriteSongIds];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, maxEligible);
+}
+
 // Guards against a user's favorite/imported songs (see favoriteSongPool in
 // app/api/recommend/route.ts) crowding out photo-relevant results: those
 // songs are unconditionally injected into the candidate pool on *every*

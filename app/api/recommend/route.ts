@@ -5,7 +5,7 @@ import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
 import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, getSongsByIds, type CatalogSong } from "../../../lib/db/songs";
 import { blendQueryVector } from "../../../lib/vectorMath";
-import { buildRecommendations, resolveRecentlyShownSongIds, applyArtistDiversityCap, capFavoriteSongs } from "../../../lib/recommend";
+import { buildRecommendations, resolveRecentlyShownSongIds, applyArtistDiversityCap, capFavoriteSongs, sampleFavoriteSongIds } from "../../../lib/recommend";
 import { normalizeTaste } from "../../../lib/matching";
 import {
   gateAntiTags,
@@ -121,6 +121,8 @@ export async function POST(req: NextRequest) {
       .filter(([, score]) => score > 0.3)
       .map(([genre]) => genre);
 
+    const eligibleFavoriteSongIds = sampleFavoriteSongIds(taste.favoriteStorySongs, 6);
+
     const [vectorPool, storyPool, contextPool, tastePool, briefPool, languagePool, favoriteSongPool] = await Promise.all([
       searchCatalog(queryVector, 25),
       searchCatalogByTags({ intentTags: storyIntentTags, aestheticTags, moodTags }, 25),
@@ -130,8 +132,8 @@ export async function POST(req: NextRequest) {
       taste.languages.length > 0
         ? searchCatalogByLanguage(taste.languages, queryVector, 25)
         : Promise.resolve([] as CatalogSong[]),
-      taste.favoriteStorySongs.length > 0
-        ? getSongsByIds(taste.favoriteStorySongs)
+      eligibleFavoriteSongIds.length > 0
+        ? getSongsByIds(eligibleFavoriteSongIds)
         : Promise.resolve([] as CatalogSong[]),
     ]);
 
@@ -159,7 +161,7 @@ export async function POST(req: NextRequest) {
         recentlyShownSongIds,
         genreScores: mergedGenreScores,
         likedArtists: mergedLikedArtists,
-        favoriteSongIds: taste.favoriteStorySongs,
+        favoriteSongIds: eligibleFavoriteSongIds,
         storyIntentTags,
         hardAntiTags: [...antiTags, ...taste.avoidedStoryTags],
         softAntiTags: gatedPhotoAntiTags,
@@ -188,7 +190,7 @@ export async function POST(req: NextRequest) {
     console.log("[recommend] pool stats:", JSON.stringify(poolStats));
 
     return NextResponse.json({
-      songs: applyArtistDiversityCap(capFavoriteSongs(recommendations, taste.favoriteStorySongs, 2), 12),
+      songs: applyArtistDiversityCap(capFavoriteSongs(recommendations, eligibleFavoriteSongIds, 2), 12),
       totalCandidates: candidates.length,
       debugLog,
       poolStats,
