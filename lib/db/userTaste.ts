@@ -102,6 +102,46 @@ export async function upsertEmotionalVector(
   if (error) throw error;
 }
 
+// Durable, per-account counterpart to lib/recentlyShownSongs.ts's client-side
+// localStorage log. That client-side log alone (capped at 60 = 5 requests
+// worth) is the only thing standing between a testing/usage session and
+// literal repeats: track_feedback only records songs the user explicitly
+// saved or skipped, never ones just shown and glanced past, and a real check
+// against this account found only 40 total saved+skipped rows across 5 days
+// of heavy testing — the vast majority of what was actually shown lives only
+// in whichever single browser tab happened to show it. Once a session goes
+// past ~5 uploads (very normal for either real usage or QA), or the user
+// switches device/browser/private-window, the client-side FIFO window
+// evicts/loses songs that are still fresh to the user, and they can resurface.
+// This column persists a much longer rolling window server-side so the block
+// survives across devices and beyond 5 requests. See
+// supabase/recently-shown-songs-migration.sql.
+const RECENTLY_SHOWN_CAP = 150;
+
+export async function getRecentlyShownSongIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("user_taste")
+    .select("recently_shown_song_ids")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  const ids = data?.recently_shown_song_ids as string[] | null | undefined;
+  return Array.isArray(ids) ? ids : [];
+}
+
+/** Prepends newIds (most-recent-first, deduped) and truncates to RECENTLY_SHOWN_CAP. */
+export async function appendRecentlyShownSongIds(userId: string, newIds: string[]): Promise<void> {
+  if (newIds.length === 0) return;
+  const existing = await getRecentlyShownSongIds(userId);
+  const merged = [...newIds, ...existing.filter((id) => !newIds.includes(id))].slice(0, RECENTLY_SHOWN_CAP);
+  const { error } = await supabase.from("user_taste").upsert({
+    user_id: userId,
+    recently_shown_song_ids: merged,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
 export async function getContextVector(
   userId: string,
   momentType: MomentType

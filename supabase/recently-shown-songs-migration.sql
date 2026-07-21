@@ -1,0 +1,37 @@
+-- Adds a durable, server-side "recently shown" log to public.user_taste
+-- (main project — NOT the catalog project).
+--
+-- Root cause investigated today: the developer reported recommendations
+-- "still repeat the same tracks" even after today's earlier fix (commit
+-- "Hard-block songs the client just showed, not just ones explicitly
+-- swiped", lib/recentlyShownSongs.ts + clientSeenSongIds in
+-- app/api/recommend/route.ts) was confirmed live in production.
+--
+-- Verified against the real catalog + the developer's real profile
+-- (user_id 4c341962-9698-4c4a-b984-713dc99374de): that fix's ONLY storage
+-- is browser localStorage, capped at MAX_TRACKED = 60 entries (5 requests
+-- worth, at 12 songs/request) — the code comment even says "don't repeat
+-- last 5 sessions". A real repro against the catalog (lib/recommend.ts's
+-- buildRecommendations against real RPC pools) shows 64-109 candidates
+-- survive the hard filters per photo vibe, so once a testing session goes
+-- past ~5 uploads, the FIFO-capped client list evicts request #1's songs
+-- and they can legitimately win a slot again in request #6+, exactly
+-- reproducing "still repeats" even though the fix is live and working
+-- exactly as designed. The same gap also means the block resets completely
+-- on any new browser/device/private window/cleared storage, since nothing
+-- server-side records a song as "shown" unless the user explicitly
+-- saved/skipped it — a real query against track_feedback for this account
+-- found only 40 total saved+skipped rows across 5 days of heavy testing,
+-- confirming the overwhelming majority of songs actually shown to her were
+-- never durably recorded anywhere.
+--
+-- This migration adds a rolling column so app/api/recommend/route.ts can
+-- hard-block against a per-user, per-account history (see
+-- lib/db/userTaste.ts's getRecentlyShownSongIds/appendRecentlyShownSongIds)
+-- instead of relying solely on a single browser's localStorage.
+--
+-- Run in the Supabase SQL editor for the MAIN project (not the catalog
+-- project — this is public.user_taste, not public.songs).
+
+ALTER TABLE public.user_taste
+  ADD COLUMN IF NOT EXISTS recently_shown_song_ids text[] NOT NULL DEFAULT '{}';

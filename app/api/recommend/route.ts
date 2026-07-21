@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUser } from "../../../lib/supabase/server";
-import { getUserTaste, getEmotionalVector } from "../../../lib/db/userTaste";
+import { getUserTaste, getEmotionalVector, getRecentlyShownSongIds, appendRecentlyShownSongIds } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
 import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, getSongsByIds, type CatalogSong } from "../../../lib/db/songs";
@@ -79,11 +79,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "photoVectorArray (10 numbers) required" }, { status: 400 });
     }
 
-    const [storedTaste, storedVector, savedFeedback, skippedFeedback] = await Promise.all([
+    const [storedTaste, storedVector, savedFeedback, skippedFeedback, serverShownSongIds] = await Promise.all([
       getUserTaste(user.id).catch(() => null),
       getEmotionalVector(user.id).catch(() => null),
       getFeedback(user.id, "saved", 200).catch(() => []),
       getFeedback(user.id, "skipped", 200).catch(() => []),
+      // Durable, cross-device counterpart to clientSeenSongIds below — see
+      // lib/db/userTaste.ts's getRecentlyShownSongIds for why the
+      // client-only version (localStorage, capped at 5 requests) wasn't
+      // enough on its own. Missing column (migration not yet run) degrades
+      // to [] rather than failing the request.
+      getRecentlyShownSongIds(user.id).catch(() => []),
     ]);
 
     const taste = normalizeTaste(storedTaste ?? null);
@@ -153,38 +159,63 @@ export async function POST(req: NextRequest) {
     // title+artist to stop repeatedly surfacing the same song across sessions.
     const recentlyShownSongIds = resolveRecentlyShownSongIds(candidates, [...savedFeedback, ...skippedFeedback]);
 
-    const { results: recommendations, debugLog } = buildRecommendations(
-      {
-        queryVector,
-        languages: taste.languages,
-        languageOpenness: taste.languageOpenness,
-        discoveryStyle,
-        // Hard-blocked rather than just freshness-penalized: songs with a
-        // near-centroid emotional_vector and broad generic tags can keep
-        // outscoring genuinely photo-specific matches by more than the -20
-        // freshnessPenalty, so a song the client just showed must not be
-        // able to win a slot again purely on structural merit. See
-        // lib/recentlyShownSongs.ts for why this needs client-side tracking
-        // at all — feedback-based recentlyShownSongIds below only covers
-        // songs the user explicitly saved/skipped, not ones just glanced at.
-        blockedSongs: clientSeenSongIds,
-        blockedArtists: aggregate.avoidArtists,
-        recentlyShownSongIds,
-        genreScores: mergedGenreScores,
-        likedArtists: mergedLikedArtists,
-        favoriteSongIds: eligibleFavoriteSongIds,
-        storyIntentTags,
-        hardAntiTags: [...antiTags, ...taste.avoidedStoryTags],
-        softAntiTags: gatedPhotoAntiTags,
-        photoConfidence,
-        sceneContextTags,
-        aestheticTags,
-        moodTags,
-        energyBounds,
-        photoBriefEmbedding,
-      },
-      candidates
-    );
+    // Three independent freshness signals, each covering a gap the others
+    // don't: clientSeenSongIds is instant same-tab coverage (localStorage,
+    // updated synchronously before the next request even fires) but capped
+    // at 5 requests and lost on device/browser switch; serverShownSongIds is
+    // the durable per-account counterpart (see lib/db/userTaste.ts) that
+    // survives both of those; recentlyShownSongIds below (feedback-based)
+    // still matters for songs shown in a much older session, before this
+    // account had either of the above.
+    //
+    // serverShownSongIds can hold up to 150 ids (~12 requests), which is
+    // larger than a single narrow-vibe candidate pool sometimes is (a real
+    // repro against this account's profile found 64-110 surviving candidates
+    // per photo vibe) — hard-blocking the full list could starve the result
+    // set to near-empty for someone uploading many similar-vibe photos in a
+    // row, which is worse than an occasional repeat. serverShownSongIds is
+    // already ordered most-recent-first (see appendRecentlyShownSongIds), so
+    // on a too-small result set this shrinks from the oldest end first,
+    // trading "block everything shown in the last ~12 requests" for
+    // "block everything shown recently enough to still matter" rather than
+    // failing outright.
+    const baseRecommendReq = {
+      queryVector,
+      languages: taste.languages,
+      languageOpenness: taste.languageOpenness,
+      discoveryStyle,
+      blockedArtists: aggregate.avoidArtists,
+      recentlyShownSongIds,
+      genreScores: mergedGenreScores,
+      likedArtists: mergedLikedArtists,
+      favoriteSongIds: eligibleFavoriteSongIds,
+      storyIntentTags,
+      hardAntiTags: [...antiTags, ...taste.avoidedStoryTags],
+      softAntiTags: gatedPhotoAntiTags,
+      photoConfidence,
+      sceneContextTags,
+      aestheticTags,
+      moodTags,
+      energyBounds,
+      photoBriefEmbedding,
+    };
+
+    const MIN_SURVIVING_CANDIDATES = 12;
+    const serverBlockWindows = [serverShownSongIds, serverShownSongIds.slice(0, 60), serverShownSongIds.slice(0, 20), []];
+    let recommendations: ReturnType<typeof buildRecommendations>["results"] = [];
+    let debugLog: ReturnType<typeof buildRecommendations>["debugLog"] = [];
+    for (const serverBlockWindow of serverBlockWindows) {
+      const blockedSongs = Array.from(new Set([...clientSeenSongIds, ...serverBlockWindow]));
+      // Hard-blocked rather than just freshness-penalized: songs with a
+      // near-centroid emotional_vector and broad generic tags can keep
+      // outscoring genuinely photo-specific matches by more than the -20
+      // freshnessPenalty, so a song the client just showed must not be able
+      // to win a slot again purely on structural merit.
+      const built = buildRecommendations({ ...baseRecommendReq, blockedSongs }, candidates);
+      recommendations = built.results;
+      debugLog = built.debugLog;
+      if (recommendations.length >= MIN_SURVIVING_CANDIDATES || serverBlockWindow.length === 0) break;
+    }
 
     const poolStats = {
       vectorPoolCount: vectorPool.length,
@@ -200,8 +231,17 @@ export async function POST(req: NextRequest) {
     };
     console.log("[recommend] pool stats:", JSON.stringify(poolStats));
 
+    const finalSongs = applyArtistDiversityCap(capFavoriteSongs(recommendations, eligibleFavoriteSongIds, 2), 12);
+
+    // Fire-and-forget: persist this response's song ids to the durable
+    // server-side log so they're blocked on this account's NEXT request even
+    // from a different device/browser. Never blocks the response — a slow or
+    // failing write (e.g. the migration hasn't been run yet) must not delay
+    // or break recommendations.
+    appendRecentlyShownSongIds(user.id, finalSongs.map((s) => s.id)).catch(() => {});
+
     return NextResponse.json({
-      songs: applyArtistDiversityCap(capFavoriteSongs(recommendations, eligibleFavoriteSongIds, 2), 12),
+      songs: finalSongs,
       totalCandidates: candidates.length,
       debugLog,
       poolStats,
