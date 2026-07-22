@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUser } from "../../../lib/supabase/server";
-import { getUserTaste, getEmotionalVector, getRecentlyShownSongIds, appendRecentlyShownSongIds } from "../../../lib/db/userTaste";
+import { getUserTaste, getEmotionalVector, getRecentlyShownSongIds, appendRecentlyShownSongIds, getPinnedSongIds } from "../../../lib/db/userTaste";
 import { getFeedback } from "../../../lib/db/trackFeedback";
 import { buildAggregateTasteProfile } from "../../../lib/tasteProfile";
 import { searchCatalog, searchCatalogByTags, searchCatalogByTaste, searchCatalogByBrief, searchCatalogByLanguage, getSongsByIds, type CatalogSong } from "../../../lib/db/songs";
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "photoVectorArray (10 numbers) required" }, { status: 400 });
     }
 
-    const [storedTaste, storedVector, savedFeedback, skippedFeedback, serverShownSongIds] = await Promise.all([
+    const [storedTaste, storedVector, savedFeedback, skippedFeedback, serverShownSongIds, pinnedSongIds] = await Promise.all([
       getUserTaste(user.id).catch(() => null),
       getEmotionalVector(user.id).catch(() => null),
       getFeedback(user.id, "saved", 200).catch(() => []),
@@ -89,7 +89,9 @@ export async function POST(req: NextRequest) {
       // client-only version (localStorage, capped at 5 requests) wasn't
       // enough on its own. Missing column (migration not yet run) degrades
       // to [] rather than failing the request.
-      getRecentlyShownSongIds(user.id).catch(() => []),
+      getRecentlyShownSongIds(user.id).catch((): string[] => []),
+      // Explicit override — see lib/db/userTaste.ts's getPinnedSongIds.
+      getPinnedSongIds(user.id).catch((): string[] => []),
     ]);
 
     const taste = normalizeTaste(storedTaste ?? null);
@@ -132,7 +134,7 @@ export async function POST(req: NextRequest) {
 
     const eligibleFavoriteSongIds = sampleFavoriteSongIds(taste.favoriteStorySongs, 6);
 
-    const [vectorPool, storyPool, contextPool, tastePool, briefPool, languagePool, favoriteSongPool] = await Promise.all([
+    const [vectorPool, storyPool, contextPool, tastePool, briefPool, languagePool, favoriteSongPool, pinnedSongPool] = await Promise.all([
       searchCatalog(queryVector, 25),
       searchCatalogByTags({ intentTags: storyIntentTags, aestheticTags, moodTags }, 25),
       searchCatalogByTags({ contextTags: sceneContextTags }, 20),
@@ -144,10 +146,14 @@ export async function POST(req: NextRequest) {
       eligibleFavoriteSongIds.length > 0
         ? getSongsByIds(eligibleFavoriteSongIds)
         : Promise.resolve([] as CatalogSong[]),
+      // Unconditional, unsampled — pinned songs must always be scored so the
+      // guaranteed-inclusion step below (after buildRecommendations) can
+      // find them, unlike favoriteSongPool which is deliberately sampled.
+      pinnedSongIds.length > 0 ? getSongsByIds(pinnedSongIds) : Promise.resolve([] as CatalogSong[]),
     ]);
 
     const poolMap = new Map<string, CatalogSong>();
-    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool, ...languagePool, ...favoriteSongPool]) {
+    for (const song of [...vectorPool, ...storyPool, ...contextPool, ...tastePool, ...briefPool, ...languagePool, ...favoriteSongPool, ...pinnedSongPool]) {
       if (!poolMap.has(song.id)) poolMap.set(song.id, song);
     }
     const candidates = Array.from(poolMap.values());
@@ -205,7 +211,12 @@ export async function POST(req: NextRequest) {
     let recommendations: ReturnType<typeof buildRecommendations>["results"] = [];
     let debugLog: ReturnType<typeof buildRecommendations>["debugLog"] = [];
     for (const serverBlockWindow of serverBlockWindows) {
-      const blockedSongs = Array.from(new Set([...clientSeenSongIds, ...serverBlockWindow]));
+      // Pinned songs are exempt from the recently-shown block — that's the
+      // whole point of pinning: guaranteed inclusion, not "guaranteed unless
+      // it was shown before" (a pinned song WILL be shown again).
+      const blockedSongs = Array.from(new Set([...clientSeenSongIds, ...serverBlockWindow])).filter(
+        (id) => !pinnedSongIds.includes(id)
+      );
       // Hard-blocked rather than just freshness-penalized: songs with a
       // near-centroid emotional_vector and broad generic tags can keep
       // outscoring genuinely photo-specific matches by more than the -20
@@ -231,7 +242,22 @@ export async function POST(req: NextRequest) {
     };
     console.log("[recommend] pool stats:", JSON.stringify(poolStats));
 
-    const finalSongs = applyArtistDiversityCap(capFavoriteSongs(recommendations, eligibleFavoriteSongIds, 2), 12);
+    const cappedSongs = applyArtistDiversityCap(capFavoriteSongs(recommendations, eligibleFavoriteSongIds, 2), 12);
+
+    // Guaranteed inclusion: any pinned song that survived buildRecommendations'
+    // hard filters (language/energy/anti-tags/etc — pinning does not bypass
+    // those, only score-based competition and the favorites cap/rotation)
+    // is forced into the response, displacing the lowest-ranked non-pinned
+    // song if necessary. Pinned songs go first so they can never themselves
+    // be the ones displaced.
+    const pinnedSurvivors = recommendations.filter((r) => pinnedSongIds.includes(r.id));
+    const finalSongs =
+      pinnedSurvivors.length > 0
+        ? [
+            ...pinnedSurvivors,
+            ...cappedSongs.filter((s) => !pinnedSongIds.includes(s.id)),
+          ].slice(0, 12)
+        : cappedSongs;
 
     // Fire-and-forget: persist this response's song ids to the durable
     // server-side log so they're blocked on this account's NEXT request even

@@ -142,6 +142,21 @@ export async function appendRecentlyShownSongIds(userId: string, newIds: string[
   if (error) throw error;
 }
 
+// Explicit "always show this song" override — see
+// supabase/pinned-songs-migration.sql for why this is deliberately separate
+// from favorite_story_songs (which is intentionally rotated/capped, not
+// guaranteed). Missing column (migration not yet run) degrades to [].
+export async function getPinnedSongIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("user_taste")
+    .select("pinned_song_ids")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  const ids = data?.pinned_song_ids as string[] | null | undefined;
+  return Array.isArray(ids) ? ids : [];
+}
+
 export async function getContextVector(
   userId: string,
   momentType: MomentType
