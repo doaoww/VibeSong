@@ -82,17 +82,31 @@ function wordBoundaryIncludes(haystack: string, needle: string): boolean {
   return new RegExp(`\\b${escapeRegExp(needle)}\\b`, "i").test(haystack);
 }
 
+// Reproduced directly: a user disliking generic "pop" (-1) while separately
+// liking "indie pop"/"synthpop"/"electropop" (+1 each) got those likes
+// silently cancelled out. Summing every matching key meant a song tagged
+// "indie pop" hit both the "pop" key (word-boundary substring match, -1)
+// and the "indie pop" key (+1), netting ~0 — the user's stated love for the
+// compound genre never actually counted for anything whenever they also
+// disliked the generic root word. Now each song genre only counts its
+// single most specific (longest) matching key, so "indie pop" the genre
+// resolves against "indie pop" the taste key, not "pop".
 function genreOverlapScore(songGenres: string[], genreScores: Record<string, number>): number {
   if (!songGenres.length || !Object.keys(genreScores).length) return 0;
   let total = 0;
   for (const genre of songGenres) {
     const normalized = genre.toLowerCase();
+    let bestScore: number | null = null;
+    let bestSpecificity = -1;
     for (const [key, score] of Object.entries(genreScores)) {
       const normalizedKey = key.toLowerCase();
-      if (wordBoundaryIncludes(normalized, normalizedKey) || wordBoundaryIncludes(normalizedKey, normalized)) {
-        total += score;
+      const matches = wordBoundaryIncludes(normalized, normalizedKey) || wordBoundaryIncludes(normalizedKey, normalized);
+      if (matches && normalizedKey.length > bestSpecificity) {
+        bestSpecificity = normalizedKey.length;
+        bestScore = score;
       }
     }
+    if (bestScore !== null) total += bestScore;
   }
   return Math.max(0, Math.min(1, total / songGenres.length));
 }

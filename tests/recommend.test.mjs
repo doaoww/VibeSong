@@ -504,6 +504,22 @@ test("genreOverlapScore still matches a hyphen/space-separated genre against a s
   assert.ok(results[0].scoreComponents.tasteFit > 0, "indie pop should still match a scored 'pop' genre");
 });
 
+test("genreOverlapScore resolves a compound genre against its own specific score, not a disliked generic root word", () => {
+  // Reproduced directly: a real user profile with pop: -1 and indie pop: 1
+  // (also liking synthpop/electropop) gave "indie pop" songs a near-zero
+  // tasteFit — "pop" (word-boundary substring of "indie pop") and "indie
+  // pop" (exact) both matched and summed to ~0, silently erasing the
+  // user's stated love of the compound genre whenever they also disliked
+  // plain "pop".
+  const song = makeSong({ id: "ip", genre_tags: ["indie pop"], artist: "A", aesthetic_tags: [] });
+  const req = makeRequest({ genreScores: { pop: -1, "indie pop": 1 } });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.ok(
+    results[0].scoreComponents.tasteFit > 0,
+    "the specific 'indie pop' score must win over the generic disliked 'pop' root"
+  );
+});
+
 test("artistProximityScore does not give partial credit to an unrelated artist whose name embeds a liked artist's name", () => {
   // aesthetic_tags cleared so tasteFit isolates the artist-match component
   // (makeSong's default aesthetic_tags otherwise contributes a flat +2.5 via
