@@ -133,10 +133,19 @@ function normalizeMatchValue(value: string): string {
 }
 
 async function fetchItunesMeta(title: string, artist: string): Promise<ItunesLookupResult> {
-  const q = encodeURIComponent(`${title} ${artist}`);
-  const url = `https://itunes.apple.com/search?term=${q}&media=music&entity=song&limit=5`;
+  const params = new URLSearchParams({
+    term: `${title} ${artist}`,
+    media: "music",
+    entity: "song",
+    limit: "5",
+    country: "US",
+  });
+  const url = `https://itunes.apple.com/search?${params.toString()}`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const res = await fetch(url, {
+      headers: { "User-Agent": "VibeSongSeeder/1.0" },
+      signal: AbortSignal.timeout(10000),
+    });
     if (!res.ok) return { track: null, matchType: "none" };
     const data = await res.json();
     const results: ItunesTrack[] = data?.results ?? [];
@@ -379,9 +388,19 @@ export async function autoTagSong(
   const gpt_confidence = mapConfidenceLevel(gptData.confidence_level);
   const final_confidence = Math.min(gpt_confidence, source_confidence);
 
+  // Only trust iTunes' own title/artist spelling on an exact match. A
+  // "fallback" match (no exact hit, so we took itunesLookup.track's own
+  // first search result) can be a completely different song by the same
+  // artist — reproduced directly: searching "Pyramids" "Frank Ocean"
+  // returns "Novacane" as itunes' top result (the real "Pyramids" isn't in
+  // iTunes' catalog under that query), which silently renamed the inserted
+  // row to "Novacane" and collided with the real "Novacane" already in the
+  // catalog. Preview URL/artwork/duration/year are still worth taking from
+  // a fallback match since those aren't identity-bearing the same way.
+  const useItunesIdentity = itunesLookup.matchType === "exact";
   return {
-    title: itunesMeta?.trackName ?? title,
-    artist: itunesMeta?.artistName ?? artist,
+    title: useItunesIdentity ? itunesMeta!.trackName : title,
+    artist: useItunesIdentity ? itunesMeta!.artistName : artist,
     album: itunesMeta?.collectionName ?? null,
     year,
     duration_seconds: durationSeconds,

@@ -399,7 +399,12 @@ test("autoTagSong treats artist-only iTunes hits as fallback evidence", async ()
   const { autoTagSong } = loadTsModule("lib/autoTag.ts");
   const result = await autoTagSong("Blinding Lights", "The Weeknd");
 
-  assert.equal(result.title, "Save Your Tears");
+  // A fallback (non-exact) iTunes hit can be a wholly different song by the
+  // same artist — reproduced directly against real iTunes data: searching
+  // "Pyramids" "Frank Ocean" returns "Novacane" as the top fallback result.
+  // The input title/artist must stay canonical; only supplementary metadata
+  // (preview URL, artwork, duration, year) comes from the fallback match.
+  assert.equal(result.title, "Blinding Lights");
   assert.equal(result.source_confidence, 0.4);
   assert.equal(result.final_confidence, 0.4);
   assert.equal(result.needs_review, true);
