@@ -1,6 +1,14 @@
 import { cosine } from "./vectorMath";
 import type { CatalogSong } from "./db/songs";
 
+// Duplicated from lib/tagTaxonomy.ts's PovSignal on purpose: this file is
+// loaded standalone by tests/recommend.test.mjs's custom TS-in-vm harness,
+// which stubs out every cross-file import except vectorMath/db-songs — a
+// real runtime import of tagTaxonomy here would silently resolve to {}
+// under that harness. The type is a trivial 4-value union; duplication is
+// cheaper than fighting the test infra.
+export type PovSignal = "male" | "female" | "neutral" | "unclear";
+
 export interface RecommendRequest {
   queryVector: number[];           // 10 dimensions, already blended
   languages: string[];
@@ -21,6 +29,7 @@ export interface RecommendRequest {
   moodTags: string[];              // from photo matchSignals.mood_tags
   energyBounds: { min: number; max: number };
   photoBriefEmbedding: number[] | null;  // null when ENABLE_BRIEF_POOL is off or the photo has no brief text
+  presentationRead: PovSignal;     // photo-side gender/POV read — "unclear" default, never blocks a request
 }
 
 export interface ScoreComponents {
@@ -39,6 +48,7 @@ export interface ScoreComponents {
   mainstreamPenalty: number;
   needsReviewPenalty: number;
   softAntiTagPenalty: number;
+  povPenalty: number;
   finalScore: number;
 }
 
@@ -134,6 +144,25 @@ function discoveryScore(popularityTier: number, discoveryStyle: string): number 
     default:
       return popularityTier === 3 ? 1.0 : popularityTier <= 2 ? 0.8 : 0.6;
   }
+}
+
+// Heavy but not exclusionary: a hard filter here risks zero/near-zero results
+// for thin catalog segments (e.g. a niche-language, high-energy pocket of the
+// catalog that happens to be entirely one lyrical POV). -25 sits above
+// softAntiTagPenalty's per-match -15 and freshnessPenalty's -20, near the
+// steepest mainstreamPenalty tier, so a mismatched song loses its slot in
+// virtually every real case without the request ever coming up empty.
+// confFactor-gated like storyFit/contextFit/vibeAestheticFit since
+// presentationRead is just as much a GPT-confidence-sensitive read as those.
+export function computePovPenalty(
+  presentationRead: PovSignal,
+  lyricalAddress: string,
+  confFactor: number
+): number {
+  const opposite =
+    (presentationRead === "male" && lyricalAddress === "female") ||
+    (presentationRead === "female" && lyricalAddress === "male");
+  return opposite ? -25 * confFactor : 0;
 }
 
 // track_feedback rows only store title/artist, not song id (see lib/db/trackFeedback.ts),
@@ -472,6 +501,7 @@ export function buildRecommendations(
       songTagPool.some((t) => t.includes(at.toLowerCase()))
     ).length;
     const softAntiTagPenalty = -Math.min(2, softAntiTagMatches) * 15 * confFactor;
+    const povPenalty = computePovPenalty(req.presentationRead, song.lyrical_address ?? "unclear", confFactor);
 
     const raw =
       photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + briefFit + noveltyFit + qualityBonus + favoriteSongBonus;
@@ -479,7 +509,7 @@ export function buildRecommendations(
       0,
       Math.min(
         100,
-        raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty + softAntiTagPenalty
+        raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty + softAntiTagPenalty + povPenalty
       )
     );
 
@@ -499,6 +529,7 @@ export function buildRecommendations(
       mainstreamPenalty,
       needsReviewPenalty,
       softAntiTagPenalty: Math.round(softAntiTagPenalty * 10) / 10,
+      povPenalty: Math.round(povPenalty * 10) / 10,
       finalScore: Math.round(finalScore * 10) / 10,
     };
 

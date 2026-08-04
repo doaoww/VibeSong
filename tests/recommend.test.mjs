@@ -60,6 +60,7 @@ function makeSong(overrides = {}) {
     quality_score: 0.7,
     distance: 0.2,
     brief_embedding: null,
+    lyrical_address: null,
     ...overrides,
   };
 }
@@ -85,6 +86,7 @@ function makeRequest(overrides = {}) {
     moodTags: [],
     energyBounds: { min: 0, max: 1 },
     photoBriefEmbedding: null,
+    presentationRead: "unclear",
     ...overrides,
   };
 }
@@ -587,4 +589,41 @@ test("emotional_vector stored as an empty array is treated the same as missing (
   const { results, debugLog } = rec.buildRecommendations(makeRequest(), [broken]);
   assert.equal(results.length, 0, "song with an empty emotional_vector should be excluded, not scored as NaN");
   assert.equal(debugLog[0].removedReason, "no_emotional_vector");
+});
+
+test("computePovPenalty applies the full penalty for a confident opposite-POV pair", () => {
+  assert.equal(rec.computePovPenalty("male", "female", 1.0), -25);
+  assert.equal(rec.computePovPenalty("female", "male", 1.0), -25);
+});
+
+test("computePovPenalty scales with confFactor", () => {
+  assert.equal(rec.computePovPenalty("male", "female", 0.5), -12.5);
+});
+
+test("computePovPenalty is zero when either side is neutral or unclear", () => {
+  assert.equal(rec.computePovPenalty("male", "neutral", 1.0), 0);
+  assert.equal(rec.computePovPenalty("male", "unclear", 1.0), 0);
+  assert.equal(rec.computePovPenalty("neutral", "female", 1.0), 0);
+  assert.equal(rec.computePovPenalty("unclear", "unclear", 1.0), 0);
+});
+
+test("computePovPenalty is zero for matching POV", () => {
+  assert.equal(rec.computePovPenalty("male", "male", 1.0), 0);
+  assert.equal(rec.computePovPenalty("female", "female", 1.0), 0);
+});
+
+test("buildRecommendations applies povPenalty to finalScore for an opposite-POV song", () => {
+  const req = makeRequest({ presentationRead: "male" });
+  const song = makeSong({ lyrical_address: "female" });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 1);
+  assert.ok(results[0].scoreComponents.povPenalty < 0, "povPenalty should be negative");
+  assert.equal(results[0].scoreComponents.povPenalty, -25 * (0.5 + req.photoConfidence * 0.5));
+});
+
+test("buildRecommendations applies no povPenalty when song lyrical_address is null", () => {
+  const req = makeRequest({ presentationRead: "male" });
+  const song = makeSong({ lyrical_address: null });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results[0].scoreComponents.povPenalty, 0);
 });
