@@ -17,6 +17,7 @@ import {
   STORY_INTENT_TAGS,
   MODERN_AESTHETIC_TAGS,
   MOOD_TAGS,
+  coercePovSignal,
 } from "../../../lib/tagTaxonomy";
 import { parseMatchSignals } from "../../../lib/matchSignals";
 import { parseMusicSupervisorBrief, buildBriefText } from "../../../lib/musicSupervisorBrief";
@@ -44,7 +45,7 @@ Understand WHAT IS HAPPENING and HOW THE PERSON FEELS, not just aesthetics.
 - A broken nail / chaos → frustration, high energy, LOW valence
 - A gym selfie → confidence, hustle, HIGH energy
 - A sunset / nature → nostalgic, peaceful, LOW energy
-- A mirror selfie → read face + body language carefully
+- Reading faces/portraits: a guarded or neutral expression with hard/flat lighting → grit or edge, not sadness. Relaxed shoulders with a soft, easy smile → warmth, not necessarily romance. Direct eye contact with minimal expression → confidence or coolness, not aloofness. A tense jaw or crossed arms → guarded/defensive energy, not automatically anger. Read posture and expression as carefully as you would read a scene's setting.
 - Memes, screenshots → read the emotional energy, not the content
 - HUMOR & IRONY: If this would be posted with 😭💀💅 "send help" "not me" — that IS the energy. High energy, chaotic, NOT serene.
 
@@ -93,6 +94,7 @@ Return ONLY valid JSON, no markdown:
   "vibeTags": ["string", "string", "string"],
   "momentType": "reflective-solo|social|nature-escape|urban|romance|high-energy|unknown",
   "photoConfidence": 0.0,
+  "presentationRead": "male | female | neutral | unclear — INTERNAL-ONLY signal, never shown to any user, estimating whether this photo's main subject presents as more masculine or feminine. Its only purpose is to softly deprioritize (never exclude) songs whose lyrics are clearly written from/addressed to the opposite gender. Use 'neutral' for group photos, photos with no visible people, or a genuinely androgynous/ambiguous presentation. Use 'unclear' only if you cannot make any reasonable read at all. When uncertain, default toward 'neutral' or 'unclear' — a wrong confident guess is worse than admitting uncertainty, since this signal is low-stakes (soft penalty, not a hard filter) but still real.",
   "photoVector": {
     "dreamy": 0.0, "nostalgia": 0.0, "energy": 0.0, "cinematic": 0.0,
     "darkness": 0.0, "confidence": 0.0, "intimacy": 0.0,
@@ -339,6 +341,7 @@ export async function POST(req: NextRequest) {
     const musicBrief = parseMusicSupervisorBrief(result.musicBrief);
     const whyThisPhotoNeedsMusic =
       typeof result.whyThisPhotoNeedsMusic === "string" ? result.whyThisPhotoNeedsMusic.trim().slice(0, 300) : "";
+    const presentationRead = coercePovSignal(result.presentationRead);
     // Only pay for the embeddings round-trip when the downstream consumer
     // (ENABLE_BRIEF_POOL in /api/recommend) can actually use it — otherwise
     // this was a full sequential OpenAI call on every request whose result
@@ -374,6 +377,7 @@ export async function POST(req: NextRequest) {
       musicBrief,
       whyThisPhotoNeedsMusic,
       photoBriefEmbedding,
+      presentationRead,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
