@@ -12,6 +12,8 @@ import {
   STORY_CONTEXT_TAGS_SET,
   splitByCanonical,
   normalizeStringArray,
+  coercePovSignal,
+  type PovSignal,
 } from "./tagTaxonomy";
 import { NullLyricsProvider } from "./lyrics";
 import type { LyricsProvider } from "./lyrics";
@@ -93,6 +95,7 @@ export interface AutoTagResult {
   story_intent_tags: string[];
   modern_aesthetic_tags: string[];
   story_context_tags: string[];
+  lyrical_address: PovSignal;
   discarded_tags: string[];
   vibe_summary: string;
   music_supervisor_summary: string;
@@ -216,6 +219,7 @@ Return ONLY valid JSON (no markdown) with this exact structure:
   "story_intent_tags": ["2-5 tags, ONLY from this list: ${STORY_INTENT_TAGS.join(", ")}"],
   "modern_aesthetic_tags": ["2-5 tags, ONLY from this list: ${MODERN_AESTHETIC_TAGS.join(", ")}"],
   "story_context_tags": ["2-5 tags, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}"],
+  "lyrical_address": "male | female | neutral | unclear — who this song's lyrics are written from/addressed to. Use 'neutral' for lyrics with no clear gendered narrator/addressee (instrumental, abstract, or genuinely either-way). Use 'unclear' only if you don't know this song's lyrics well enough to judge at all. This is used only to avoid pairing a song with a photo of the opposite gender it clearly addresses — be honest, don't default to 'neutral' just to play it safe if the lyrics ARE clearly gendered.",
   "vibe_summary": "1-2 short sentences in natural language describing this song's feeling/story",
   "musicSupervisorBrief": {
     "narrative": "1-2 sentences: what this song is about, the story or feeling it carries",
@@ -242,6 +246,7 @@ export interface ParsedTagResponse {
   story_intent_tags: string[];
   modern_aesthetic_tags: string[];
   story_context_tags: string[];
+  lyrical_address: PovSignal;
   discarded_tags: string[];
   vibe_summary: string;
   music_supervisor_summary: string;
@@ -262,6 +267,7 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
     story_intent_tags: [],
     modern_aesthetic_tags: [],
     story_context_tags: [],
+    lyrical_address: "unclear",
     discarded_tags: [],
     vibe_summary: "",
     music_supervisor_summary: "",
@@ -316,6 +322,7 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
       story_intent_tags: storyIntentSplit.accepted,
       modern_aesthetic_tags: modernAestheticSplit.accepted,
       story_context_tags: storyContextSplit.accepted,
+      lyrical_address: coercePovSignal(parsed.lyrical_address),
       discarded_tags: [
         ...moodSplit.rejected,
         ...storyIntentSplit.rejected,
@@ -413,6 +420,7 @@ export async function autoTagSong(
     story_intent_tags: gptData.story_intent_tags,
     modern_aesthetic_tags: gptData.modern_aesthetic_tags,
     story_context_tags: gptData.story_context_tags,
+    lyrical_address: gptData.lyrical_address,
     discarded_tags: gptData.discarded_tags,
     vibe_summary: gptData.vibe_summary,
     music_supervisor_summary: gptData.music_supervisor_summary,
@@ -489,4 +497,40 @@ export async function generateMusicSupervisorBrief(title: string, artist: string
   const summary = hasUsableBrief ? buildBriefText(brief) : "";
   const embedding = summary ? await embedText(summary) : [];
   return { brief, summary, embedding };
+}
+
+export function buildLyricalAddressPrompt(title: string, artist: string): string {
+  return `For the song "${title}" by ${artist}, classify who its lyrics are written from/addressed to.
+
+Return ONLY valid JSON (no markdown): { "lyrical_address": "male | female | neutral | unclear" }
+
+Use "neutral" for lyrics with no clear gendered narrator/addressee. Use "unclear" only if you don't know this song's lyrics well enough to judge. Be honest — don't default to "neutral" just to play it safe if the lyrics ARE clearly gendered.`;
+}
+
+/** Narrow, backfill-only GPT call for songs tagged before lyrical_address existed — see scripts/backfill-lyrical-address.mjs. */
+export async function classifyLyricalAddress(title: string, artist: string): Promise<PovSignal> {
+  const prompt = buildLyricalAddressPrompt(title, artist);
+  let raw = "";
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 60,
+      temperature: 0,
+    });
+    raw = res.choices[0].message.content ?? "";
+  } catch (err) {
+    console.error("[classifyLyricalAddress] GPT failed:", err);
+  }
+
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  try {
+    if (firstBrace === -1 || lastBrace <= firstBrace) return "unclear";
+    const parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+    return coercePovSignal(parsed.lyrical_address);
+  } catch {
+    return "unclear";
+  }
 }

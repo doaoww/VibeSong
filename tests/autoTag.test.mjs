@@ -647,3 +647,67 @@ test("generateMusicSupervisorBrief returns an empty embedding when GPT returns n
 
   assert.equal(result.embedding.length, 0);
 });
+
+test("buildGptTagPrompt asks for lyrical_address", () => {
+  const { buildGptTagPrompt } = autoTag;
+  const prompt = buildGptTagPrompt("Song", "Artist", []);
+  assert.ok(prompt.includes("lyrical_address"));
+});
+
+test("parseGptTagResponse extracts and coerces lyrical_address", () => {
+  const { parseGptTagResponse } = autoTag;
+  const raw = JSON.stringify({
+    language: "English",
+    emotional_vector: {},
+    genre_tags: [],
+    aesthetic_tags: [],
+    mood_tags: [],
+    story_intent_tags: [],
+    modern_aesthetic_tags: [],
+    story_context_tags: [],
+    vibe_summary: "",
+    confidence_level: "uncertain",
+    confidence_reason: "",
+    popularity_tier: 3,
+    lyrical_address: "female",
+  });
+  const result = parseGptTagResponse(raw);
+  assert.equal(result.lyrical_address, "female");
+});
+
+test("parseGptTagResponse coerces an invalid lyrical_address to unclear", () => {
+  const { parseGptTagResponse } = autoTag;
+  const raw = JSON.stringify({
+    language: "English",
+    emotional_vector: {},
+    genre_tags: [],
+    aesthetic_tags: [],
+    mood_tags: [],
+    story_intent_tags: [],
+    modern_aesthetic_tags: [],
+    story_context_tags: [],
+    vibe_summary: "",
+    confidence_level: "uncertain",
+    confidence_reason: "",
+    popularity_tier: 3,
+    lyrical_address: "not-a-real-value",
+  });
+  const result = parseGptTagResponse(raw);
+  assert.equal(result.lyrical_address, "unclear");
+});
+
+test("classifyLyricalAddress returns the coerced GPT classification", async () => {
+  resetHarness();
+  stubState.openaiContent = JSON.stringify({ lyrical_address: "male" });
+  const { classifyLyricalAddress } = autoTag;
+  const result = await classifyLyricalAddress("Song", "Artist");
+  assert.equal(result, "male");
+});
+
+test("classifyLyricalAddress defaults to unclear on malformed GPT output", async () => {
+  resetHarness();
+  stubState.openaiContent = "not json at all";
+  const { classifyLyricalAddress } = autoTag;
+  const result = await classifyLyricalAddress("Song", "Artist");
+  assert.equal(result, "unclear");
+});
