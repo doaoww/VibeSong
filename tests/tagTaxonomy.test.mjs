@@ -3,14 +3,14 @@ import { test } from "node:test";
 
 const taxonomy = await import("../lib/tagTaxonomy.ts");
 
-test("STORY_INTENT_TAGS has 24 entries and includes known values", () => {
-  assert.equal(taxonomy.STORY_INTENT_TAGS.length, 24);
+test("STORY_INTENT_TAGS has 32 entries and includes known values", () => {
+  assert.equal(taxonomy.STORY_INTENT_TAGS.length, 32);
   assert.ok(taxonomy.STORY_INTENT_TAGS_SET.has("healing era"));
   assert.ok(taxonomy.STORY_INTENT_TAGS_SET.has("soft revenge"));
 });
 
-test("MODERN_AESTHETIC_TAGS has 15 entries including the expanded set", () => {
-  assert.equal(taxonomy.MODERN_AESTHETIC_TAGS.length, 15);
+test("MODERN_AESTHETIC_TAGS has 20 entries including the expanded set", () => {
+  assert.equal(taxonomy.MODERN_AESTHETIC_TAGS.length, 20);
   for (const tag of ["old money", "soft grunge", "bedroom pop", "dark feminine", "night luxe", "mob wife", "pinterest girl", "russian indie", "alt girl"]) {
     assert.ok(taxonomy.MODERN_AESTHETIC_TAGS_SET.has(tag), `missing ${tag}`);
   }
@@ -28,8 +28,8 @@ test("STORY_CONTEXT_TAGS covers the agreed scene/use-case list", () => {
   }
 });
 
-test("STORY_CONTEXT_TAGS includes the two new scene/use-case values", () => {
-  assert.equal(taxonomy.STORY_CONTEXT_TAGS.length, 12);
+test("STORY_CONTEXT_TAGS includes the new scene/use-case values", () => {
+  assert.equal(taxonomy.STORY_CONTEXT_TAGS.length, 15);
   assert.ok(taxonomy.STORY_CONTEXT_TAGS_SET.has("travel"));
   assert.ok(taxonomy.STORY_CONTEXT_TAGS_SET.has("group photo"));
 });
@@ -67,4 +67,40 @@ test("splitByCanonical returns empty rejected array when everything is valid", (
   );
   assert.deepEqual(accepted, ["cozy", "dreamy"]);
   assert.deepEqual(rejected, []);
+});
+
+test("STORY_INTENT_TAGS includes the new masculine/edge-coded entries", () => {
+  assert.equal(taxonomy.STORY_INTENT_TAGS.length, 32);
+  for (const tag of ["gym flex", "night drive alone", "hustle grind", "rap swagger", "rock grit", "stoic heartbreak", "streetwear energy", "game day"]) {
+    assert.ok(taxonomy.STORY_INTENT_TAGS_SET.has(tag), `missing ${tag}`);
+  }
+});
+
+test("MODERN_AESTHETIC_TAGS includes the new cultural-aesthetic entries", () => {
+  assert.equal(taxonomy.MODERN_AESTHETIC_TAGS.length, 20);
+  for (const tag of ["French chic", "Scandi minimal", "Latin heat", "Japanese minimalist", "K-pop glossy"]) {
+    assert.ok(taxonomy.MODERN_AESTHETIC_TAGS_SET.has(tag), `missing ${tag}`);
+  }
+});
+
+test("STORY_CONTEXT_TAGS includes the new context gaps", () => {
+  assert.equal(taxonomy.STORY_CONTEXT_TAGS.length, 15);
+  for (const tag of ["workout", "sports", "study grind"]) {
+    assert.ok(taxonomy.STORY_CONTEXT_TAGS_SET.has(tag), `missing ${tag}`);
+  }
+});
+
+test("coercePovSignal accepts the four valid values and rejects everything else", () => {
+  assert.equal(taxonomy.coercePovSignal("male"), "male");
+  assert.equal(taxonomy.coercePovSignal("female"), "female");
+  assert.equal(taxonomy.coercePovSignal("neutral"), "neutral");
+  assert.equal(taxonomy.coercePovSignal("unclear"), "unclear");
+  assert.equal(taxonomy.coercePovSignal("masculine"), "unclear");
+  assert.equal(taxonomy.coercePovSignal(undefined), "unclear");
+  assert.equal(taxonomy.coercePovSignal(null), "unclear");
+  assert.equal(taxonomy.coercePovSignal(42), "unclear");
+});
+
+test("POV_SIGNALS lists exactly the four canonical values", () => {
+  assert.deepEqual([...taxonomy.POV_SIGNALS], ["male", "female", "neutral", "unclear"]);
 });

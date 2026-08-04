@@ -27,6 +27,14 @@ export const STORY_INTENT_TAGS = [
   "confident comeback",
   "bittersweet nostalgia",
   "chaotic but cute",
+  "gym flex",
+  "night drive alone",
+  "hustle grind",
+  "rap swagger",
+  "rock grit",
+  "stoic heartbreak",
+  "streetwear energy",
+  "game day",
 ] as const;
 
 export const MODERN_AESTHETIC_TAGS = [
@@ -45,6 +53,11 @@ export const MODERN_AESTHETIC_TAGS = [
   "pinterest girl",
   "russian indie",
   "alt girl",
+  "French chic",
+  "Scandi minimal",
+  "Latin heat",
+  "Japanese minimalist",
+  "K-pop glossy",
 ] as const;
 
 export const MOOD_TAGS = [
@@ -71,6 +84,9 @@ export const STORY_CONTEXT_TAGS = [
   "outfit check",
   "travel",
   "group photo",
+  "workout",
+  "sports",
+  "study grind",
 ] as const;
 
 export const STORY_INTENT_TAGS_SET: Set<string> = new Set(STORY_INTENT_TAGS);
@@ -107,4 +123,24 @@ export function normalizeStringArray(value: unknown): string[] {
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+/**
+ * Internal-only gender/POV signal — used to softly deprioritize (never
+ * exclude) a song whose lyrical address clearly conflicts with a photo's
+ * subject. "male"/"female" describe who the song's lyrics are written
+ * from/addressed to on the song side, and how a photo's subject reads on
+ * the photo side — the same four values on both sides keeps the mismatch
+ * check a plain equality comparison. Always safe to default to "unclear":
+ * that value never triggers a penalty.
+ */
+export type PovSignal = "male" | "female" | "neutral" | "unclear";
+
+export const POV_SIGNALS: readonly PovSignal[] = ["male", "female", "neutral", "unclear"];
+
+const POV_SIGNALS_SET: Set<string> = new Set(POV_SIGNALS);
+
+/** Coerces any GPT output to a valid PovSignal, defaulting to the safe no-op value. */
+export function coercePovSignal(value: unknown): PovSignal {
+  return typeof value === "string" && POV_SIGNALS_SET.has(value) ? (value as PovSignal) : "unclear";
 }
