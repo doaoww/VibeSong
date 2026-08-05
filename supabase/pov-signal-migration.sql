@@ -440,3 +440,61 @@ BEGIN
   WHERE id = p_id;
 END;
 $$;
+
+-- 9. list_catalog (admin listing — Task 8 fix)
+-- Extend list_catalog with lyrical_address: the backfill script filters on this field via
+-- GET /api/admin/songs → listSongs(), which calls this RPC. Without this addition it never
+-- sees a real value and treats every song as unclassified on every run, breaking idempotency.
+DROP FUNCTION IF EXISTS public.list_catalog(int, int);
+
+CREATE OR REPLACE FUNCTION public.list_catalog(
+  p_limit  int DEFAULT 200,
+  p_offset int DEFAULT 0
+)
+RETURNS TABLE (
+  id                    uuid,
+  title                 text,
+  artist                text,
+  language              text,
+  energy                float8,
+  popularity_tier       int4,
+  genre_tags            text[],
+  aesthetic_tags        text[],
+  mood_tags             text[],
+  story_intent_tags     text[],
+  modern_aesthetic_tags text[],
+  story_context_tags    text[],
+  discarded_tags        text[],
+  confidence_level      text,
+  confidence_reason     text,
+  gpt_confidence        float8,
+  source_confidence     float8,
+  final_confidence      float8,
+  needs_review          boolean,
+  evidence_sources      text[],
+  tagging_version       text,
+  vibe_summary          text,
+  tag_source            text,
+  manual_reviewed_at    timestamptz,
+  save_count            int4,
+  skip_count            int4,
+  itunes_preview_url    text,
+  artwork_url           text,
+  apple_music_url       text,
+  youtube_id            text,
+  quality_score         float8,
+  lyrical_address       text,
+  created_at            timestamptz
+)
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT id, title, artist, language, energy, popularity_tier,
+    genre_tags, aesthetic_tags, mood_tags, story_intent_tags, modern_aesthetic_tags,
+    story_context_tags, discarded_tags, confidence_level, confidence_reason,
+    gpt_confidence, source_confidence, final_confidence, needs_review, evidence_sources,
+    tagging_version, vibe_summary, tag_source, manual_reviewed_at, save_count, skip_count,
+    itunes_preview_url, artwork_url, apple_music_url, youtube_id, quality_score,
+    lyrical_address, created_at
+  FROM public.songs
+  ORDER BY created_at DESC
+  LIMIT p_limit OFFSET p_offset;
+$$;

@@ -4,7 +4,9 @@
  * read, see supabase/pov-signal-migration.sql). Safe to re-run: only touches
  * songs where lyrical_address is still NULL.
  *
- * Requires supabase/pov-signal-migration.sql to already be applied.
+ * Requires supabase/pov-signal-migration.sql to already be applied, including
+ * the list_catalog extension added in Task 8 (otherwise the RPC won't return
+ * lyrical_address and the script treats every song as unclassified).
  * Run against a live dev server:
  *   npm run dev                                    (terminal 1)
  *   node scripts/backfill-lyrical-address.mjs       (terminal 2)
