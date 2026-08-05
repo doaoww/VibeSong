@@ -1673,7 +1673,7 @@ Expected: zero errors.
 
 - [ ] **Step 3: Confirm the Supabase migration has been applied**
 
-Ask the user to confirm `supabase/pov-signal-migration.sql` (Task 4) has been run against the `SUPABASE_CATALOG_URL` project's SQL editor — the app will still run without it (every new column read defaults safely via `?? "unclear"`/`?? null`), but the POV penalty and taxonomy tags won't have any real effect on live scoring until the migration and (optionally) the backfill script have run.
+Ask the user to confirm `supabase/pov-signal-migration.sql` (Task 4) has been run against the `SUPABASE_CATALOG_URL` project's SQL editor. This is a hard deploy prerequisite, not an optional follow-up: reads degrade safely (every new column read defaults via `?? "unclear"`/`?? null`), but writes do not. `lib/db/songs.ts`'s `insertSong`/`updateSong` unconditionally send a `p_lyrical_address` parameter to the `create_song`/`update_song` RPCs, and PostgREST will fail to resolve those calls against a database where the migration hasn't been applied (the RPC's parameter list won't match anything in the schema cache). Until the migration runs, every song-write path breaks — onboarding's playlist-import and story-songs flows, the catalog curator cron job, and admin song creation all fail outright, not just silently lose the POV signal.
 
 - [ ] **Step 4: Manual smoke test with the dev server**
 

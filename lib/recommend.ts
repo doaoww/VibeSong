@@ -1,13 +1,6 @@
 import { cosine } from "./vectorMath";
 import type { CatalogSong } from "./db/songs";
-
-// Duplicated from lib/tagTaxonomy.ts's PovSignal on purpose: this file is
-// loaded standalone by tests/recommend.test.mjs's custom TS-in-vm harness,
-// which stubs out every cross-file import except vectorMath/db-songs — a
-// real runtime import of tagTaxonomy here would silently resolve to {}
-// under that harness. The type is a trivial 4-value union; duplication is
-// cheaper than fighting the test infra.
-export type PovSignal = "male" | "female" | "neutral" | "unclear";
+import type { PovSignal } from "./tagTaxonomy";
 
 export interface RecommendRequest {
   queryVector: number[];           // 10 dimensions, already blended

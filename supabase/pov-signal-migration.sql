@@ -332,7 +332,7 @@ $$;
 DROP FUNCTION IF EXISTS public.create_song(
   text, text, text, int, int, text, int, text, float8, text[], text[], text[],
   text[], text[], text, text, text, text, text[], text[], text, text, float8,
-  float8, float8, boolean, text[], text, text, text
+  float8, float8, boolean, text[], text, text, text, text
 );
 
 CREATE OR REPLACE FUNCTION public.create_song(
