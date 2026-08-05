@@ -257,3 +257,59 @@ test("listSongs also parses emotional_vector (admin catalog listing hits the sam
   const [song] = await songsLib.listSongs();
   assert.deepEqual(plain(song.emotional_vector), [0.9, 0.1, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
+
+test("updateSong forwards lyrical_address to update_song", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.updateSong("song-id", { lyrical_address: "male" });
+  assert.equal(captured.name, "update_song");
+  assert.equal(captured.args.p_lyrical_address, "male");
+});
+
+test("updateSong passes null for lyrical_address when not provided", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.updateSong("song-id", { language: "English" });
+  assert.equal(captured.args.p_lyrical_address, null);
+});
+
+test("insertSong forwards lyrical_address to create_song", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: "new-id", error: null }; };
+  await songsLib.insertSong({
+    title: "Song",
+    artist: "Artist",
+    album: null,
+    year: null,
+    duration_seconds: null,
+    language: "English",
+    popularity_tier: 3,
+    emotional_vector: { dreamy: 0, nostalgia: 0, energy: 0, cinematic: 0, darkness: 0, confidence: 0, intimacy: 0, danceability: 0, electronic: 0, acoustic: 0 },
+    genre_tags: [],
+    aesthetic_tags: [],
+    mood_tags: [],
+    story_intent_tags: [],
+    modern_aesthetic_tags: [],
+    story_context_tags: [],
+    discarded_tags: [],
+    vibe_summary: "",
+    music_supervisor_summary: "",
+    brief_embedding: [],
+    confidence_level: "uncertain",
+    confidence_reason: "",
+    gpt_confidence: 0.25,
+    source_confidence: 0,
+    final_confidence: 0,
+    needs_review: true,
+    evidence_sources: [],
+    tagging_version: "v1",
+    itunes_preview_url: null,
+    artwork_url: null,
+    apple_music_url: null,
+    youtube_id: null,
+    energy: 0.5,
+    lyrical_address: "neutral",
+  });
+  assert.equal(captured.name, "create_song");
+  assert.equal(captured.args.p_lyrical_address, "neutral");
+});
