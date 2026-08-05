@@ -1,3 +1,5 @@
+import { coerceGeneration, type Generation } from "./tagTaxonomy";
+
 export type DiscoveryStyle = "hidden-gems" | "niche" | "balanced" | "popular-ok";
 export type EnergyPreference = "calm" | "medium" | "high" | "depends";
 export type LanguageOpenness = "strict" | "flexible" | "open";
@@ -14,6 +16,7 @@ export interface UserTaste {
   avoidedStoryTags: string[];
   favoriteStorySongs: string[];
   setupComplete: boolean;
+  generation: Generation;
 }
 
 export interface CandidateTrack {
@@ -55,6 +58,7 @@ const DEFAULT_TASTE: UserTaste = {
   avoidedStoryTags: [],
   favoriteStorySongs: [],
   setupComplete: true,
+  generation: "unclear",
 };
 
 const DISCOVERY_STYLES: DiscoveryStyle[] = [
@@ -130,6 +134,7 @@ export function normalizeTaste(input: unknown): UserTaste {
     favoriteStorySongs: cleanArray(raw.favoriteStorySongs),
     setupComplete:
       typeof raw.setupComplete === "boolean" ? raw.setupComplete : DEFAULT_TASTE.setupComplete,
+    generation: coerceGeneration(raw.generation),
   };
 }
 

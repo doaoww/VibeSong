@@ -23,12 +23,13 @@ interface UserTasteRow {
   avoided_story_tags: string[];
   favorite_story_songs: string[];
   setup_complete: boolean;
+  generation: string | null;
 }
 
 const TASTE_COLUMNS =
   "favorite_artists, default_mood, discovery_style, languages, language_openness, " +
   "energy_preference, aesthetic_tags, genre_scores, avoided_story_tags, " +
-  "favorite_story_songs, setup_complete";
+  "favorite_story_songs, setup_complete, generation";
 
 export async function getUserTaste(userId: string): Promise<UserTaste | null> {
   const { data, error } = await supabase
@@ -51,6 +52,7 @@ export async function getUserTaste(userId: string): Promise<UserTaste | null> {
     avoidedStoryTags: row.avoided_story_tags ?? [],
     favoriteStorySongs: row.favorite_story_songs ?? [],
     setupComplete: row.setup_complete,
+    generation: row.generation,
   });
 }
 
@@ -69,6 +71,7 @@ export async function upsertUserTaste(userId: string, taste: UserTaste): Promise
     avoided_story_tags: normalized.avoidedStoryTags,
     favorite_story_songs: normalized.favoriteStorySongs,
     setup_complete: normalized.setupComplete,
+    generation: normalized.generation,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

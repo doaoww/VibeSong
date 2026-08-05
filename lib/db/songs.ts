@@ -30,6 +30,7 @@ export interface CatalogSong {
   brief_embedding?: number[] | null;
   tag_source?: string;
   lyrical_address?: string | null;
+  song_generation?: string | null;
   manual_reviewed_at?: string | null;
   save_count?: number;
   skip_count?: number;
@@ -51,6 +52,7 @@ export interface SongPatch {
   modern_aesthetic_tags: string[];
   story_context_tags?: string[];
   lyrical_address?: string;
+  song_generation?: string;
   vibe_summary?: string;
   music_supervisor_summary?: string;
   brief_embedding?: number[];
@@ -148,6 +150,7 @@ export async function insertSong(data: AutoTagResult): Promise<{ id: string }> {
     p_music_supervisor_summary: data.music_supervisor_summary ?? null,
     p_brief_embedding:          briefEmbeddingString,
     p_lyrical_address:          data.lyrical_address ?? null,
+    p_song_generation:          data.song_generation ?? null,
   });
 
   if (error) {
@@ -178,6 +181,7 @@ export async function updateSong(id: string, patch: Partial<SongPatch>): Promise
     p_music_supervisor_summary: patch.music_supervisor_summary ?? null,
     p_brief_embedding:          briefEmbeddingString,
     p_lyrical_address:          patch.lyrical_address ?? null,
+    p_song_generation:          patch.song_generation ?? null,
   });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }

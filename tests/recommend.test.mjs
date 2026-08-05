@@ -61,6 +61,7 @@ function makeSong(overrides = {}) {
     distance: 0.2,
     brief_embedding: null,
     lyrical_address: null,
+    song_generation: null,
     ...overrides,
   };
 }
@@ -87,6 +88,7 @@ function makeRequest(overrides = {}) {
     energyBounds: { min: 0, max: 1 },
     photoBriefEmbedding: null,
     presentationRead: "unclear",
+    userGeneration: "unclear",
     ...overrides,
   };
 }
@@ -626,4 +628,46 @@ test("buildRecommendations applies no povPenalty when song lyrical_address is nu
   const song = makeSong({ lyrical_address: null });
   const { results } = rec.buildRecommendations(req, [song]);
   assert.equal(results[0].scoreComponents.povPenalty, 0);
+});
+
+test("computeGenerationPenalty penalizes a distant mismatch", () => {
+  assert.equal(rec.computeGenerationPenalty("gen-z", "boomer"), -20);
+  assert.equal(rec.computeGenerationPenalty("boomer", "gen-z"), -20);
+  assert.equal(rec.computeGenerationPenalty("gen-z", "gen-x"), -20);
+});
+
+test("computeGenerationPenalty is zero for adjacent generations", () => {
+  assert.equal(rec.computeGenerationPenalty("gen-z", "millennial"), 0);
+  assert.equal(rec.computeGenerationPenalty("millennial", "gen-x"), 0);
+  assert.equal(rec.computeGenerationPenalty("gen-x", "boomer"), 0);
+});
+
+test("computeGenerationPenalty is zero for a matching generation", () => {
+  assert.equal(rec.computeGenerationPenalty("millennial", "millennial"), 0);
+});
+
+test("computeGenerationPenalty is zero when either side is timeless or unclear", () => {
+  assert.equal(rec.computeGenerationPenalty("gen-z", "timeless"), 0);
+  assert.equal(rec.computeGenerationPenalty("gen-z", "unclear"), 0);
+  assert.equal(rec.computeGenerationPenalty("unclear", "boomer"), 0);
+  assert.equal(rec.computeGenerationPenalty("timeless", "boomer"), 0);
+});
+
+test("computeGenerationPenalty does not scale with confidence (no confFactor param)", () => {
+  assert.equal(rec.computeGenerationPenalty.length, 2);
+});
+
+test("buildRecommendations applies generationPenalty to finalScore for a distant-generation song", () => {
+  const req = makeRequest({ userGeneration: "gen-z" });
+  const song = makeSong({ song_generation: "boomer" });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].scoreComponents.generationPenalty, -20);
+});
+
+test("buildRecommendations applies no generationPenalty when song_generation is null", () => {
+  const req = makeRequest({ userGeneration: "gen-z" });
+  const song = makeSong({ song_generation: null });
+  const { results } = rec.buildRecommendations(req, [song]);
+  assert.equal(results[0].scoreComponents.generationPenalty, 0);
 });

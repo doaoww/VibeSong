@@ -7,7 +7,7 @@ import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-function loadTsModule(path) {
+function loadTsModule(path, stubRequire = require) {
   const source = readFileSync(path, "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: {
@@ -21,7 +21,7 @@ function loadTsModule(path) {
   const context = vm.createContext({
     exports: cjsModule.exports,
     module: cjsModule,
-    require,
+    require: stubRequire,
     console,
     process,
     URLSearchParams,
@@ -30,7 +30,18 @@ function loadTsModule(path) {
   return cjsModule.exports;
 }
 
-const matching = loadTsModule("lib/matching.ts");
+// matching.ts imports coerceGeneration (a real runtime value, not just the
+// Generation type) from ./tagTaxonomy — the plain `require` above resolves
+// relative paths against THIS file's location, not lib/matching.ts's, so
+// "./tagTaxonomy" would 404. Load the real module instead of stubbing it:
+// this is a plain, dependency-free file, and normalizeTaste's generation
+// coercion is worth testing against its actual behavior, not a mock.
+function matchingRequire(mod) {
+  if (mod.includes("tagTaxonomy")) return loadTsModule("lib/tagTaxonomy.ts");
+  return require(mod);
+}
+
+const matching = loadTsModule("lib/matching.ts", matchingRequire);
 
 test("normalizeTaste upgrades old taste objects with balanced defaults", () => {
   const taste = matching.normalizeTaste({
@@ -82,6 +93,12 @@ test("normalizeTaste keeps valid languageOpenness and drops invalid genreScores 
 test("normalizeTaste rejects invalid languageOpenness", () => {
   const taste = matching.normalizeTaste({ languageOpenness: "sometimes" });
   assert.equal(taste.languageOpenness, "flexible");
+});
+
+test("normalizeTaste keeps a valid generation and defaults an invalid/missing one to unclear", () => {
+  assert.equal(matching.normalizeTaste({ generation: "millennial" }).generation, "millennial");
+  assert.equal(matching.normalizeTaste({ generation: "not-a-generation" }).generation, "unclear");
+  assert.equal(matching.normalizeTaste({}).generation, "unclear");
 });
 
 test("normalizeCandidateScores calculates balanced final scores and orders candidates", () => {

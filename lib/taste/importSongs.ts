@@ -43,6 +43,7 @@ const EMPTY_TASTE: UserTaste = {
   genreScores: {},
   favoriteStorySongs: [],
   setupComplete: false,
+  generation: "unclear",
 };
 
 function normalizeInputSongs(songs: StorySongInput[]): StorySongInput[] {

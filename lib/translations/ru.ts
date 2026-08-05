@@ -285,7 +285,20 @@ export const ru: Translation = {
     getCreditsFor: (credits: number, price: string) => `Получить ${credits} кредитов за ${price} →`,
   },
   onboarding: {
-    setupStep: (n: number) => `Настройка · ${n} из 4`,
+    setupStep: (n: number) => `Настройка · ${n} из 5`,
+    age: {
+      heading: "Сколько тебе лет?",
+      subtitle: "Поможет не предлагать песни для совсем другого поколения.",
+      skip: "Не хочу говорить",
+      ranges: {
+        under18: "До 18",
+        "18to24": "18–24",
+        "25to34": "25–34",
+        "35to44": "35–44",
+        "45to54": "45–54",
+        "55plus": "55+",
+      },
+    },
     artist: {
       heading: "Артисты, которых ты любишь",
       subtitle: "Назови 2-3 — чем больше добавишь, тем точнее подбор.",

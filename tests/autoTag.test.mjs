@@ -711,3 +711,67 @@ test("classifyLyricalAddress defaults to unclear on malformed GPT output", async
   const result = await classifyLyricalAddress("Song", "Artist");
   assert.equal(result, "unclear");
 });
+
+test("buildGptTagPrompt asks for song_generation", () => {
+  const { buildGptTagPrompt } = autoTag;
+  const prompt = buildGptTagPrompt("Song", "Artist", []);
+  assert.ok(prompt.includes("song_generation"));
+});
+
+test("parseGptTagResponse extracts and coerces song_generation", () => {
+  const { parseGptTagResponse } = autoTag;
+  const raw = JSON.stringify({
+    language: "English",
+    emotional_vector: {},
+    genre_tags: [],
+    aesthetic_tags: [],
+    mood_tags: [],
+    story_intent_tags: [],
+    modern_aesthetic_tags: [],
+    story_context_tags: [],
+    vibe_summary: "",
+    confidence_level: "uncertain",
+    confidence_reason: "",
+    popularity_tier: 3,
+    song_generation: "gen-z",
+  });
+  const result = parseGptTagResponse(raw);
+  assert.equal(result.song_generation, "gen-z");
+});
+
+test("parseGptTagResponse coerces an invalid song_generation to unclear", () => {
+  const { parseGptTagResponse } = autoTag;
+  const raw = JSON.stringify({
+    language: "English",
+    emotional_vector: {},
+    genre_tags: [],
+    aesthetic_tags: [],
+    mood_tags: [],
+    story_intent_tags: [],
+    modern_aesthetic_tags: [],
+    story_context_tags: [],
+    vibe_summary: "",
+    confidence_level: "uncertain",
+    confidence_reason: "",
+    popularity_tier: 3,
+    song_generation: "not-a-real-value",
+  });
+  const result = parseGptTagResponse(raw);
+  assert.equal(result.song_generation, "unclear");
+});
+
+test("classifyGeneration returns the coerced GPT classification", async () => {
+  resetHarness();
+  stubState.openaiContent = JSON.stringify({ song_generation: "millennial" });
+  const { classifyGeneration } = autoTag;
+  const result = await classifyGeneration("Song", "Artist");
+  assert.equal(result, "millennial");
+});
+
+test("classifyGeneration defaults to unclear on malformed GPT output", async () => {
+  resetHarness();
+  stubState.openaiContent = "not json at all";
+  const { classifyGeneration } = autoTag;
+  const result = await classifyGeneration("Song", "Artist");
+  assert.equal(result, "unclear");
+});

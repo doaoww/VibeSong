@@ -104,3 +104,20 @@ test("coercePovSignal accepts the four valid values and rejects everything else"
 test("POV_SIGNALS lists exactly the four canonical values", () => {
   assert.deepEqual([...taxonomy.POV_SIGNALS], ["male", "female", "neutral", "unclear"]);
 });
+
+test("coerceGeneration accepts the six valid values and rejects everything else", () => {
+  assert.equal(taxonomy.coerceGeneration("gen-z"), "gen-z");
+  assert.equal(taxonomy.coerceGeneration("millennial"), "millennial");
+  assert.equal(taxonomy.coerceGeneration("gen-x"), "gen-x");
+  assert.equal(taxonomy.coerceGeneration("boomer"), "boomer");
+  assert.equal(taxonomy.coerceGeneration("timeless"), "timeless");
+  assert.equal(taxonomy.coerceGeneration("unclear"), "unclear");
+  assert.equal(taxonomy.coerceGeneration("zoomer"), "unclear");
+  assert.equal(taxonomy.coerceGeneration(undefined), "unclear");
+  assert.equal(taxonomy.coerceGeneration(null), "unclear");
+  assert.equal(taxonomy.coerceGeneration(42), "unclear");
+});
+
+test("GENERATIONS lists exactly the six canonical values", () => {
+  assert.deepEqual([...taxonomy.GENERATIONS], ["gen-z", "millennial", "gen-x", "boomer", "timeless", "unclear"]);
+});

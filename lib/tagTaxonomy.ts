@@ -144,3 +144,31 @@ const POV_SIGNALS_SET: Set<string> = new Set(POV_SIGNALS);
 export function coercePovSignal(value: unknown): PovSignal {
   return typeof value === "string" && POV_SIGNALS_SET.has(value) ? (value as PovSignal) : "unclear";
 }
+
+/**
+ * Shared generation/era signal — used on the user side (self-reported age
+ * range, mapped to a cohort) and the song side (GPT-classified from the
+ * song's cultural context, not just raw release year, so a 90s track with a
+ * TikTok revival can still read "gen-z"). "timeless" is a real, distinct
+ * value from "unclear": it means a song genuinely spans generations (e.g. a
+ * classic-rock staple), not that GPT couldn't tell — both are safe no-op
+ * values for scoring (see lib/recommend.ts's computeGenerationPenalty), but
+ * keeping them separate preserves data quality for catalog review.
+ */
+export type Generation = "gen-z" | "millennial" | "gen-x" | "boomer" | "timeless" | "unclear";
+
+export const GENERATIONS: readonly Generation[] = [
+  "gen-z",
+  "millennial",
+  "gen-x",
+  "boomer",
+  "timeless",
+  "unclear",
+];
+
+const GENERATIONS_SET: Set<string> = new Set(GENERATIONS);
+
+/** Coerces any GPT output (or stored value) to a valid Generation, defaulting to the safe no-op value. */
+export function coerceGeneration(value: unknown): Generation {
+  return typeof value === "string" && GENERATIONS_SET.has(value) ? (value as Generation) : "unclear";
+}

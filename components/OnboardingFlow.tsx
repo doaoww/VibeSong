@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
 import LanguageStep from "./onboarding/LanguageStep";
+import AgeStep from "./onboarding/AgeStep";
 import ArtistStep from "./onboarding/ArtistStep";
 import AvoidListStep from "./onboarding/AvoidListStep";
 import StorySongsStep from "./onboarding/StorySongsStep";
 import SongSwipeOnboarding from "./SongSwipeOnboarding";
 import { useTranslation } from "../lib/translations/useTranslation";
+import type { Generation } from "../lib/tagTaxonomy";
 
-type Step = "language" | "artists" | "avoid" | "story-songs" | "swipe" | "done";
+type Step = "language" | "age" | "artists" | "avoid" | "story-songs" | "swipe" | "done";
 
 interface Props {
   onComplete: (completed: boolean) => void;
@@ -18,6 +20,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
   const [step, setStep] = useState<Step>("language");
   const [languages, setLanguages] = useState<string[]>([]);
   const [openness, setOpenness] = useState<"strict" | "flexible" | "open">("flexible");
+  const [generation, setGeneration] = useState<Generation>("unclear");
   const [artists, setArtists] = useState<string[]>([]);
   const [avoidLabels, setAvoidLabels] = useState<string[]>([]);
   const [avoidGenreScores, setAvoidGenreScores] = useState<Record<string, number>>({});
@@ -41,6 +44,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
       body: JSON.stringify({
         languages,
         languageOpenness: openness,
+        generation,
         favoriteArtists: artists,
         genreScores: { ...(current?.genreScores ?? {}), ...avoidGenreScores },
         avoidedStoryTags,
@@ -69,7 +73,21 @@ export default function OnboardingFlow({ onComplete }: Props) {
           languages={languages}
           openness={openness}
           onChange={(l, o) => { setLanguages(l); setOpenness(o); }}
+          onNext={() => setStep("age")}
+        />
+      </div>
+    );
+  }
+
+  if (step === "age") {
+    return (
+      <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto" style={{ height: "100dvh" }}>
+        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(2)}</p>
+        <AgeStep
+          generation={generation}
+          onChange={setGeneration}
           onNext={() => setStep("artists")}
+          onSkip={() => setStep("artists")}
         />
       </div>
     );
@@ -78,7 +96,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
   if (step === "artists") {
     return (
       <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto" style={{ height: "100dvh" }}>
-        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(2)}</p>
+        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(3)}</p>
         <ArtistStep
           selectedArtists={artists}
           onChange={setArtists}
@@ -92,7 +110,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
   if (step === "avoid") {
     return (
       <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto" style={{ height: "100dvh" }}>
-        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(3)}</p>
+        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(4)}</p>
         <AvoidListStep
           selected={avoidLabels}
           onChange={(labels, genreScores, storyTags, discoveryStyle) => {
@@ -111,7 +129,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
   if (step === "story-songs") {
     return (
       <div className="fixed inset-x-0 top-0 z-[100] bg-[#080808] flex flex-col px-5 pt-14 pb-8 overflow-y-auto" style={{ height: "100dvh" }}>
-        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(4)}</p>
+        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">{t.onboarding.setupStep(5)}</p>
         <StorySongsStep
           onNext={finishToSwipe}
           onSkip={finishToSwipe}

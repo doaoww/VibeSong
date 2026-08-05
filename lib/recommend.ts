@@ -1,6 +1,6 @@
 import { cosine } from "./vectorMath";
 import type { CatalogSong } from "./db/songs";
-import type { PovSignal } from "./tagTaxonomy";
+import type { PovSignal, Generation } from "./tagTaxonomy";
 
 export interface RecommendRequest {
   queryVector: number[];           // 10 dimensions, already blended
@@ -23,6 +23,7 @@ export interface RecommendRequest {
   energyBounds: { min: number; max: number };
   photoBriefEmbedding: number[] | null;  // null when ENABLE_BRIEF_POOL is off or the photo has no brief text
   presentationRead: PovSignal;     // photo-side gender/POV read — "unclear" default, never blocks a request
+  userGeneration: Generation;      // taste.generation — self-reported age range, mapped to a cohort at onboarding
 }
 
 export interface ScoreComponents {
@@ -42,6 +43,7 @@ export interface ScoreComponents {
   needsReviewPenalty: number;
   softAntiTagPenalty: number;
   povPenalty: number;
+  generationPenalty: number;
   finalScore: number;
 }
 
@@ -156,6 +158,35 @@ export function computePovPenalty(
     (presentationRead === "male" && lyricalAddress === "female") ||
     (presentationRead === "female" && lyricalAddress === "male");
   return opposite ? -25 * confFactor : 0;
+}
+
+// Ordinal cohort distance, not equality: unlike POV (a binary opposite/not-
+// opposite check), generations form a scale, and adjacent generations
+// (e.g. millennial <-> gen-x) commonly share taste — only a DISTANT mismatch
+// (e.g. gen-z <-> boomer) is worth softly penalizing. No confFactor: unlike
+// presentationRead (a per-photo GPT guess), the user's stated generation is
+// a fixed, self-reported preference with no per-request confidence to gate
+// on — the only "confidence" here is whether either side is even known,
+// which the undefined/GENERATION_ORDER check below already handles. "timeless"
+// and "unclear" are deliberately excluded from the ordinal map so both read
+// as "no penalty" — a song that broadly appeals to everyone, or one nobody
+// could confidently classify, should never be softly punished either way.
+const GENERATION_ORDER: Partial<Record<Generation, number>> = {
+  "gen-z": 0,
+  millennial: 1,
+  "gen-x": 2,
+  boomer: 3,
+};
+
+export function computeGenerationPenalty(
+  userGeneration: Generation,
+  songGeneration: string
+): number {
+  const userOrdinal = GENERATION_ORDER[userGeneration];
+  const songOrdinal = GENERATION_ORDER[songGeneration as Generation];
+  if (userOrdinal === undefined || songOrdinal === undefined) return 0;
+  const distance = Math.abs(userOrdinal - songOrdinal);
+  return distance >= 2 ? -20 : 0;
 }
 
 // track_feedback rows only store title/artist, not song id (see lib/db/trackFeedback.ts),
@@ -495,6 +526,7 @@ export function buildRecommendations(
     ).length;
     const softAntiTagPenalty = -Math.min(2, softAntiTagMatches) * 15 * confFactor;
     const povPenalty = computePovPenalty(req.presentationRead, song.lyrical_address ?? "unclear", confFactor);
+    const generationPenalty = computeGenerationPenalty(req.userGeneration, song.song_generation ?? "unclear");
 
     const raw =
       photoFit + tasteFit + storyFit + contextFit + vibeAestheticFit + briefFit + noveltyFit + qualityBonus + favoriteSongBonus;
@@ -502,7 +534,7 @@ export function buildRecommendations(
       0,
       Math.min(
         100,
-        raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty + softAntiTagPenalty + povPenalty
+        raw + languagePenalty + freshnessPenalty + mainstreamPenalty + needsReviewPenalty + softAntiTagPenalty + povPenalty + generationPenalty
       )
     );
 
@@ -523,6 +555,7 @@ export function buildRecommendations(
       needsReviewPenalty,
       softAntiTagPenalty: Math.round(softAntiTagPenalty * 10) / 10,
       povPenalty: Math.round(povPenalty * 10) / 10,
+      generationPenalty: Math.round(generationPenalty * 10) / 10,
       finalScore: Math.round(finalScore * 10) / 10,
     };
 

@@ -14,6 +14,8 @@ import {
   normalizeStringArray,
   coercePovSignal,
   type PovSignal,
+  coerceGeneration,
+  type Generation,
 } from "./tagTaxonomy";
 import { NullLyricsProvider } from "./lyrics";
 import type { LyricsProvider } from "./lyrics";
@@ -96,6 +98,7 @@ export interface AutoTagResult {
   modern_aesthetic_tags: string[];
   story_context_tags: string[];
   lyrical_address: PovSignal;
+  song_generation: Generation;
   discarded_tags: string[];
   vibe_summary: string;
   music_supervisor_summary: string;
@@ -220,6 +223,7 @@ Return ONLY valid JSON (no markdown) with this exact structure:
   "modern_aesthetic_tags": ["2-5 tags, ONLY from this list: ${MODERN_AESTHETIC_TAGS.join(", ")}"],
   "story_context_tags": ["2-5 tags, ONLY from this list: ${STORY_CONTEXT_TAGS.join(", ")}"],
   "lyrical_address": "male | female | neutral | unclear — who this song's lyrics are written from/addressed to. Use 'neutral' for lyrics with no clear gendered narrator/addressee (instrumental, abstract, or genuinely either-way). Use 'unclear' only if you don't know this song's lyrics well enough to judge at all. This is used only to avoid pairing a song with a photo of the opposite gender it clearly addresses — be honest, don't default to 'neutral' just to play it safe if the lyrics ARE clearly gendered.",
+  "song_generation": "gen-z | millennial | gen-x | boomer | timeless | unclear — which generation this song is most culturally associated with TODAY (current year 2026), not just its literal release decade. A 90s song with a huge ongoing TikTok/streaming revival among teenagers should be 'gen-z', not 'millennial' — go by who actually listens to and shares it now. Use 'timeless' for songs that genuinely span generations with no single dominant audience (e.g. a universally-known classic-rock or pop standard). Use 'unclear' only if you have no reasonable basis to judge at all. This is used only to softly avoid pairing a song clearly aimed at one generation with a much older or younger listener — be honest, don't default to 'timeless' just to play it safe.",
   "vibe_summary": "1-2 short sentences in natural language describing this song's feeling/story",
   "musicSupervisorBrief": {
     "narrative": "1-2 sentences: what this song is about, the story or feeling it carries",
@@ -247,6 +251,7 @@ export interface ParsedTagResponse {
   modern_aesthetic_tags: string[];
   story_context_tags: string[];
   lyrical_address: PovSignal;
+  song_generation: Generation;
   discarded_tags: string[];
   vibe_summary: string;
   music_supervisor_summary: string;
@@ -268,6 +273,7 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
     modern_aesthetic_tags: [],
     story_context_tags: [],
     lyrical_address: "unclear",
+    song_generation: "unclear",
     discarded_tags: [],
     vibe_summary: "",
     music_supervisor_summary: "",
@@ -323,6 +329,7 @@ export function parseGptTagResponse(raw: string): ParsedTagResponse {
       modern_aesthetic_tags: modernAestheticSplit.accepted,
       story_context_tags: storyContextSplit.accepted,
       lyrical_address: coercePovSignal(parsed.lyrical_address),
+      song_generation: coerceGeneration(parsed.song_generation),
       discarded_tags: [
         ...moodSplit.rejected,
         ...storyIntentSplit.rejected,
@@ -421,6 +428,7 @@ export async function autoTagSong(
     modern_aesthetic_tags: gptData.modern_aesthetic_tags,
     story_context_tags: gptData.story_context_tags,
     lyrical_address: gptData.lyrical_address,
+    song_generation: gptData.song_generation,
     discarded_tags: gptData.discarded_tags,
     vibe_summary: gptData.vibe_summary,
     music_supervisor_summary: gptData.music_supervisor_summary,
@@ -530,6 +538,42 @@ export async function classifyLyricalAddress(title: string, artist: string): Pro
     if (firstBrace === -1 || lastBrace <= firstBrace) return "unclear";
     const parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
     return coercePovSignal(parsed.lyrical_address);
+  } catch {
+    return "unclear";
+  }
+}
+
+export function buildGenerationPrompt(title: string, artist: string): string {
+  return `For the song "${title}" by ${artist}, classify which generation it is most culturally associated with TODAY (current year 2026), not just its literal release decade — a 90s song with a huge ongoing TikTok/streaming revival among teenagers should read as 'gen-z', not 'millennial'.
+
+Return ONLY valid JSON (no markdown): { "song_generation": "gen-z | millennial | gen-x | boomer | timeless | unclear" }
+
+Use "timeless" for songs that genuinely span generations with no single dominant audience today (e.g. a universally-known classic-rock or pop standard). Use "unclear" only if you don't know this song well enough to judge at all. Be honest — don't default to "timeless" just to play it safe.`;
+}
+
+/** Narrow, backfill-only GPT call for songs tagged before song_generation existed — see scripts/backfill-song-generation.mjs. */
+export async function classifyGeneration(title: string, artist: string): Promise<Generation> {
+  const prompt = buildGenerationPrompt(title, artist);
+  let raw = "";
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 60,
+      temperature: 0,
+    });
+    raw = res.choices[0].message.content ?? "";
+  } catch (err) {
+    console.error("[classifyGeneration] GPT failed:", err);
+  }
+
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  try {
+    if (firstBrace === -1 || lastBrace <= firstBrace) return "unclear";
+    const parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+    return coerceGeneration(parsed.song_generation);
   } catch {
     return "unclear";
   }

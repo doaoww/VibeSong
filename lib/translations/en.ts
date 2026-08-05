@@ -281,7 +281,20 @@ export const en = {
     getCreditsFor: (credits: number, price: string) => `Get ${credits} credits for ${price} →`,
   },
   onboarding: {
-    setupStep: (n: number) => `Setup · ${n} of 4`,
+    setupStep: (n: number) => `Setup · ${n} of 5`,
+    age: {
+      heading: "How old are you?",
+      subtitle: "Helps us avoid songs aimed at a totally different generation than yours.",
+      skip: "Prefer not to say",
+      ranges: {
+        under18: "Under 18",
+        "18to24": "18–24",
+        "25to34": "25–34",
+        "35to44": "35–44",
+        "45to54": "45–54",
+        "55plus": "55+",
+      },
+    },
     artist: {
       heading: "Artists you love",
       subtitle: "Name 2-3 — the more you add, the better we match.",
