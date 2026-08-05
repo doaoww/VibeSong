@@ -3,6 +3,7 @@ import { Space_Grotesk, DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import LocaleInit from "../components/LocaleInit";
 import AmplitudeInit from "../components/AmplitudeInit";
+import AudioUnlock from "../components/AudioUnlock";
 import { seoMetadata } from "../lib/seo";
 import "./globals.css";
 
@@ -39,6 +40,7 @@ export default function RootLayout({
       >
         <LocaleInit />
         <AmplitudeInit />
+        <AudioUnlock />
         {children}
         <Analytics />
       </body>

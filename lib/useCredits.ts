@@ -27,13 +27,22 @@ async function fetchCredits(): Promise<number | null> {
 }
 
 export function useCredits() {
-  const [credits, setCredits] = useState<number>(() => lsGet());
+  // Starts at FREE_CREDITS (not lsGet()) so the client's first hydration
+  // render matches the server's — reading localStorage synchronously here
+  // returned a different number on the client than on the server and threw
+  // a hydration mismatch (React error #418). localStorage is read below in
+  // an effect instead, after hydration, same pattern as LocaleInit.tsx.
+  const [credits, setCredits] = useState<number>(FREE_CREDITS);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     void Promise.resolve().then(async () => {
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored !== null && !cancelled) {
+        setCredits(parseInt(stored, 10));
+      }
       const value = await fetchCredits();
       if (cancelled) return;
       if (value !== null) {

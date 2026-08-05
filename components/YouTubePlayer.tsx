@@ -123,8 +123,17 @@ export default function YouTubePlayer({
       if (hasAudioPreview && audioRef.current) {
         audioRef.current.currentTime = 0;
         audioRef.current.play().catch(() => {}); // Browser may block autoplay silently
-      } else if (hasYouTube) {
-        playYouTube();
+      } else if (hasYouTube && iframeRef.current) {
+        // Doesn't optimistically setPlayerReady(true) the way handleToggle
+        // does — handleIframeLoad's own onLoad-triggered timer (below) will
+        // set it once the reload actually finishes, avoiding a read-then-set
+        // of the same state inside this effect.
+        if (playerReady) {
+          sendCommand("playVideo");
+        } else {
+          iframeRef.current.src = `https://www.youtube.com/embed/${youtubeId}?enablejsapi=1&origin=${origin}&autoplay=1&controls=0&start=${start}&rel=0&playsinline=1&modestbranding=1`;
+        }
+        setIsPlaying(true);
       }
     } else if (!visible && wasVisible) {
       // setIsPlaying(false) here is optimistic for the YouTube path (no
@@ -140,7 +149,7 @@ export default function YouTubePlayer({
       setIsPlaying(false);
       setProgress(0);
     }
-  }, [visible, hasAudioPreview, hasYouTube, sendCommand, playYouTube]);
+  }, [visible, hasAudioPreview, hasYouTube, playerReady, youtubeId, origin, start, sendCommand]);
 
   const handleToggle = () => {
     const next = !isPlaying;
