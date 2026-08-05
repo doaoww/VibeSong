@@ -13,7 +13,10 @@ function isAdmin(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const songs = await listSongs();
+    const url = new URL(req.url);
+    const limit = Number(url.searchParams.get("limit")) || 200;
+    const offset = Number(url.searchParams.get("offset")) || 0;
+    const songs = await listSongs(limit, offset);
     return NextResponse.json({ songs });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
