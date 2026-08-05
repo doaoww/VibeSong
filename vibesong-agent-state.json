@@ -1,0 +1,107 @@
+{
+  "last_updated": "2026-08-05T23:50:00+05:00",
+  "current_phase": "fix",
+  "completed_steps": [
+    "Surveyed repo structure, AGENTS.md/PRODUCT.md, git log, and docs/superpowers/plans and specs",
+    "Discovered prior session already ran a full matching-quality audit and landed a real code fix for problem #1 (gender/portrait mismatch) — see docs/superpowers/plans/2026-08-04-matching-quality-phase1.md and commits 993af1c..f5fc3f5",
+    "Discovered prior session already fixed a real root cause behind part of problem #3 (non-English retrieval) — supabase/language-pool-fix-migration.sql, commit 5375bce: HNSW index caused ANN search to run before the language WHERE filter, starving minority languages",
+    "Traced problem #2 (explicit text request e.g. 'french vibe' ignored) to root cause and FIXED it: lib/vibeIntent.ts's extractRequestedLanguage(), wired into app/api/recommend/route.ts to override taste.languages/languageOpenness when present, wired into app/app/page.tsx to actually send vibeIntent to /api/recommend (previously only sent to /api/analyze).",
+    "Traced problem #4 (onboarding flash for returning logged-in users) to root cause and FIXED it: app/app/page.tsx's effectiveShowOnboarding used `tasteComplete !== true`, which conflates 'still loading' (null) with 'confirmed incomplete' (false) — changed to `tasteComplete === false`. Also fixed a real latency contributor in lib/useAccountSync.ts: /api/migrate-local was awaited before /api/taste on EVERY login; now skipped via a local 'migratedLocalData' flag after the first successful run on a given device.",
+    "CRITICAL, empirically confirmed via real Supabase calls: supabase/pov-signal-migration.sql was NOT applied to production despite the code being merged — a real update_song RPC call failed with PGRST202, meaning song catalog writes (admin edits, auto-tagging) were actively broken, not just the POV penalty being inert. User ran the migration; re-verified live (column exists, RPC accepts the param, catalog writes work again).",
+    "User approved and ran the lyrical_address backfill for the full existing catalog. Hit a real infra incident mid-run (a zombie dev-server process with a broken stdout pipe crash-looped Turbopack workers and took real API routes down as collateral damage) — diagnosed, killed every stale process, restarted clean, resumed, and completed: 2583/2583 songs classified, 0 errors, verified via a live exact-count query.",
+    "Ran three real GPT-4o vision calls (golden-hour.jpg, happiness.jpg, blinding-lights.jpg — the app's own marketing assets) against the live BASE_SYSTEM_PROMPT to empirically verify presentationRead: correctly read 'female' for both female-presenting photos and 'neutral' (not a guessed gender) for a no-person night-drive photo — protecting the 'landscapes/night photos already work well' baseline from the original ask. Then ran real computePovPenalty math against real classified catalog songs (3 male-lyrical-address songs correctly got -25 penalty, 3 female + 2 neutral songs correctly got 0). Problem #1 confirmed working end-to-end with real data, not just at the unit-test level.",
+    "USER OVERRODE the initial 'era preference' design recommendation for #3b and explicitly directed: ask age directly, derive generation from it, and build the full pipeline off that — implemented accordingly (see below), not the originally-recommended non-PII 'era preference' framing.",
+    "Built problem #3b (age/generation matching) end-to-end, mirroring the exact architecture already proven for #1 (POV signal): lib/tagTaxonomy.ts Generation type + coerceGeneration (6 values: gen-z/millennial/gen-x/boomer/timeless/unclear); UserTaste.generation field (lib/matching.ts, lib/db/userTaste.ts, lib/taste/importSongs.ts); new AgeStep.tsx onboarding step (age-range buttons mapped to a generation, inserted as step 2 of 5, wired into OnboardingFlow.tsx + en.ts/ru.ts translations); supabase/generation-preference-migration.sql (user_taste.generation, main project, direct table access) and supabase/song-generation-migration.sql (songs.song_generation, catalog project, mirrors pov-signal-migration.sql's 9-function RPC update exactly); song_generation wired through lib/db/songs.ts, lib/autoTag.ts (GPT classification at tag time + backfill-only classifyGeneration()), a new admin classify-generation route, and scripts/backfill-song-generation.mjs; computeGenerationPenalty in lib/recommend.ts (ordinal cohort-distance penalty: 0 for adjacent generations or timeless/unclear, -20 for distance>=2) wired into RecommendRequest/ScoreComponents/scoring and app/api/recommend/route.ts.",
+    "Caught and fixed a real regression while adding tests: lib/matching.ts's new coerceGeneration import broke tests/matching.test.mjs's standalone VM test harness (it used the real Node `require`, which resolved './tagTaxonomy' against the test file's directory, not lib/matching.ts's — a real MODULE_NOT_FOUND at runtime, not a hypothetical). Fixed the harness itself (matchingRequire helper that loads the real tagTaxonomy.ts module) rather than avoiding the import — verified by running the test file directly before and after.",
+    "Added tests for the generation feature: tagTaxonomy.test.mjs (coerceGeneration + GENERATIONS), recommend.test.mjs (computeGenerationPenalty unit tests + buildRecommendations wiring), matching.test.mjs (normalizeTaste generation coercion), autoTag.test.mjs (prompt/parse/classifyGeneration mirroring the lyrical_address tests), new tests/generationWiring.test.mjs (source-level wiring across OnboardingFlow -> /api/recommend -> lib/recommend.ts).",
+    "Final verification: npm test = 309 pass / 1 fail (same single pre-existing, unrelated failure in tests/playlistImportUi.test.mjs that existed before this session started), npx tsc --noEmit -p . clean."
+  ],
+  "in_progress_step": "none — #1, #2, #3a, #3b, #4 all code-complete and test-verified. #3b's two new migrations are written but NOT yet applied to production (same manual-apply pattern as before) and its backfill script has not been run.",
+  "next_step": "User must apply supabase/generation-preference-migration.sql (main project) and supabase/song-generation-migration.sql (catalog project, requires pov-signal-migration.sql already applied first) via the Supabase SQL editor. After that: run scripts/backfill-song-generation.mjs (same cost profile as the lyrical_address backfill — ~2583 real GPT-4o-mini calls) with user go-ahead. Also still open: #5 broader slow-loading profiling (need user to point at a specific screen, or approval to profile broadly), and whether to do a real browser walkthrough of the new AgeStep UI (not yet visually verified, only typechecked/tested).",
+  "findings": {
+    "root_causes_identified": [
+      {
+        "problem": "1. Faces/portraits handled badly (wrong-gender song, aesthetic/lyrics blended)",
+        "status": "FIXED, deployed, and verified end-to-end with real GPT-4o calls and real catalog data",
+        "evidence": "docs/superpowers/plans/2026-08-04-matching-quality-phase1.md; commits 993af1c..f5fc3f5; lib/tagTaxonomy.ts PovSignal; app/api/analyze/route.ts presentationRead + portrait-reading prompt; lib/recommend.ts computePovPenalty; supabase/pov-signal-migration.sql — applied and verified live (column exists, RPC accepts param, catalog writes work); full 2583-song catalog backfilled (0 unclassified). Real end-to-end test this session: 3 real GPT-4o vision calls correctly read gender presentation (including correctly returning 'neutral' for a no-person photo), and real computePovPenalty math against real classified songs correctly deprioritized (-25) male-lyrical-address songs for a female-read photo while leaving female/neutral songs untouched.",
+        "root_cause_class": "missing input signal + missing data structure — both fixed, deployed, and empirically verified",
+        "unverified": "No real male-presenting test photo was available among the app's own assets, so the exact original bug scenario (man uploads photo, gets a female-oriented song) wasn't reproduced literally — the mechanism was proven correct in the female-photo direction instead, which is symmetric by construction (computePovPenalty is a symmetric opposite-pair check)."
+      },
+      {
+        "problem": "2. Explicit text request ('french vibe') ignored",
+        "status": "FIXED this session",
+        "evidence": "lib/vibeIntent.ts's extractRequestedLanguage() — deterministic keyword match (English + Russian aliases) against the catalog's closed 11-language list — wired into app/api/recommend/route.ts to override taste.languages/languageOpenness (forced to 'strict') when a language is detected, and app/app/page.tsx now sends vibeIntent to /api/recommend (previously only sent to /api/analyze).",
+        "root_cause_class": "pipeline gap — closed with a deterministic parser + explicit override, not a GPT prompt tweak",
+        "tests_added": "tests/vibeIntent.test.mjs (9 assertions), tests/requestedLanguageWiring.test.mjs (2 wiring tests)"
+      },
+      {
+        "problem": "3a. Weak non-English/Russian retrieval (catalog can't surface minority-language songs at all)",
+        "status": "FIXED in a prior session, VERIFIED LIVE this session via a real Supabase call",
+        "evidence": "supabase/language-pool-fix-migration.sql (commit 5375bce). Live verification: match_songs_by_language RPC for Hindi returned 25 real rows (68 total in catalog).",
+        "root_cause_class": "pipeline gap (query-planner defeating a WHERE filter) — CONFIRMED FIXED"
+      },
+      {
+        "problem": "3b. Non-English catalog doesn't account for user age/generation",
+        "status": "FIXED this session (code-complete, tests passing) — NOT yet deployed to production",
+        "evidence": "Full pipeline built mirroring the #1 POV-signal architecture exactly: user's age (asked directly, per explicit user override of the initial 'era preference' recommendation) is collected in a new onboarding step and mapped to a Generation cohort (gen-z/millennial/gen-x/boomer); songs get a GPT-classified song_generation (adds 'timeless' as a 6th value for songs that genuinely span generations, e.g. classic-rock staples — distinct from 'unclear'); lib/recommend.ts's computeGenerationPenalty applies an ordinal cohort-distance penalty (0 for the same or an adjacent generation, -20 for a 2+ cohort gap, 0 if either side is timeless/unclear) — softer and structurally different from POV's binary check since generations form a scale where adjacent cohorts commonly share taste.",
+        "root_cause_class": "missing data structure — now fixed (two new migration files, not yet applied to production; see next_step)",
+        "unverified": "Two new SQL migrations (generation-preference-migration.sql, song-generation-migration.sql) are written but NOT applied to production — inert until the user runs them, same pattern as pov-signal-migration.sql was before. The backfill script (scripts/backfill-song-generation.mjs) exists but has not been run — existing catalog songs will read as song_generation=null (no penalty either way) until it runs. New onboarding step has NOT been visually verified in a real browser session — only typechecked and covered by source-level wiring tests."
+      },
+      {
+        "problem": "4. Onboarding flashes for returning logged-in users",
+        "status": "FIXED this session",
+        "evidence": "app/app/page.tsx's effectiveShowOnboarding changed from `tasteComplete !== true` to `tasteComplete === false` — the old check conflated 'still loading' with 'confirmed incomplete'. Also fixed lib/useAccountSync.ts's redundant /api/migrate-local call on every login (not just the first) via a 'migratedLocalData' localStorage flag.",
+        "root_cause_class": "race condition from a two-signal render gate where only one signal was properly guarded",
+        "tests_added": "none new (no render-test harness exists for this page); verified via tsc + full suite regression only. NOT yet verified by hand in an actual browser session."
+      },
+      {
+        "problem": "5. Slow loading in specific UI parts",
+        "status": "one concrete contributor fixed as a side effect of #4; broader profiling still NOT done",
+        "evidence": "The useAccountSync.ts sequential-fetch fix removes one wasted DB round trip from every authenticated page load. User's answer to 'which screens feel slow' was 'not sure / general sluggishness', restating the #4 flash rather than adding a distinct report.",
+        "root_cause_class": "unresolved — need a real profiling session or the user narrowing down which screen"
+      }
+    ],
+    "test_cases": []
+  },
+  "decisions_confirmed_by_user": [
+    "User approved proceeding straight to fixing #2 and #4 rather than running the full 15-20 real-GPT test matrix first",
+    "User confirmed the pov-signal migration should be applied; this session verified it empirically before and after",
+    "User approved running the lyrical_address backfill for the full catalog (real GPT-4o-mini spend)",
+    "User explicitly OVERRODE the recommended 'era preference' design for #3b and directed: just ask age directly and derive generation from it — implemented per this explicit direction, not the original recommendation"
+  ],
+  "open_questions_for_user": [
+    "For #3b: please apply supabase/generation-preference-migration.sql (main project) and supabase/song-generation-migration.sql (catalog project — requires pov-signal-migration.sql already live, which it is) via the Supabase SQL editor. Without these, the new onboarding age question and generation scoring are inert (same situation #1 was in before).",
+    "Once applied: run scripts/backfill-song-generation.mjs to classify the existing 2583-song catalog (~2583 real GPT-4o-mini calls, same cost profile as the lyrical_address backfill)? Will wait for explicit go-ahead as before.",
+    "Want a real browser walkthrough of the new AgeStep onboarding screen before considering #3b fully done, or is code-complete + test-passing sufficient for now?",
+    "For problem #5: still need your pointer on which screen(s) feel slow, or permission to do a broad profiling pass.",
+    "Do you want the untracked scripts/seed-*.mjs files and the two untracked docs plan files (matches-collection, apple-music-playlist-import) folded into Step 4's catalog work, or are those separate in-progress work I should continue to leave alone?"
+  ],
+  "files_changed": [
+    "lib/vibeIntent.ts — extractRequestedLanguage() + REQUESTED_LANGUAGE_ALIASES",
+    "app/api/recommend/route.ts — requested-language override; userGeneration wiring",
+    "app/app/page.tsx — send vibeIntent to /api/recommend; fixed effectiveShowOnboarding gating",
+    "lib/useAccountSync.ts — skip redundant /api/migrate-local on repeat logins",
+    "lib/tagTaxonomy.ts — Generation type, GENERATIONS, coerceGeneration",
+    "lib/matching.ts — UserTaste.generation, DEFAULT_TASTE, normalizeTaste",
+    "lib/taste/importSongs.ts — EMPTY_TASTE.generation",
+    "lib/db/userTaste.ts — generation column in TASTE_COLUMNS/get/upsert",
+    "lib/db/songs.ts — CatalogSong.song_generation, SongPatch.song_generation, insertSong/updateSong RPC params",
+    "lib/autoTag.ts — song_generation in AutoTagResult/prompt/parse/autoTagSong; buildGenerationPrompt + classifyGeneration backfill classifier",
+    "lib/recommend.ts — Generation import, computeGenerationPenalty, RecommendRequest.userGeneration, ScoreComponents.generationPenalty, scoring loop",
+    "components/onboarding/AgeStep.tsx — new file",
+    "components/OnboardingFlow.tsx — wired AgeStep as step 2 of 5",
+    "lib/translations/en.ts, ru.ts — onboarding.age.* keys, setupStep bumped 4->5",
+    "app/api/admin/songs/classify-generation/route.ts — new file",
+    "scripts/backfill-song-generation.mjs — new file",
+    "supabase/generation-preference-migration.sql — new file, NOT yet applied",
+    "supabase/song-generation-migration.sql — new file, NOT yet applied",
+    "tests/vibeIntent.test.mjs, tests/requestedLanguageWiring.test.mjs — #2 tests",
+    "tests/tagTaxonomy.test.mjs, tests/recommend.test.mjs, tests/matching.test.mjs, tests/autoTag.test.mjs, tests/generationWiring.test.mjs — #3b tests"
+  ],
+  "known_risks_or_unverified_assumptions": [
+    "CONFIRMED EMPIRICALLY (real read against the live main-project DB, not assumed): user_taste.generation does not exist in production yet — 'column user_taste.generation does not exist'. This is MORE SEVERE than just the age field failing: lib/db/userTaste.ts's upsertUserTaste() does a SINGLE full-row upsert with every taste field together, so until supabase/generation-preference-migration.sql is applied, EVERY onboarding save (languages, artists, avoid-list, everything) will fail server-side with a 500 from /api/taste — and OnboardingFlow.tsx's persistTaste() swallows that error silently (.catch(() => {})), so a user completing onboarding right now would see the flow finish normally but NONE of their preferences would actually save. Do not let a real user go through onboarding until this migration is applied — recommend applying it immediately, before any further testing.",
+    "The new AgeStep onboarding UI has not been visually verified in a real browser — only typechecked and covered by source-level string-matching tests, consistent with how the rest of the onboarding flow is tested in this repo, but a real click-through has not been done.",
+    "scripts/backfill-song-generation.mjs has not been run — existing catalog songs will show song_generation=null (no generation penalty applied either way) until it runs.",
+    "Problem #5 broader profiling remains unaddressed — explicitly deferred pending user input."
+  ]
+}

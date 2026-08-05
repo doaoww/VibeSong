@@ -17,6 +17,7 @@ import {
 import type { EmotionalVector } from "../../../lib/emotionalVector";
 import { VECTOR_KEYS, ZERO_VECTOR } from "../../../lib/emotionalVector";
 import { coercePovSignal } from "../../../lib/tagTaxonomy";
+import { extractRequestedLanguage } from "../../../lib/vibeIntent";
 
 export const runtime = "nodejs";
 
@@ -99,6 +100,17 @@ export async function POST(req: NextRequest) {
     const taste = normalizeTaste(storedTaste ?? null);
     const aggregate = buildAggregateTasteProfile(savedFeedback, skippedFeedback);
 
+    // An explicit "french vibe" (or "французский вайб") typed in this request
+    // takes priority over the stored onboarding language preference — see
+    // lib/vibeIntent.ts's extractRequestedLanguage. Forcing languageOpenness
+    // to "strict" too matters: without it, a user whose stored openness is
+    // "open" would have the hard language filter skipped entirely (see
+    // lib/recommend.ts's languageMatches gate), silently ignoring the very
+    // request this override exists to satisfy.
+    const requestedLanguage = extractRequestedLanguage(body.vibeIntent);
+    const languages = requestedLanguage ? [requestedLanguage] : taste.languages;
+    const languageOpenness = requestedLanguage ? "strict" : taste.languageOpenness;
+
     const tasteVector = storedVector ?? ZERO_VECTOR;
     const tasteArr: number[] = VECTOR_KEYS.map((k) => (storedVector ? tasteVector[k] : 0.5));
 
@@ -142,8 +154,8 @@ export async function POST(req: NextRequest) {
       searchCatalogByTags({ contextTags: sceneContextTags }, 20),
       searchCatalogByTaste({ artistPatterns, positiveGenres }, 20),
       photoBriefEmbedding ? searchCatalogByBrief(photoBriefEmbedding, 25) : Promise.resolve([] as CatalogSong[]),
-      taste.languages.length > 0
-        ? searchCatalogByLanguage(taste.languages, queryVector, 25)
+      languages.length > 0
+        ? searchCatalogByLanguage(languages, queryVector, 25)
         : Promise.resolve([] as CatalogSong[]),
       eligibleFavoriteSongIds.length > 0
         ? getSongsByIds(eligibleFavoriteSongIds)
@@ -189,8 +201,8 @@ export async function POST(req: NextRequest) {
     // failing outright.
     const baseRecommendReq = {
       queryVector,
-      languages: taste.languages,
-      languageOpenness: taste.languageOpenness,
+      languages,
+      languageOpenness,
       discoveryStyle,
       blockedArtists: aggregate.avoidArtists,
       recentlyShownSongIds,
@@ -207,6 +219,7 @@ export async function POST(req: NextRequest) {
       energyBounds,
       photoBriefEmbedding,
       presentationRead,
+      userGeneration: taste.generation,
     };
 
     const MIN_SURVIVING_CANDIDATES = 12;

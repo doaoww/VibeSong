@@ -129,12 +129,23 @@ export default function AppUploadPage() {
   // 1. completedThisSession — user just finished the quiz right now
   // 2. tasteComplete === true — DB confirms quiz done (most authoritative)
   // 3. showOnboarding === false — localStorage has "onboardingDone" flag (anonymous completion)
-  // 4. tasteComplete === false — signed in but DB says not done → show quiz
-  // 5. default: show (new user, still loading)
+  // 4. tasteComplete === false — signed in but DB confirms not done → show quiz
+  // 5. tasteComplete === null — DB read still in flight → DON'T show yet
+  //
+  // tasteComplete === null must gate false, not true: useAccountSync.ts starts
+  // it at null and only resolves it after status flips to "authenticated" (a
+  // real /api/taste round trip). A device/browser without the localStorage
+  // "onboardingDone"/"userTaste" flag (cleared storage, new browser profile,
+  // or an Instagram/TikTok in-app-browser webview with ephemeral storage —
+  // this product's primary traffic surface) has nothing to make showOnboarding
+  // false early, so treating "still loading" the same as "confirmed
+  // incomplete" (the old `tasteComplete !== true` check) showed onboarding
+  // for every returning user in that gap, then hid it again once the fetch
+  // resolved — a multi-second flash, not a genuine onboarding prompt.
   const effectiveShowOnboarding =
     status === "authenticated" &&
     !completedThisSession &&
-    tasteComplete !== true &&
+    tasteComplete === false &&
     showOnboarding;
 
   useEffect(() => {
@@ -195,6 +206,7 @@ export default function AppUploadPage() {
             photoVectorArray: vibeData.photoVectorArray,
             photoConfidence: vibeData.photoConfidence,
             presentationRead: vibeData.presentationRead,
+            vibeIntent: vibeIntentText.trim(),
             vibeBoosts: {},
             storyIntentTags: matchSignals.story_intent_tags ?? [],
             antiTags: [],

@@ -31,19 +31,30 @@ export function useAccountSync() {
       ranFor.current = u.id;
 
       (async () => {
-        const localTasteRaw = localStorage.getItem("userTaste");
-        const localCreditsRaw = localStorage.getItem("vibesong_credits");
+        // migrate-local is a one-time-per-device operation (server-side it
+        // no-ops via profile.migratedLocalData once it's run for this
+        // account, but that check still costs a full DB round trip). Without
+        // this local flag, every login — not just the first — awaited this
+        // before /api/taste, serializing two network calls on the critical
+        // path that gates tasteComplete (see app/app/page.tsx's
+        // effectiveShowOnboarding) on every single return visit.
+        const alreadyMigratedOnThisDevice = localStorage.getItem("migratedLocalData") === "1";
+        if (!alreadyMigratedOnThisDevice) {
+          const localTasteRaw = localStorage.getItem("userTaste");
+          const localCreditsRaw = localStorage.getItem("vibesong_credits");
 
-        await fetch("/api/migrate-local", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userTaste: localTasteRaw ? JSON.parse(localTasteRaw) : null,
-            savedSongs: useAppStore.getState().savedSongs,
-            skippedSongs: useAppStore.getState().skippedSongs,
-            credits: localCreditsRaw ? parseInt(localCreditsRaw, 10) : null,
-          }),
-        }).catch(() => {});
+          await fetch("/api/migrate-local", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userTaste: localTasteRaw ? JSON.parse(localTasteRaw) : null,
+              savedSongs: useAppStore.getState().savedSongs,
+              skippedSongs: useAppStore.getState().skippedSongs,
+              credits: localCreditsRaw ? parseInt(localCreditsRaw, 10) : null,
+            }),
+          }).catch(() => {});
+          localStorage.setItem("migratedLocalData", "1");
+        }
 
         const seedFeedbackRaw = localStorage.getItem("seedFeedback");
         if (seedFeedbackRaw) {
