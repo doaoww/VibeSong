@@ -16,6 +16,7 @@ import {
 } from "../../../lib/matchSignals";
 import type { EmotionalVector } from "../../../lib/emotionalVector";
 import { VECTOR_KEYS, ZERO_VECTOR } from "../../../lib/emotionalVector";
+import { coercePovSignal } from "../../../lib/tagTaxonomy";
 
 export const runtime = "nodejs";
 
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
         ? body.photoBriefEmbedding
         : null;
     const photoBriefEmbedding = briefPoolEnabled ? photoBriefEmbeddingRaw : null;
+    const presentationRead = coercePovSignal(body.presentationRead);
     const clientSeenSongIds: string[] = Array.isArray(body.clientSeenSongIds)
       ? body.clientSeenSongIds.filter((id: unknown): id is string => typeof id === "string")
       : [];
@@ -204,6 +206,7 @@ export async function POST(req: NextRequest) {
       moodTags,
       energyBounds,
       photoBriefEmbedding,
+      presentationRead,
     };
 
     const MIN_SURVIVING_CANDIDATES = 12;

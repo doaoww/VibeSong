@@ -194,6 +194,7 @@ export default function AppUploadPage() {
           body: JSON.stringify({
             photoVectorArray: vibeData.photoVectorArray,
             photoConfidence: vibeData.photoConfidence,
+            presentationRead: vibeData.presentationRead,
             vibeBoosts: {},
             storyIntentTags: matchSignals.story_intent_tags ?? [],
             antiTags: [],
