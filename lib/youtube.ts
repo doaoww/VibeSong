@@ -41,6 +41,7 @@ const SKIP_TERMS = [
   "remix",
   "acoustic",
   "karaoke",
+  "instrumental",
   "clip",
   "trailer",
   "scene",
@@ -55,7 +56,7 @@ const SKIP_TERMS = [
   "behind the scenes",
 ];
 
-function shouldSkip(title: string, originalTitle: string): boolean {
+export function shouldSkip(title: string, originalTitle: string): boolean {
   const lower = title.toLowerCase();
   const origLower = originalTitle.toLowerCase();
   return SKIP_TERMS.some((term) => lower.includes(term) && !origLower.includes(term));

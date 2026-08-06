@@ -183,6 +183,31 @@ test("manual review does not bypass the language_unknown guard on its own", () =
   assert.equal(results.length, 0, "approving tags does not fix an unset language");
 });
 
+// isConfidenceBlocked/isLanguageUnknownBlocked are the same guards buildRecommendations
+// applies internally, exported standalone so the admin triage UI (app/admin/page.tsx)
+// can identify exactly which catalog songs are invisible to every recommendation
+// request without duplicating (and risking drift from) this logic.
+test("isConfidenceBlocked mirrors the confidence_too_low guard", () => {
+  assert.equal(rec.isConfidenceBlocked(makeSong({ final_confidence: 0.2 })), true);
+  assert.equal(rec.isConfidenceBlocked(makeSong({ final_confidence: 0.5 })), false);
+  assert.equal(rec.isConfidenceBlocked(makeSong({ final_confidence: null })), false);
+  assert.equal(
+    rec.isConfidenceBlocked(makeSong({ final_confidence: 0.1, tag_source: "auto_plus_manual" })),
+    false,
+    "manual review bypasses the confidence gate"
+  );
+});
+
+test("isLanguageUnknownBlocked mirrors the language_unknown guard", () => {
+  assert.equal(rec.isLanguageUnknownBlocked(makeSong({ language: "Unknown" })), true);
+  assert.equal(rec.isLanguageUnknownBlocked(makeSong({ language: "English" })), false);
+  assert.equal(
+    rec.isLanguageUnknownBlocked(makeSong({ language: "Unknown", tag_source: "auto_plus_manual" })),
+    true,
+    "manual review does not bypass the language gate"
+  );
+});
+
 test("hardAntiTags (explicit avoid-list) hard-removes a matching song regardless of confidence", () => {
   const song = makeSong({ id: "hyped", mood_tags: ["euphoric"] });
   const req = makeRequest({ hardAntiTags: ["euphoric"], photoConfidence: 0.1 });

@@ -62,6 +62,48 @@ test("selectBestItunesResult prefers title and artist overlap with a preview URL
   assert.equal(result?.previewUrl, "https://audio.example/right.m4a");
 });
 
+test("selectBestItunesResult rejects a same-title result whose artist doesn't match at all (karaoke/instrumental-library cover)", () => {
+  // Reproduces the "Cologne (Instrumental Version) [Originally Performed by
+  // Beabadoobee]" bug: a backing-track-library result whose title contains
+  // every word of the real title scores titleScore=1.0 (full overlap) even
+  // though its artist has nothing to do with the real one. That alone was
+  // enough to clear the >=2 acceptance threshold (1.0*5 = 5) with zero
+  // artist match, so it won the "best result" slot whenever the real
+  // official track wasn't in the top 5 iTunes search results.
+  const result = itunes.selectBestItunesResult("beabadoobee", "Cologne", [
+    {
+      trackName: "Cologne (Instrumental Version) [Originally Performed by Beabadoobee]",
+      artistName: "Vibe Tracks Karaoke",
+      previewUrl: "https://audio.example/wrong.m4a",
+      artworkUrl100: "https://image.example/wrong.jpg",
+      trackViewUrl: "https://music.example/wrong",
+    },
+  ]);
+
+  assert.equal(result, null);
+});
+
+test("selectBestItunesResult still finds the real track among wrong-artist covers", () => {
+  const result = itunes.selectBestItunesResult("beabadoobee", "Cologne", [
+    {
+      trackName: "Cologne (Instrumental Version) [Originally Performed by Beabadoobee]",
+      artistName: "Vibe Tracks Karaoke",
+      previewUrl: "https://audio.example/wrong.m4a",
+      artworkUrl100: "https://image.example/wrong.jpg",
+      trackViewUrl: "https://music.example/wrong",
+    },
+    {
+      trackName: "Cologne",
+      artistName: "beabadoobee",
+      previewUrl: "https://audio.example/right.m4a",
+      artworkUrl100: "https://image.example/right.jpg",
+      trackViewUrl: "https://music.example/right",
+    },
+  ]);
+
+  assert.equal(result?.previewUrl, "https://audio.example/right.m4a");
+});
+
 test("selectBestItunesResult ignores results without previews", () => {
   const result = itunes.selectBestItunesResult("SZA", "Good Days", [
     {

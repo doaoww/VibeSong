@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { isConfidenceBlocked, isLanguageUnknownBlocked } from "../../lib/recommend";
 
 const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_SECRET ?? "";
 
@@ -42,6 +43,27 @@ function sortForReviewQueue(songs: Song[]): Song[] {
   });
 }
 
+// A song can be "needs review" (0.35-0.6 confidence) without ever being
+// excluded from recommendations — it's still scored normally, just flagged.
+// "Hard-blocked" is the much smaller, more urgent set: songs isConfidenceBlocked
+// or isLanguageUnknownBlocked actually removes from EVERY recommendation
+// request (lib/recommend.ts guards 0.5/0.6), regardless of how well they'd
+// otherwise match a photo. That's the set worth triaging first.
+function hardBlockedReasons(song: Song): string[] {
+  const reasons: string[] = [];
+  if (isConfidenceBlocked(song)) reasons.push("low confidence");
+  if (isLanguageUnknownBlocked(song)) reasons.push("unknown language");
+  return reasons;
+}
+
+function sortForHardBlockedTriage(songs: Song[]): Song[] {
+  return [...songs].sort((a, b) => {
+    const confA = a.final_confidence ?? 1;
+    const confB = b.final_confidence ?? 1;
+    return confA - confB;
+  });
+}
+
 export default function AdminPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [title, setTitle] = useState("");
@@ -51,12 +73,16 @@ export default function AdminPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editTags, setEditTags] = useState("");
   const [editLanguage, setEditLanguage] = useState("");
-  const [reviewOnly, setReviewOnly] = useState(false);
+  const [filterMode, setFilterMode] = useState<"all" | "needs_review" | "hard_blocked">("all");
 
   const headers = { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET };
 
   const load = async () => {
-    const res = await fetch("/api/admin/songs", { headers });
+    // limit=2000: the default limit=200 only covers the most-recently-added
+    // songs (list_catalog orders by created_at DESC) — with a 1000+ song
+    // catalog that silently hid ~80% of it from this page, including most of
+    // what the hard-blocked filter below needs to find.
+    const res = await fetch("/api/admin/songs?limit=2000", { headers });
     const data = await res.json();
     setSongs(data.songs ?? []);
   };
@@ -115,9 +141,13 @@ export default function AdminPage() {
     await load();
   };
 
-  const visibleSongs = reviewOnly
-    ? sortForReviewQueue(songs.filter((s) => s.needs_review))
-    : songs;
+  const hardBlockedSongs = songs.filter((s) => hardBlockedReasons(s).length > 0);
+  const visibleSongs =
+    filterMode === "hard_blocked"
+      ? sortForHardBlockedTriage(hardBlockedSongs)
+      : filterMode === "needs_review"
+      ? sortForReviewQueue(songs.filter((s) => s.needs_review))
+      : songs;
 
   return (
     <div style={{ padding: 24, fontFamily: "monospace", maxWidth: 900, margin: "0 auto" }}>
@@ -147,10 +177,36 @@ export default function AdminPage() {
       </div>
       {status && <p style={{ color: "#A855F7", marginBottom: 16 }}>{status}</p>}
 
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, color: "#888", fontSize: 13 }}>
-        <input type="checkbox" checked={reviewOnly} onChange={(e) => setReviewOnly(e.target.checked)} />
-        Show only needs review
-      </label>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, fontSize: 13 }}>
+        {([
+          ["all", `All (${songs.length})`],
+          ["needs_review", `Needs review (${songs.filter((s) => s.needs_review).length})`],
+          ["hard_blocked", `Hard-blocked (${hardBlockedSongs.length})`],
+        ] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            onClick={() => setFilterMode(mode)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "1px solid " + (filterMode === mode ? "#7C3AED" : "#333"),
+              background: filterMode === mode ? "#7C3AED" : "#111",
+              color: filterMode === mode ? "#fff" : "#888",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {filterMode === "hard_blocked" && (
+        <p style={{ color: "#666", fontSize: 12, marginTop: -8, marginBottom: 16 }}>
+          These songs never appear in any recommendation, regardless of the photo — sorted worst
+          confidence first. &quot;Approve&quot; fixes a <span style={{ color: "#eab308" }}>low confidence</span>{" "}
+          block; an <span style={{ color: "#ef4444" }}>unknown language</span> block needs the language
+          set via Edit instead (approving alone won&apos;t clear it).
+        </p>
+      )}
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
@@ -197,6 +253,20 @@ export default function AdminPage() {
                     ✓ reviewed
                   </span>
                 )}
+                {hardBlockedReasons(s).map((reason) => (
+                  <span
+                    key={reason}
+                    style={{
+                      display: "block",
+                      marginTop: 2,
+                      color: reason === "unknown language" ? "#ef4444" : "#eab308",
+                      fontSize: 10,
+                      fontWeight: 400,
+                    }}
+                  >
+                    ⊘ {reason}
+                  </span>
+                ))}
               </td>
               <td style={{ padding: "6px 8px" }}>
                 {editId === s.id ? (

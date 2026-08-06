@@ -189,6 +189,35 @@ export function computeGenerationPenalty(
   return distance >= 2 ? -20 : 0;
 }
 
+// A human judgment call (an admin approving tags in /admin) outweighs GPT's
+// self-rated confidence — see the confidence_too_low guard below.
+export function isManuallyReviewed(song: Pick<CatalogSong, "tag_source">): boolean {
+  return song.tag_source === "manual" || song.tag_source === "auto_plus_manual";
+}
+
+// Mirrors buildRecommendations' confidence_too_low guard exactly, exported
+// standalone so callers outside scoring (e.g. the admin triage view) can tell
+// which catalog songs are hard-excluded from every recommendation without
+// duplicating this condition and risking it drifting out of sync.
+export function isConfidenceBlocked(
+  song: Pick<CatalogSong, "final_confidence" | "tag_source">
+): boolean {
+  return (
+    !isManuallyReviewed(song) &&
+    song.final_confidence !== null &&
+    song.final_confidence !== undefined &&
+    song.final_confidence < 0.35
+  );
+}
+
+// Mirrors buildRecommendations' language_unknown guard exactly — see
+// isConfidenceBlocked above for why this is exported standalone. Unlike the
+// confidence guard, manual review never bypasses this one (an admin approving
+// tags doesn't fix an unset language field).
+export function isLanguageUnknownBlocked(song: Pick<CatalogSong, "language">): boolean {
+  return song.language === "Unknown";
+}
+
 // track_feedback rows only store title/artist, not song id (see lib/db/trackFeedback.ts),
 // so matching recently-shown candidates back to their catalog id has to go through
 // a normalized title+artist key rather than a direct id lookup.
@@ -329,13 +358,7 @@ export function buildRecommendations(
     // 0.5. Guard: confidence too low to trust these tags — bypassed once an admin
     // has manually reviewed/corrected the tags (tag_source set via the Approve
     // action in /admin), since a human judgment call outweighs GPT's self-rating.
-    const manuallyReviewed = song.tag_source === "manual" || song.tag_source === "auto_plus_manual";
-    if (
-      !manuallyReviewed &&
-      song.final_confidence !== null &&
-      song.final_confidence !== undefined &&
-      song.final_confidence < 0.35
-    ) {
+    if (isConfidenceBlocked(song)) {
       debugLog.push({
         id: song.id,
         title: song.title,
@@ -349,7 +372,7 @@ export function buildRecommendations(
     // 0.6. Guard: language filtering is core to matching, so an unresolved
     // language always blocks recommendation — never bypassed by manual tag
     // review alone. Clears automatically once an admin sets a real language.
-    if (song.language === "Unknown") {
+    if (isLanguageUnknownBlocked(song)) {
       debugLog.push({
         id: song.id,
         title: song.title,

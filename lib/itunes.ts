@@ -49,6 +49,15 @@ export function selectBestItunesResult(
     const artistScore = overlapScore(artist, result.artistName);
     const exactTitle = result.trackName.toLowerCase() === title.toLowerCase() ? 1 : 0;
     const exactArtist = result.artistName.toLowerCase() === artist.toLowerCase() ? 1 : 0;
+
+    // A full title-word match alone (titleScore=1) already scores 5, clearing
+    // the acceptance bar below with zero artist overlap — that let backing-track
+    // library results like "Cologne (Instrumental Version) [Originally
+    // Performed by Beabadoobee]" win purely on sharing the title's words,
+    // regardless of who actually performed them. Require some real artist
+    // signal before a candidate is even eligible.
+    if (artistScore <= 0 && exactArtist === 0) continue;
+
     const score = titleScore * 5 + artistScore * 4 + exactTitle * 3 + exactArtist * 2;
 
     if (!best || score > best.score) {
@@ -56,8 +65,8 @@ export function selectBestItunesResult(
     }
   }
 
-  // Require at least a reasonable artist match (score≥2) to avoid returning
-  // a random track from the same artist with a completely different title.
+  // Require at least a reasonable overall match (score≥2) on top of the
+  // artist-overlap gate above.
   return best && best.score >= 2 ? best.result : null;
 }
 
