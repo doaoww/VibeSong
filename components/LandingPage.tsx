@@ -186,8 +186,9 @@ function Hero() {
   return (
     <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 md:pt-44 md:pb-32">
       <Star className="float-slow absolute left-[8%] top-32 h-8 w-8 md:h-10 md:w-10 opacity-90 hidden sm:block" />
-      <div
-        className="float-slow absolute right-[12%] top-28 h-6 w-6 md:h-8 md:w-8 rounded-full bg-lime hidden sm:block"
+      <Star
+        className="float-slow absolute right-[12%] top-28 h-6 w-6 md:h-8 md:w-8 hidden sm:block"
+        color="var(--color-lime)"
         style={{ animationDelay: "1.5s" }}
       />
       <Star
