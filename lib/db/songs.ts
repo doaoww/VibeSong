@@ -58,6 +58,13 @@ export interface SongPatch {
   brief_embedding?: number[];
   /** Action flag, not a field mirror — see update_song's p_approve in songs-rpc.sql. */
   approve?: boolean;
+  /**
+   * Action flag, not a field mirror — see update_song's p_flag_for_review in
+   * supabase/needs-review-flag-migration.sql. Symmetric counterpart to
+   * approve: forces needs_review to true instead of clearing it. Requires
+   * that migration to be applied; the RPC call is a no-op parameter until then.
+   */
+  flagForReview?: boolean;
 }
 
 // All write/read operations use RPC functions to bypass PostgREST's inability
@@ -182,6 +189,7 @@ export async function updateSong(id: string, patch: Partial<SongPatch>): Promise
     p_brief_embedding:          briefEmbeddingString,
     p_lyrical_address:          patch.lyrical_address ?? null,
     p_song_generation:          patch.song_generation ?? null,
+    p_flag_for_review:          patch.flagForReview ?? false,
   });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }

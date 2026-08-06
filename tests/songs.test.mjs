@@ -296,6 +296,21 @@ test("updateSong passes null for lyrical_address when not provided", async () =>
   assert.equal(captured.args.p_lyrical_address, null);
 });
 
+test("updateSong forwards flagForReview to update_song as p_flag_for_review", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.updateSong("song-id", { flagForReview: true });
+  assert.equal(captured.name, "update_song");
+  assert.equal(captured.args.p_flag_for_review, true);
+});
+
+test("updateSong defaults p_flag_for_review to false when not provided", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.updateSong("song-id", { language: "English" });
+  assert.equal(captured.args.p_flag_for_review, false);
+});
+
 test("insertSong forwards lyrical_address to create_song", async () => {
   let captured = null;
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: "new-id", error: null }; };
