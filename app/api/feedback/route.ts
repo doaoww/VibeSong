@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUser } from "../../../lib/supabase/server";
 import { getAllFeedback, insertFeedback, type FeedbackAction, type FeedbackRowWithAction } from "../../../lib/db/trackFeedback";
+import { recordFeedback, toCatalogFeedbackAction } from "../../../lib/db/songs";
 import type { Track } from "../../../store/useAppStore";
 
 export const runtime = "nodejs";
@@ -85,6 +86,19 @@ export async function POST(req: NextRequest) {
     previewProvider: body.track.previewProvider,
     sourceImage: body.sourceImage,
   });
+
+  // Feeds the catalog's own quality_score (Bayesian-smoothed save/skip rate —
+  // see supabase/ranking-quality-fix-migration.sql) so real swipe outcomes
+  // actually influence future ranking instead of only ever being recorded in
+  // track_feedback. Only present for songs surfaced by /api/recommend (which
+  // includes id) — onboarding taste-quiz tracks (app/api/seed-feedback) have
+  // no catalog id and are correctly skipped here. Fire-and-forget: a slow or
+  // failing catalog write must not block or fail the user's swipe action.
+  if (typeof body.track.id === "string" && body.track.id) {
+    recordFeedback(body.track.id, toCatalogFeedbackAction(body.action)).catch((err) => {
+      console.error("[api/feedback] recordFeedback failed:", err);
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

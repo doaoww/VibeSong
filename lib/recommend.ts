@@ -527,16 +527,25 @@ export function buildRecommendations(
     // -5/-10 was cheap to outscore with a 2-3 tag storyFit hit (up to +21) —
     // niche photos kept surfacing the same global pop anthems over genuinely
     // niche tier-1/2 songs with an equally strong but untagged vibe fit.
+    //
+    // Halved from the original -22/-10/-13/-5 (2026-08-06): a real-feedback
+    // analysis of 2,879 catalog-matched saves/skips showed save rate climbing
+    // monotonically WITH popularity_tier (tier 2: 34.7%, tier 3: 39.0%, tier 4:
+    // 39.6%, tier 5: 42.2%) — the opposite of what this penalty assumes. Halved
+    // rather than removed: the anthem-crowding failure mode above is still real
+    // and the save-rate data doesn't rule out a familiarity confound (a
+    // recognized song may just be an easier snap "save" than a photo-fit
+    // judgment), so this is a correction toward the data, not a full reversal.
     const mainstreamPenalty =
       song.popularity_tier > 3
         ? req.discoveryStyle === "niche" || req.discoveryStyle === "hidden-gems"
           ? song.popularity_tier === 5
-            ? -22
-            : -10
+            ? -11
+            : -5
           : req.discoveryStyle === "balanced"
             ? song.popularity_tier === 5
-              ? -13
-              : -5
+              ? -6
+              : -2
             : 0
         : 0;
     const needsReviewPenalty = song.needs_review ? -12 : 0;

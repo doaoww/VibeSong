@@ -96,6 +96,29 @@ test("searchCatalogByTaste calls match_songs_by_taste with artist patterns and p
   assert.deepEqual(plain(result), [{ id: "2", emotional_vector: null }]);
 });
 
+test("recordFeedback calls record_song_feedback with the song id and action", async () => {
+  let captured = null;
+  mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
+  await songsLib.recordFeedback("song-123", "save");
+  assert.equal(captured.name, "record_song_feedback");
+  assert.deepEqual(plain(captured.args), { p_song_id: "song-123", p_action: "save" });
+});
+
+test("recordFeedback throws with a descriptive message on RPC error", async () => {
+  mockSupabase.rpc = async () => ({ data: null, error: { message: "boom" } });
+  await assert.rejects(() => songsLib.recordFeedback("song-123", "save"), /recordFeedback failed: boom/);
+});
+
+// toCatalogFeedbackAction is the seam between track_feedback's "saved"/"skipped"
+// action strings (app/api/feedback/route.ts) and record_song_feedback's
+// "save"/"skip"/"perfect" vocabulary, so the catalog's quality_score (fed by
+// save_count/skip_count — see supabase/ranking-quality-fix-migration.sql) can
+// finally be updated by the swipe UI that was never calling recordFeedback at all.
+test("toCatalogFeedbackAction maps track_feedback action strings to record_song_feedback's vocabulary", () => {
+  assert.equal(songsLib.toCatalogFeedbackAction("saved"), "save");
+  assert.equal(songsLib.toCatalogFeedbackAction("skipped"), "skip");
+});
+
 test("searchCatalogByTaste throws with a descriptive message on RPC error", async () => {
   mockSupabase.rpc = async () => ({ data: null, error: { message: "boom" } });
   await assert.rejects(() => songsLib.searchCatalogByTaste({}), /searchCatalogByTaste failed: boom/);

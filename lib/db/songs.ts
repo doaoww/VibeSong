@@ -287,6 +287,14 @@ export async function searchCatalogByLanguage(
   return normalizeSongs((data ?? []) as CatalogSong[]);
 }
 
+// Seam between track_feedback's "saved"/"skipped" action strings (see
+// lib/db/trackFeedback.ts) and record_song_feedback's "save"/"skip"/"perfect"
+// vocabulary — recordFeedback below drives quality_score's Bayesian smoothing
+// (supabase/ranking-quality-fix-migration.sql), not just a status label.
+export function toCatalogFeedbackAction(action: "saved" | "skipped"): "save" | "skip" {
+  return action === "saved" ? "save" : "skip";
+}
+
 export async function recordFeedback(
   songId: string,
   action: "save" | "skip" | "perfect"

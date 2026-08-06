@@ -56,6 +56,12 @@ export interface VibeProfile {
 }
 
 export interface Track {
+  // Catalog song id (see lib/db/songs.ts CatalogSong) — only present for
+  // tracks surfaced by /api/recommend. Threaded through to POST /api/feedback
+  // so record_song_feedback can update the catalog's own quality_score;
+  // absent for onboarding taste-quiz tracks (app/api/seed-feedback), which
+  // have no catalog id and correctly skip that update.
+  id?: string;
   title: string;
   artist: string;
   reason: string;
@@ -161,6 +167,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       body: JSON.stringify({
         action: "saved",
         track: {
+          id: track.id,
           title: track.title,
           artist: track.artist,
           reason: track.reason,
@@ -206,6 +213,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       body: JSON.stringify({
         action: "skipped",
         track: {
+          id: track.id,
           title: track.title,
           artist: track.artist,
           reason: track.reason,

@@ -230,13 +230,14 @@ export default function AppUploadPage() {
 
         // Map catalog songs to Track format for the existing swipe UI
         const mappedTracks: Track[] = recommendedSongs.map((s: {
-          title: string; artist: string; language: string;
+          id: string; title: string; artist: string; language: string;
           story_intent_tags: string[]; mood_tags: string[]; genre_tags: string[];
           scoreComponents: { finalScore: number; photoFit: number; tasteFit: number; storyFit: number };
           artwork_url: string | null; itunes_preview_url: string | null;
           apple_music_url: string | null; youtube_id: string | null;
           emotional_vector: number[] | null;
         }) => ({
+          id: s.id,
           title: s.title,
           artist: s.artist,
           reason: s.story_intent_tags[0] || s.mood_tags[0] || "Matched to your photo vibe",
