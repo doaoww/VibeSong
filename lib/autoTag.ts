@@ -138,6 +138,42 @@ function normalizeMatchValue(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+const VERSION_MARKER_TERMS = [
+  "live",
+  "instrumental",
+  "karaoke",
+  "acoustic",
+  "cover",
+  "remix",
+  "tribute",
+  "originally performed",
+  "made famous by",
+  "in the style of",
+];
+
+/**
+ * Flags a title whose OWN parenthetical/bracketed qualifier marks it as a
+ * live/instrumental/karaoke/tribute recording rather than the standard studio
+ * version — e.g. "But You (Live at Club Locomotiv)" or "Cologne (Instrumental
+ * Version) [Originally Performed by Beabadoobee]". This is a different gap
+ * from lib/itunes.ts's wrong-artist preview bug: here the iTunes match is
+ * correct (sometimes the ONLY match — verified live against iTunes for "But
+ * You" "Blood Orange", which has no studio-single release under that title),
+ * so there's nothing better to prefer. The fix is to route it to manual
+ * review instead of silently treating it as an ordinary studio recording.
+ *
+ * Scoped to parenthetical/bracketed qualifiers specifically, not a bare word
+ * match anywhere in the title, so a song genuinely titled "Live and Let Die"
+ * or "Live Your Life" isn't wrongly flagged.
+ */
+export function hasVersionMarkerQualifier(title: string): boolean {
+  const qualifiers = title.match(/[([]([^)\]]*)[)\]]/g) ?? [];
+  return qualifiers.some((qualifier) => {
+    const lower = qualifier.toLowerCase();
+    return VERSION_MARKER_TERMS.some((term) => lower.includes(term));
+  });
+}
+
 async function fetchItunesMeta(title: string, artist: string): Promise<ItunesLookupResult> {
   const params = new URLSearchParams({
     term: `${title} ${artist}`,
@@ -412,8 +448,9 @@ export async function autoTagSong(
   // catalog. Preview URL/artwork/duration/year are still worth taking from
   // a fallback match since those aren't identity-bearing the same way.
   const useItunesIdentity = itunesLookup.matchType === "exact";
+  const resolvedTitle = useItunesIdentity ? itunesMeta!.trackName : title;
   return {
-    title: useItunesIdentity ? itunesMeta!.trackName : title,
+    title: resolvedTitle,
     artist: useItunesIdentity ? itunesMeta!.artistName : artist,
     album: itunesMeta?.collectionName ?? null,
     year,
@@ -438,7 +475,7 @@ export async function autoTagSong(
     gpt_confidence,
     source_confidence,
     final_confidence,
-    needs_review: final_confidence < 0.6,
+    needs_review: final_confidence < 0.6 || hasVersionMarkerQualifier(resolvedTitle),
     evidence_sources,
     tagging_version: "v1",
     itunes_preview_url: itunesMeta?.previewUrl ?? null,

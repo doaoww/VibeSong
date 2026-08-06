@@ -412,6 +412,126 @@ test("autoTagSong treats artist-only iTunes hits as fallback evidence", async ()
   assert.equal(result.tagging_version, "v1");
 });
 
+test("hasVersionMarkerQualifier flags a parenthetical/bracketed live/instrumental/karaoke/tribute qualifier", () => {
+  assert.equal(autoTag.hasVersionMarkerQualifier("But You (Live at Club Locomotiv)"), true);
+  assert.equal(
+    autoTag.hasVersionMarkerQualifier("Cologne (Instrumental Version) [Originally Performed by Beabadoobee]"),
+    true
+  );
+  assert.equal(autoTag.hasVersionMarkerQualifier("Bad Company (Karaoke Version)"), true);
+});
+
+test("hasVersionMarkerQualifier does not flag a normal title that merely contains the word 'live'", () => {
+  // Same word, no parenthetical/bracketed qualifier — a real studio single,
+  // not a version marker. This is the false-positive case a bare word-match
+  // would have wrongly caught.
+  assert.equal(autoTag.hasVersionMarkerQualifier("Live and Let Die"), false);
+  assert.equal(autoTag.hasVersionMarkerQualifier("Live Your Life"), false);
+  assert.equal(autoTag.hasVersionMarkerQualifier("Blinding Lights"), false);
+});
+
+test("autoTagSong forces needs_review when the resolved title carries a version-marker qualifier, even at otherwise-clean confidence", async () => {
+  // Reproduces a real catalog entry found via feedback analysis: "But You
+  // (Live at Club Locomotiv)" by Blood Orange has a 23% save rate over 26
+  // interactions. Verified against live iTunes data (search "But You Blood
+  // Orange") that this live/soundtrack recording is the ONLY iTunes result
+  // under this exact title — there's no better match to prefer instead (this
+  // isn't the itunes.ts wrong-result bug), so the fix is to flag it for
+  // human review rather than silently insert it as an ordinary studio single.
+  resetHarness();
+  delete process.env.LASTFM_API_KEY;
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) {
+      return jsonResponse({
+        results: [
+          {
+            trackName: "But You (Live at Club Locomotiv)",
+            artistName: "Blood Orange",
+            collectionName: "We Are Who We Are (Original Series Soundtrack)",
+            releaseDate: "2020-11-06T12:00:00Z",
+            trackTimeMillis: 210000,
+            previewUrl: "https://example.com/preview.m4a",
+            artworkUrl100: "https://example.com/100x100bb.jpg",
+            trackViewUrl: "https://example.com/apple-music",
+          },
+        ],
+      });
+    }
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 3,
+    emotional_vector: {
+      dreamy: 0.4, nostalgia: 0.5, energy: 0.4, cinematic: 0.3, darkness: 0.2,
+      confidence: 0.5, intimacy: 0.6, danceability: 0.3, electronic: 0.4, acoustic: 0.3,
+    },
+    genre_tags: ["indie"],
+    aesthetic_tags: ["intimate"],
+    mood_tags: ["melancholic"],
+    story_intent_tags: ["modern romantic"],
+    modern_aesthetic_tags: ["night luxe"],
+    story_context_tags: ["night drive"],
+    vibe_summary: "Intimate late-night indie.",
+    confidence_level: "known_track",
+    confidence_reason: "Recognize the exact song.",
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const result = await autoTagSong("But You (Live at Club Locomotiv)", "Blood Orange");
+
+  // Exact iTunes match, known_track confidence -- final_confidence would
+  // otherwise clear 0.6 and skip review entirely.
+  assert.ok(result.final_confidence >= 0.6, "sanity check: confidence alone would not have triggered needs_review");
+  assert.equal(result.needs_review, true);
+});
+
+test("autoTagSong does not force needs_review for a normal title with no version-marker qualifier", async () => {
+  resetHarness();
+  delete process.env.LASTFM_API_KEY;
+  stubState.fetchImpl = async (url) => {
+    if (url.startsWith("https://itunes.apple.com/search?")) {
+      return jsonResponse({
+        results: [
+          {
+            trackName: "Blinding Lights",
+            artistName: "The Weeknd",
+            collectionName: "After Hours",
+            releaseDate: "2020-03-20T12:00:00Z",
+            trackTimeMillis: 200040,
+            previewUrl: "https://example.com/preview.m4a",
+            artworkUrl100: "https://example.com/100x100bb.jpg",
+            trackViewUrl: "https://example.com/apple-music",
+          },
+        ],
+      });
+    }
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+  stubState.openaiContent = JSON.stringify({
+    language: "English",
+    popularity_tier: 5,
+    emotional_vector: {
+      dreamy: 0.2, nostalgia: 0.7, energy: 0.8, cinematic: 0.4, darkness: 0.1,
+      confidence: 0.9, intimacy: 0.2, danceability: 0.9, electronic: 0.8, acoustic: 0.1,
+    },
+    genre_tags: ["synthpop"],
+    aesthetic_tags: ["neon"],
+    mood_tags: ["euphoric"],
+    story_intent_tags: ["main character energy"],
+    modern_aesthetic_tags: ["night luxe"],
+    story_context_tags: ["night drive"],
+    vibe_summary: "Big neon heartbreak.",
+    confidence_level: "known_track",
+    confidence_reason: "Recognize the exact song.",
+  });
+
+  const { autoTagSong } = loadTsModule("lib/autoTag.ts");
+  const result = await autoTagSong("Blinding Lights", "The Weeknd");
+
+  assert.equal(result.needs_review, false);
+});
+
 test("autoTagSong uses a provided lyrics provider without changing source_confidence", async () => {
   resetHarness();
   delete process.env.LASTFM_API_KEY;
