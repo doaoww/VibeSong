@@ -1,39 +1,43 @@
 # VibeSong Audit — Progress
 
-_Last updated: 2026-08-05, late evening_
-
-## ⚠️ Urgent — do this before testing onboarding
-
-I just built the age/generation feature (#3b) and confirmed empirically that **`user_taste.generation` does not exist in production yet**. Because `upsertUserTaste()` saves the whole taste profile in one upsert call, this means **onboarding will silently fail to save anything** (languages, artists, avoid-list — all of it) for any real user who completes it right now, until the migration is applied. The failure is swallowed silently client-side, so nothing looks broken — it just quietly doesn't save.
-
-**Fix:** run `supabase/generation-preference-migration.sql` (main project) and `supabase/song-generation-migration.sql` (catalog project) via the Supabase SQL editor before anyone goes through onboarding.
+_Last updated: 2026-08-06, early morning_
 
 ## Where things stand
 
-All 5 original problems are diagnosed. #1, #2, #3a, #4 are fixed, deployed, and verified with real data/calls. #3b is fully built and test-passing but not yet deployed (see above). #5 is partially addressed.
+All 5 original problems are diagnosed. **#1, #2, #3a, #3b, #4 are fixed, deployed, and verified live with real data.** Only #5 remains open.
 
-**1. Faces/portraits (wrong-gender songs)** — ✅ Fixed, deployed, verified end-to-end with real GPT-4o calls against real photos and real penalty math against real classified catalog songs.
+**1. Faces/portraits (wrong-gender songs)** — ✅ Fixed, deployed, verified end-to-end with real GPT-4o calls and real penalty math against the fully-backfilled catalog (2583/2583 classified).
 
-**2. "French vibe" ignored** — ✅ Fixed. Deterministic language-keyword matcher now overrides the language filter when you type an explicit request.
+**2. "French vibe" ignored** — ✅ Fixed and tested. Deterministic language matcher overrides the retrieval filter on an explicit text request.
 
-**3a. Weak non-English retrieval** — ✅ Confirmed fixed and live (Hindi search now returns real results).
+**3a. Weak non-English retrieval** — ✅ Confirmed fixed and live.
 
-**3b. No age/generation awareness** — ✅ Built this session, following your direction (ask age directly, derive generation, apply the same architecture as the gender fix): new onboarding step asks age range → maps to a generation cohort → songs get a GPT-classified generation tag → a soft scoring penalty deprioritizes songs aimed at a distantly different generation (adjacent generations, like millennial/gen-x, are never penalized — only a 2+ cohort gap is). All code written, typechecked, and test-covered (mirrors the exact pattern already proven for the gender fix). **Not yet deployed** — two migrations need to be applied, then a backfill run (same cost profile as before, ~2583 GPT-4o-mini calls, will ask before running).
+**3b. No age/generation awareness** — ✅ Fully built and deployed this session, per your explicit direction (ask age directly, derive generation, same architecture as the gender fix):
+- New "How old are you?" onboarding step (age range → generation cohort, skippable)
+- Songs get a GPT-classified generation tag (accounts for revivals, not just literal release year)
+- Soft scoring penalty deprioritizes songs aimed at a distantly different generation (adjacent generations are never penalized)
+- Both migrations applied and verified live; full catalog (2584 songs) backfilled with 0 errors
 
-**4. Onboarding flash** — ✅ Fixed. Also fixed a related speed bug (redundant network call on every login, not just the first).
+**Real distribution from the backfill:** gen-z 1841, millennial 234, timeless 243, unclear 261, gen-x 2, boomer 3. Worth knowing: the catalog barely has any gen-x/boomer-tagged music (5 songs total), so the new signal won't have much to work with for older users yet — that's a catalog-content gap to fix separately, not a bug in the scoring itself.
+
+**4. Onboarding flash** — ✅ Fixed. Also fixed a related speed bug (redundant network call on every login).
 
 **5. Slow loading** — 🟡 One contributor fixed as a side effect of #4. Still need your input on which screen feels slow, or permission to profile broadly.
 
+## Code is pushed to GitHub
+
+All of this session's changes are on `origin/main` (3 commits). One file was deliberately left out: `supabase/pro-subscription-migration.sql` has stray garbage text appended locally that looks like an accidental keystroke — not committed, still sitting in your working tree, waiting on your call (fix it, discard it, or ignore it).
+
 ## What's not done
 
-- The two new #3b migrations need to be applied (see urgent note above)
-- The #3b backfill script hasn't been run (needs your go-ahead, real API cost)
-- The new age-onboarding screen hasn't been visually tested in a browser — only typechecked/unit-tested
+- A real browser walkthrough of the new age-onboarding screen (only typechecked/unit-tested so far)
 - #5 broader profiling
-- A live photo test reproducing the *exact* original #1 bug (man → wrong song) — I don't have a male test photo among the app's assets, so I verified the mechanism in the female direction instead, which is symmetric by construction
+- The corrupted `pro-subscription-migration.sql` — needs your decision
+- Growing gen-x/boomer catalog coverage (only 5 songs currently) if you want the new generation signal to actually matter for older users
+- Local dev server was stopped by the environment after the backfill finished — restart with `npm run dev` if you want to try the app locally
 
 Full detail, file-by-file, is in `vibesong-agent-state.json`.
 
 ---
 
-**Stopping here.** Dev server is running locally. To continue in a new terminal, say "continue from state file."
+**Stopping here.** To continue in a new terminal, say "continue from state file."
