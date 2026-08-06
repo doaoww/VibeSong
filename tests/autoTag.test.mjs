@@ -421,6 +421,18 @@ test("hasVersionMarkerQualifier flags a parenthetical/bracketed live/instrumenta
   assert.equal(autoTag.hasVersionMarkerQualifier("Bad Company (Karaoke Version)"), true);
 });
 
+test("hasVersionMarkerQualifier does not flag a qualifier where a marker word is only a substring of another word", () => {
+  // "Toliver" contains the substring "live" -- a real, correctly-attributed
+  // song ("Too Many Nights" by Metro Boomin & Future feat. Don Toliver) was
+  // wrongly flagged by a plain .includes() check for exactly this reason,
+  // the same false-positive class recommend.ts's genreOverlapScore already
+  // had to fix once (wordBoundaryIncludes) for "hyperpop" containing "pop".
+  assert.equal(autoTag.hasVersionMarkerQualifier("Too Many Nights (feat. Don Toliver)"), false);
+  // "discover"/"recover" contain "cover"; "alive" contains "live".
+  assert.equal(autoTag.hasVersionMarkerQualifier("Song Title (Rediscover Yourself)"), false);
+  assert.equal(autoTag.hasVersionMarkerQualifier("Song Title (Still Alive)"), false);
+});
+
 test("hasVersionMarkerQualifier does not flag a normal title that merely contains the word 'live'", () => {
   // Same word, no parenthetical/bracketed qualifier — a real studio single,
   // not a version marker. This is the false-positive case a bare word-match

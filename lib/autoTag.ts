@@ -151,6 +151,20 @@ const VERSION_MARKER_TERMS = [
   "in the style of",
 ];
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Plain .includes() treated "Toliver" (a real artist's surname, e.g. "feat.
+// Don Toliver") as containing the marker "live", and would do the same for
+// "discover"/"recover" against "cover" or "alive" against "live" -- the same
+// false-positive class lib/recommend.ts's genreOverlapScore already had to
+// fix once for "hyperpop" containing "pop". \b anchors to whole-word matches
+// only.
+function wordBoundaryIncludes(haystack: string, needle: string): boolean {
+  return new RegExp(`\\b${escapeRegExp(needle)}\\b`, "i").test(haystack);
+}
+
 /**
  * Flags a title whose OWN parenthetical/bracketed qualifier marks it as a
  * live/instrumental/karaoke/tribute recording rather than the standard studio
@@ -168,10 +182,9 @@ const VERSION_MARKER_TERMS = [
  */
 export function hasVersionMarkerQualifier(title: string): boolean {
   const qualifiers = title.match(/[([]([^)\]]*)[)\]]/g) ?? [];
-  return qualifiers.some((qualifier) => {
-    const lower = qualifier.toLowerCase();
-    return VERSION_MARKER_TERMS.some((term) => lower.includes(term));
-  });
+  return qualifiers.some((qualifier) =>
+    VERSION_MARKER_TERMS.some((term) => wordBoundaryIncludes(qualifier, term))
+  );
 }
 
 async function fetchItunesMeta(title: string, artist: string): Promise<ItunesLookupResult> {
