@@ -304,11 +304,16 @@ test("updateSong forwards flagForReview to update_song as p_flag_for_review", as
   assert.equal(captured.args.p_flag_for_review, true);
 });
 
-test("updateSong defaults p_flag_for_review to false when not provided", async () => {
+test("updateSong omits p_flag_for_review entirely when not provided (not even as false)", async () => {
+  // Deliberately NOT sent as false: the live update_song function (before
+  // supabase/needs-review-flag-migration.sql is applied) has no
+  // p_flag_for_review parameter at all, and PostgREST errors on any RPC call
+  // naming a parameter no live overload has -- so every other call (Approve,
+  // tag edits) must omit it entirely rather than defaulting to false.
   let captured = null;
   mockSupabase.rpc = async (name, args) => { captured = { name, args }; return { data: null, error: null }; };
   await songsLib.updateSong("song-id", { language: "English" });
-  assert.equal(captured.args.p_flag_for_review, false);
+  assert.equal("p_flag_for_review" in captured.args, false);
 });
 
 test("insertSong forwards lyrical_address to create_song", async () => {

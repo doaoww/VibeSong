@@ -189,7 +189,16 @@ export async function updateSong(id: string, patch: Partial<SongPatch>): Promise
     p_brief_embedding:          briefEmbeddingString,
     p_lyrical_address:          patch.lyrical_address ?? null,
     p_song_generation:          patch.song_generation ?? null,
-    p_flag_for_review:          patch.flagForReview ?? false,
+    // Only included when actually true, unlike every other field above:
+    // PostgREST resolves an RPC call by matching every named argument against
+    // a live function overload, and errors outright if none matches ("function
+    // update_song(..., p_flag_for_review => boolean) does not exist") rather
+    // than ignoring an unrecognized name. Until
+    // supabase/needs-review-flag-migration.sql is applied, the live
+    // update_song has no such parameter at all -- sending it unconditionally
+    // (even as false) would break every existing call (Approve, tag edits)
+    // the moment this ships, not just the new flagForReview path.
+    ...(patch.flagForReview ? { p_flag_for_review: true } : {}),
   });
   if (error) throw new Error(`updateSong failed: ${error.message}`);
 }
